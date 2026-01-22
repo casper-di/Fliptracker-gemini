@@ -6,14 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>FlipTracker - Your Shipments, Simplified</title>
   
-  <!-- PWA Metadata -->
-  <link rel="manifest" href="/manifest.json">
+  <!-- UI Metadata -->
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FlipTracker">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/685/685388.png">
 
+  <!-- Tailwind & Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -28,11 +27,13 @@
     }
   </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     body { 
       font-family: 'Inter', sans-serif; 
       overscroll-behavior-y: contain;
+      -webkit-tap-highlight-color: transparent;
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -57,20 +58,7 @@
 <body class="bg-slate-100 dark:bg-slate-950">
   <div id="root"></div>
   
-  <!-- Point d'entrée principal pour Vite -->
+  <!-- Point d'entrée pour le build Vite -->
   <script type="module" src="/index.tsx"></script>
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        // Enregistrement du Service Worker depuis la racine du dossier de build
-        navigator.serviceWorker.register('/sw.js').then(reg => {
-          console.log('ServiceWorker registered with scope: ', reg.scope);
-        }).catch(err => {
-          console.error('ServiceWorker registration failed: ', err);
-        });
-      });
-    }
-  </script>
 </body>
 </html>
