@@ -32,23 +32,24 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     body { 
       font-family: 'Inter', sans-serif; 
-      overscroll-behavior-y: contain; /* Empêche le pull-to-refresh natif du navigateur */
+      overscroll-behavior-y: contain;
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .theme-transition { transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
     
-    /* Support Safe Area for iPhone Notch */
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     .pt-safe { padding-top: env(safe-area-inset-top); }
   </style>
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.37.0"
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
@@ -56,8 +57,10 @@
 <body class="bg-slate-100 dark:bg-slate-950">
   <div id="root"></div>
   
+  <!-- Point d'entrée pour le compilateur (Vite/dist) -->
+  <script type="module" src="/index.tsx"></script>
+
   <script>
-    // Enregistrement du Service Worker pour le mode PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').catch(err => {
