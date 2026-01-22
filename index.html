@@ -57,15 +57,17 @@
 <body class="bg-slate-100 dark:bg-slate-950">
   <div id="root"></div>
   
-  <!-- Point d'entrée pour le compilateur (Vite/dist) -->
+  <!-- Point d'entrée principal pour Vite -->
   <script type="module" src="/index.tsx"></script>
 
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // Le chemin est désormais absolu vers la racine du domaine
-        navigator.serviceWorker.register('/sw.js').catch(err => {
-          console.log('ServiceWorker registration failed: ', err);
+        // Enregistrement du Service Worker depuis la racine du dossier de build
+        navigator.serviceWorker.register('/sw.js').then(reg => {
+          console.log('ServiceWorker registered with scope: ', reg.scope);
+        }).catch(err => {
+          console.error('ServiceWorker registration failed: ', err);
         });
       });
     }
