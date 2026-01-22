@@ -7,7 +7,7 @@
   <title>FlipTracker - Your Shipments, Simplified</title>
   
   <!-- PWA Metadata -->
-  <link rel="manifest" href="/assets/manifest-DnkdpArx.json">
+  <link rel="manifest" href="/Fliptracker-gemini/assets/manifest-DnkdpArx.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -40,26 +40,9 @@
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     .pt-safe { padding-top: env(safe-area-inset-top); }
   </style>
-
-<script type="importmap">
-{
-  "imports": {
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
-  <script type="module" crossorigin src="/assets/index-XcuJLHWQ.js"></script>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950">
   <div id="root"></div>
-  
-  <!-- Point d'entrée pour le compilateur (Vite/dist) -->
-
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
