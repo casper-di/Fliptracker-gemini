@@ -1,0 +1,8 @@
+{
+  "name": "FlipTracker",
+  "description": "A privacy-first package tracking application that automatically detects shipment information from emails and displays delivery status in a clean timeline UI.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
