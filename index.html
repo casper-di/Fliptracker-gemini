@@ -7,7 +7,7 @@
   <title>FlipTracker - Your Shipments, Simplified</title>
   
   <!-- PWA Metadata -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -41,13 +41,30 @@
     .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     .pt-safe { padding-top: env(safe-area-inset-top); }
   </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950">
   <div id="root"></div>
+  
+  <!-- Point d'entrée pour le compilateur (Vite/dist) -->
+  <script type="module" src="/index.tsx"></script>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
+        // Le chemin est désormais absolu vers la racine du domaine
+        navigator.serviceWorker.register('/sw.js').catch(err => {
           console.log('ServiceWorker registration failed: ', err);
         });
       });

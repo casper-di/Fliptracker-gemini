@@ -1,13 +1,9 @@
-const CACHE_NAME = 'fliptracker-v1';
-const BASE = '/Fliptracker-gemini/';
 
+const CACHE_NAME = 'fliptracker-v1';
 const ASSETS = [
-  BASE,
-  BASE + 'index.html',
-  BASE + 'manifest.json',
-  BASE + 'assets/index-l0sNRNKZ.js',   // Remplace XXXX par le hash généré par Vite
-  BASE + 'assets/manifest-DnkdpArx.json',  // idem
-  // ajoute ici toutes les autres ressources statiques (images, icons...)
+  '/',
+  '/index.html',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
