@@ -4,9 +4,8 @@ const BASE = '/Fliptracker-gemini/';
 const ASSETS = [
   BASE,
   BASE + 'index.html',
-  BASE + 'assets/index-l0sNRNKZ.js',   // Remplace XXXX par le hash généré par Vite
-  BASE + 'assets/manifest-DnkdpArx.json',  // idem
-  // ajoute ici toutes les autres ressources statiques (images, icons...)
+  BASE + 'assets/index-l0sNRNKZ.js.map',   // Remplace XXXX par le hash généré par Vite
+  BASE + 'assets/manifest.json',  // idem
 ];
 
 self.addEventListener('install', (event) => {
