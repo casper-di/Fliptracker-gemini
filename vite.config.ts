@@ -10,6 +10,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: false // Désactivé pour un build de production plus léger
+    target: 'esnext'
   }
 });
