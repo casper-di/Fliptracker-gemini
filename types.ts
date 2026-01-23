@@ -83,12 +83,25 @@ export interface UserPreferences {
   };
 }
 
-export interface SyncStatus {
-  state: 'connected' | 'paused' | 'disconnected';
-  provider: 'gmail' | 'outlook' | 'imap' | null;
+export interface ConnectedEmail {
+  id: string;
+  userId: string;
+  provider: 'gmail' | 'outlook';
+  emailAddress: string;
+  accessToken: string;
+  refreshToken?: string;
+  tokenExpiry: string;
+  scopes: string[];
+  status: 'connected' | 'expired' | 'error';
   lastSyncAt: string | null;
-  detectedCount: number;
-  email: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncStatus {
+  connections: ConnectedEmail[];
+  isLoading: boolean;
+  error: string | null;
 }
 
 export type TabType = 'incoming' | 'outgoing' | 'history' | 'notifications' | 'settings' | 'add' | 'email_sync';

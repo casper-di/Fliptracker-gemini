@@ -19,10 +19,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
     });
   };
 
-  const isDark = preferences.theme === 'dark';
+  const connectedCount = status.connections.length;
+  const anyConnected = connectedCount > 0;
 
   return (
-    <div className="px-6 py-10 space-y-8 animate-in fade-in pb-32">
+    <div className="px-6 py-10 space-y-8 animate-in fade-in pb-32 overflow-y-auto no-scrollbar">
       <div>
         <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight">Paramètres</h2>
         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mt-2">Configuration & Compte</p>
@@ -36,7 +37,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
           </div>
           <div>
             <h4 className="text-base font-black text-slate-900 dark:text-white truncate">Utilisateur Local</h4>
-            <p className="text-xs font-bold text-slate-400 dark:text-slate-500">{status.email || 'Non connecté'}</p>
+            <p className="text-xs font-bold text-slate-400 dark:text-slate-500">Compte Invité</p>
           </div>
         </div>
         <button 
@@ -55,13 +56,13 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
           className="w-full flex items-center justify-between p-1 group"
         >
           <div className="flex items-center gap-4">
-             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg ${status.state === 'connected' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>
+             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg ${anyConnected ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-slate-100 dark:bg-slate-900 text-slate-400'}`}>
                 <i className="fas fa-envelope-open-text"></i>
              </div>
              <div className="text-left">
-                <p className="text-sm font-black text-slate-900 dark:text-white">Gérer les accès email</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">Comptes liés ({connectedCount})</p>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight">
-                  {status.state === 'connected' ? '🟢 Connecté à Gmail' : '🔴 Non connecté'}
+                  {anyConnected ? '🟢 Comptes actifs' : '🔴 Aucun compte'}
                 </p>
              </div>
           </div>
@@ -108,7 +109,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
       </section>
 
       <div className="text-center py-6 opacity-30">
-        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-[0.3em] italic">FlipTracker v2.5.0</p>
+        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-[0.3em] italic">FlipTracker v2.6.0</p>
       </div>
     </div>
   );

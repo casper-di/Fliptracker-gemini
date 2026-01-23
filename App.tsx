@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus } from './types';
-import { parseEmailContent } from './services/geminiService';
+import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus, ConnectedEmail } from './types';
 import { generateMockShipments } from './services/mockDataService';
 import { ShipmentCard } from './components/ShipmentCard';
 import { ShipmentDetailsPage } from './components/ShipmentDetailsPage';
@@ -13,6 +12,7 @@ import { EmailSyncPage } from './components/EmailSyncPage';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { LoadingOverlay } from './components/LoadingOverlay';
+import { api } from './services/apiService';
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'light',
@@ -33,11 +33,9 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 };
 
 const INITIAL_SYNC_STATUS: SyncStatus = {
-  state: 'disconnected', // Modifié par défaut pour montrer l'alerte au premier démarrage
-  provider: null,
-  lastSyncAt: null,
-  detectedCount: 0,
-  email: null
+  connections: [],
+  isLoading: false,
+  error: null
 };
 
 const App: React.FC = () => {
@@ -57,52 +55,51 @@ const App: React.FC = () => {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(INITIAL_SYNC_STATUS);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Persistence & Initial Mocks
+  // Initial Data Loading
   useEffect(() => {
     const savedAuth = localStorage.getItem('fliptracker_auth');
     if (savedAuth === 'true') setIsAuthenticated(true);
 
-    const saved = localStorage.getItem('fliptracker_shipments');
+    const savedShipments = localStorage.getItem('fliptracker_shipments');
     const savedNotifs = localStorage.getItem('fliptracker_notifications');
     const savedPrefs = localStorage.getItem('fliptracker_preferences');
-    const savedSync = localStorage.getItem('fliptracker_sync');
     
-    if (saved) {
-      try { setShipments(JSON.parse(saved)); } catch (e) { console.error(e); }
+    if (savedShipments) {
+      try { setShipments(JSON.parse(savedShipments)); } catch (e) { console.error(e); }
     } else {
-      setShipments(generateMockShipments(100));
+      setShipments(generateMockShipments(10));
     }
 
     if (savedNotifs) {
       try { setNotifications(JSON.parse(savedNotifs)); } catch (e) { console.error(e); }
-    } else {
-      setNotifications([
-        { id: 'n1', title: 'Bienvenue sur FlipTracker', message: 'Votre interface de suivi a été mise à jour avec une gestion complète du mode sombre.', timestamp: new Date().toISOString(), type: 'info', read: false },
-        { id: 'n2', title: 'Retrait urgent', message: 'Un colis Zalando SE arrive à échéance demain.', timestamp: new Date(Date.now() - 3600000).toISOString(), type: 'urgent', read: false },
-      ]);
     }
 
     if (savedPrefs) {
       try { setPreferences(JSON.parse(savedPrefs)); } catch (e) { console.error(e); }
     }
 
-    if (savedSync) {
-      try { setSyncStatus(JSON.parse(savedSync)); } catch (e) { console.error(e); }
-    }
+    // Load connections from "API"
+    const loadConnections = async () => {
+      setSyncStatus(prev => ({ ...prev, isLoading: true }));
+      try {
+        const connections = await api.getEmails();
+        setSyncStatus({ connections, isLoading: false, error: null });
+      } catch (err) {
+        setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Failed to load connections' }));
+      }
+    };
+    loadConnections();
 
-    // Initial Splash timeout
     setTimeout(() => setAppLoading(false), 2500);
   }, []);
 
+  // Save State
   useEffect(() => {
     localStorage.setItem('fliptracker_shipments', JSON.stringify(shipments));
     localStorage.setItem('fliptracker_notifications', JSON.stringify(notifications));
     localStorage.setItem('fliptracker_preferences', JSON.stringify(preferences));
     localStorage.setItem('fliptracker_auth', isAuthenticated.toString());
-    localStorage.setItem('fliptracker_sync', JSON.stringify(syncStatus));
-  }, [shipments, notifications, preferences, isAuthenticated, syncStatus]);
+  }, [shipments, notifications, preferences, isAuthenticated]);
 
   const isDarkMode = preferences.theme === 'dark' || (preferences.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -127,38 +124,40 @@ const App: React.FC = () => {
       list = list.filter(s => s.status === ShipmentStatus.IN_TRANSIT || s.status === ShipmentStatus.OUT_FOR_DELIVERY);
     }
 
-    return list.sort((a, b) => {
-      const priority = (s: Shipment) => {
-        if (s.status === ShipmentStatus.PICKUP_AVAILABLE) return -2000000000000 + (s.pickupInfo?.deadlineDate ? new Date(s.pickupInfo.deadlineDate).getTime() : 0);
-        if (s.status === ShipmentStatus.DELAYED) return -1000000000000;
-        return 0;
-      };
-      const pA = priority(a);
-      const pB = priority(b);
-      return pA !== pB ? pA - pB : (new Date(a.estimatedDelivery || 0).getTime() - new Date(b.estimatedDelivery || 0).getTime());
-    });
+    return list.sort((a, b) => (new Date(a.lastUpdated).getTime() > new Date(b.lastUpdated).getTime() ? -1 : 1));
   }, [shipments, activeTab, searchQuery, filterType]);
 
-  const handleSyncAction = (action: string) => {
-    if (action === 'restart') {
-      setIsRefreshing(true);
-      setTimeout(() => {
-        setIsRefreshing(false);
-        setSyncStatus(prev => ({ ...prev, state: 'connected', lastSyncAt: new Date().toISOString() }));
-      }, 1500);
-    } else if (action === 'pause') {
-      setSyncStatus(prev => ({ ...prev, state: 'paused' }));
-    } else if (action === 'disconnect') {
-      setSyncStatus({ state: 'disconnected', provider: null, lastSyncAt: null, detectedCount: 0, email: null });
-    } else if (action.startsWith('connect_')) {
-      const provider = action.split('_')[1] as any;
-      setSyncStatus({
-        state: 'connected',
-        provider,
-        lastSyncAt: new Date().toISOString(),
-        detectedCount: 42,
-        email: 'user@example.com'
-      });
+  const handleSyncAction = async (action: string, payload?: any) => {
+    setSyncStatus(prev => ({ ...prev, isLoading: true }));
+    try {
+      if (action === 'connect_gmail') {
+        // Simulate redirect and return with code
+        const email = prompt("Enter Gmail address to simulate OAuth:") || "user@gmail.com";
+        const newConn = await api.gmail.connectCallback('simulated_code', email);
+        setSyncStatus(prev => ({
+          ...prev,
+          connections: prev.connections.some(c => c.id === newConn.id) 
+            ? prev.connections.map(c => c.id === newConn.id ? newConn : c)
+            : [...prev.connections, newConn],
+          isLoading: false
+        }));
+      } else if (action === 'delete') {
+        await api.deleteEmail(payload);
+        setSyncStatus(prev => ({
+          ...prev,
+          connections: prev.connections.filter(c => c.id !== payload),
+          isLoading: false
+        }));
+      } else if (action === 'reconnect') {
+        const updated = await api.reconnectEmail(payload);
+        setSyncStatus(prev => ({
+          ...prev,
+          connections: prev.connections.map(c => c.id === payload ? updated : c),
+          isLoading: false
+        }));
+      }
+    } catch (err) {
+      setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Operation failed' }));
     }
   };
 
@@ -170,7 +169,6 @@ const App: React.FC = () => {
     }, 2500);
   };
 
-  // Auth Layout
   if (appLoading) return <LoadingOverlay />;
 
   if (!isAuthenticated) {
@@ -180,7 +178,6 @@ const App: React.FC = () => {
     return <AuthPage onAuthComplete={handleAuthComplete} onBack={() => setAuthView('landing')} />;
   }
 
-  // Dashboard Layout
   if (selectedShipment) {
     return (
       <div className={isDarkMode ? 'dark' : ''}>
@@ -205,8 +202,8 @@ const App: React.FC = () => {
               <div onClick={() => setActiveTab('incoming')} className="cursor-pointer">
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-none tracking-tight italic">FlipTracker</h1>
                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${syncStatus.state === 'connected' ? 'bg-emerald-500' : 'bg-amber-400'}`}></span>
-                  {syncStatus.state === 'connected' ? 'Synchronisé' : 'Scan en pause'}
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${syncStatus.connections.some(c => c.status === 'connected') ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                  {syncStatus.connections.length > 0 ? `${syncStatus.connections.length} comptes connectés` : 'Aucun compte mail'}
                 </p>
               </div>
               <button 
@@ -245,28 +242,20 @@ const App: React.FC = () => {
           </header>
         )}
 
-        <main 
-          className={`flex-1 overflow-y-auto no-scrollbar relative ${activeTab === 'email_sync' ? '' : 'pb-32'}`}
-        >
-          {/* Alerte contextuelle pour la synchronisation mail */}
-          {isAuthenticated && syncStatus.state === 'disconnected' && (activeTab === 'incoming' || activeTab === 'outgoing') && (
+        <main className={`flex-1 overflow-y-auto no-scrollbar relative ${activeTab === 'email_sync' ? '' : 'pb-32'}`}>
+          {isAuthenticated && syncStatus.connections.length === 0 && (activeTab === 'incoming' || activeTab === 'outgoing') && (
             <div className="px-5 pt-6 animate-in slide-in-from-top-4 duration-500">
               <div className="bg-blue-600 dark:bg-blue-700 rounded-[28px] p-6 shadow-xl shadow-blue-500/20 relative overflow-hidden group">
-                <div className="absolute top-[-20%] right-[-10%] w-32 h-32 bg-white/10 blur-3xl rounded-full group-hover:scale-150 transition-transform duration-1000"></div>
-                
                 <div className="flex items-start gap-5 relative z-10">
                   <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shrink-0">
-                    <i className="fas fa-envelope-circle-check text-xl animate-pulse"></i>
+                    <i className="fas fa-envelope-circle-check text-xl"></i>
                   </div>
                   <div className="flex-1">
                     <h3 className="text-sm font-black text-white uppercase tracking-tight mb-1">Boîte mail non connectée</h3>
                     <p className="text-[11px] text-white/80 font-bold leading-relaxed mb-4">
-                      Synchronisez votre compte pour détecter automatiquement vos prochains colis et profiter du suivi intelligent.
+                      Synchronisez vos comptes Gmail ou Outlook pour détecter automatiquement vos prochains colis.
                     </p>
-                    <button 
-                      onClick={() => setActiveTab('email_sync')}
-                      className="bg-white text-blue-600 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg"
-                    >
+                    <button onClick={() => setActiveTab('email_sync')} className="bg-white text-blue-600 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-lg">
                       Connecter ma boîte
                     </button>
                   </div>
@@ -292,7 +281,6 @@ const App: React.FC = () => {
               onLogout={() => {
                 setIsAuthenticated(false);
                 setAuthView('landing');
-                setSyncStatus({ state: 'disconnected', provider: null, lastSyncAt: null, detectedCount: 0, email: null });
               }}
             />
           ) : activeTab === 'email_sync' ? (
