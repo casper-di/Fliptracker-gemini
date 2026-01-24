@@ -26,7 +26,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd fliptracker/apps/frontend && npm run dev"
+args = "cd fliptracker && pnpm dev:frontend"
 waitForPort = 5000
 
 [[ports]]

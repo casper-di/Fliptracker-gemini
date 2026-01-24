@@ -1,0 +1,110 @@
+You are a senior platform engineer.
+
+The architecture for Fliptracker monorepo is now finalized.
+Your task is to properly configure pnpm to manage the entire repository.
+
+===================================================
+GOALS
+===================================================
+
+- Use pnpm workspaces at the root
+- Manage dependencies centrally
+- Allow apps and packages to reference each other
+- Keep lockfile single and deterministic
+- Support Turborepo or Nx
+- Prepare for future plugins packages
+
+===================================================
+ROOT FILES TO CREATE / UPDATE
+===================================================
+
+fliptracker/pnpm-workspace.yaml
+fliptracker/package.json
+fliptracker/.npmrc
+fliptracker/turbo.json (or nx.json)
+
+===================================================
+PNPM WORKSPACE CONFIG
+===================================================
+
+pnpm-workspace.yaml must include:
+
+apps/*
+packages/*
+plugins/*
+
+===================================================
+ROOT PACKAGE.JSON
+===================================================
+
+Root package.json must:
+
+- be private
+- define workspaces scripts
+- include devDependencies only (eslint, prettier, turbo, typescript)
+- expose scripts:
+
+dev
+dev:frontend
+dev:backend
+build
+build:frontend
+build:backend
+lint
+test
+
+===================================================
+DEPENDENCY RULES
+===================================================
+
+- apps/frontend installs only frontend libs
+- apps/backend installs only backend libs
+- packages/domain has zero framework deps
+- packages/shared only types/libs
+- plugins packages will be independent later
+
+===================================================
+NPMRC RULES
+===================================================
+
+Add:
+
+node-linker=hoisted
+strict-peer-dependencies=false
+
+===================================================
+TURBO CONFIG
+===================================================
+
+Define pipelines:
+
+build dependsOn build of dependencies
+lint dependsOn lint of dependencies
+test dependsOn test of dependencies
+
+Output folders:
+
+apps/frontend/dist
+apps/backend/dist
+
+===================================================
+TASKS
+===================================================
+
+1. Create pnpm-workspace.yaml
+2. Update root package.json
+3. Add .npmrc
+4. Add turbo.json or nx.json
+5. Ensure apps and packages install correctly
+6. Add cross-workspace imports
+7. Document pnpm usage in README
+
+===================================================
+OUTPUT REQUIRED
+===================================================
+
+- Contents of pnpm-workspace.yaml
+- Root package.json scripts section
+- .npmrc content
+- turbo.json example
+- Explanation of why this setup works
