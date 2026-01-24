@@ -12,7 +12,7 @@ export default defineConfig({
     allowedHosts: true,
   },
   build: {
-    outDir: 'docs',
+    outDir: '../../docs',
     emptyOutDir: true,
     target: 'esnext'
   }
