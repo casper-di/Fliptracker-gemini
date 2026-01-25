@@ -53,6 +53,15 @@ fliptracker/
 ### Authentication
 All endpoints require `Authorization: Bearer <firebase_token>`
 
+Supports three auth providers:
+- **Email/Password**: Classic signup/login via Firebase Auth
+- **Google OAuth**: Sign in with Google
+- **Microsoft OAuth**: Sign in with Microsoft
+
+### Auth Endpoints
+- `GET /api/auth/me` - Get current user info (creates user on first login)
+- `DELETE /api/auth/account` - Delete user account and all associated data
+
 ### Users
 - `GET /api/users/me` - Get current user
 
@@ -73,10 +82,16 @@ All endpoints require `Authorization: Bearer <firebase_token>`
 ## Supported Carriers
 - UPS, FedEx, USPS, DHL, La Poste, Colissimo, Chronopost
 
+## Security Features
+- **Rate Limiting**: 10 requests/minute (short), 100 requests/hour (long)
+- **Email Verification**: Required for email/password users in production
+- **Token Encryption**: AES-256-GCM for refresh tokens
+- **GDPR Compliance**: Full account deletion with cascade
+
 ## Environment Variables Required
 ```
 # Firebase Admin SDK
-FIREBASE_PROJECT_ID=
+FIREBASE_PROJECT_ID=fliptracker-52632
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
 
@@ -96,6 +111,9 @@ ENCRYPTION_KEY=
 
 # Frontend
 FRONTEND_URL=
+
+# Environment
+NODE_ENV=development  # Set to 'production' to enforce email verification
 ```
 
 ## Development Commands
@@ -111,6 +129,12 @@ cd fliptracker && pnpm dev
 ```
 
 ## Recent Changes
+- 2026-01-25: Added classic email/password authentication
+  - POST /api/auth/me and DELETE /api/auth/account endpoints
+  - Email verification enforcement in production
+  - Rate limiting with @nestjs/throttler (10/min, 100/hr)
+  - Full account deletion with cascade (emails, parcels, Firebase user)
+  - User entity now tracks emailVerified status
 - 2026-01-25: Implemented complete NestJS backend with clean architecture
   - Firebase Auth integration
   - Gmail and Outlook OAuth providers

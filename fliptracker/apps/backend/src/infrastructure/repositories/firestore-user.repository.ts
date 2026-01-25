@@ -39,6 +39,7 @@ export class FirestoreUserRepository implements IUserRepository {
     const data = {
       email: user.email,
       provider: user.provider,
+      emailVerified: user.emailVerified || false,
       createdAt: new Date(),
     };
 
@@ -69,6 +70,7 @@ export class FirestoreUserRepository implements IUserRepository {
       id,
       email: data.email,
       provider: data.provider,
+      emailVerified: data.emailVerified || false,
       createdAt: data.createdAt?.toDate() || new Date(),
     };
   }

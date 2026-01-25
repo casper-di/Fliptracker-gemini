@@ -33,9 +33,12 @@ export class ParcelsService {
     return this.repository.update(id, data);
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, userId?: string): Promise<void> {
     const parcel = await this.repository.findById(id);
     if (!parcel) {
+      throw new NotFoundException('Parcel not found');
+    }
+    if (userId && parcel.userId !== userId) {
       throw new NotFoundException('Parcel not found');
     }
     await this.repository.delete(id);

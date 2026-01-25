@@ -71,6 +71,10 @@ export class ConnectedEmailsService {
     await this.repository.delete(id);
   }
 
+  async delete(id: string): Promise<void> {
+    await this.repository.delete(id);
+  }
+
   getDecryptedRefreshToken(email: ConnectedEmail): string {
     return this.encryptionService.decrypt(email.refreshToken);
   }

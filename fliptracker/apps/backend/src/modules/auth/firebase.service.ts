@@ -36,7 +36,29 @@ export class FirebaseService implements OnModuleInit {
     }
   }
 
+  async deleteUser(uid: string): Promise<void> {
+    try {
+      await admin.auth().deleteUser(uid);
+    } catch (error) {
+      console.error('Failed to delete user from Firebase Auth:', error);
+      throw error;
+    }
+  }
+
+  async getUser(uid: string): Promise<admin.auth.UserRecord | null> {
+    try {
+      return await admin.auth().getUser(uid);
+    } catch (error) {
+      console.error('Failed to get user from Firebase Auth:', error);
+      return null;
+    }
+  }
+
   getFirestore(): admin.firestore.Firestore {
     return admin.firestore();
+  }
+
+  isProduction(): boolean {
+    return this.configService.get<string>('NODE_ENV') === 'production';
   }
 }

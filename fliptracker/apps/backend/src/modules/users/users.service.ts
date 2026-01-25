@@ -9,7 +9,12 @@ export class UsersService {
     private userRepository: IUserRepository,
   ) {}
 
-  async findOrCreate(uid: string, email: string, provider: 'google' | 'microsoft'): Promise<User> {
+  async findOrCreate(
+    uid: string,
+    email: string,
+    provider: 'google' | 'microsoft' | 'email',
+    emailVerified?: boolean,
+  ): Promise<User> {
     let user = await this.userRepository.findById(uid);
     
     if (!user) {
@@ -17,7 +22,10 @@ export class UsersService {
         id: uid,
         email,
         provider,
+        emailVerified,
       });
+    } else if (emailVerified !== undefined && user.emailVerified !== emailVerified) {
+      user = await this.userRepository.update(uid, { emailVerified });
     }
 
     return user;
@@ -29,5 +37,9 @@ export class UsersService {
 
   async update(id: string, data: Partial<User>): Promise<User> {
     return this.userRepository.update(id, data);
+  }
+
+  async delete(id: string): Promise<void> {
+    return this.userRepository.delete(id);
   }
 }
