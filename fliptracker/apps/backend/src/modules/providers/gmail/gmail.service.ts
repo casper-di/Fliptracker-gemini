@@ -1,0 +1,149 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { google, gmail_v1 } from 'googleapis';
+
+export interface GmailTokens {
+  access_token: string | null;
+  refresh_token: string | null;
+  expiry_date: number | null;
+}
+
+export interface GmailProfile {
+  emailAddress: string;
+}
+
+export interface NormalizedEmail {
+  id: string;
+  threadId: string;
+  from: string;
+  subject: string;
+  date: Date;
+  body: string;
+  snippet: string;
+}
+
+@Injectable()
+export class GmailService {
+  private oauth2Client;
+
+  constructor(private configService: ConfigService) {
+    this.oauth2Client = new google.auth.OAuth2(
+      this.configService.get('GOOGLE_CLIENT_ID'),
+      this.configService.get('GOOGLE_CLIENT_SECRET'),
+      this.configService.get('GOOGLE_REDIRECT_URI'),
+    );
+  }
+
+  getAuthUrl(state: string): string {
+    return this.oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: ['https://www.googleapis.com/auth/gmail.readonly', 'email', 'profile'],
+      state,
+      prompt: 'consent',
+    });
+  }
+
+  async exchangeCode(code: string): Promise<GmailTokens> {
+    const { tokens } = await this.oauth2Client.getToken(code);
+    return {
+      access_token: tokens.access_token || null,
+      refresh_token: tokens.refresh_token || null,
+      expiry_date: tokens.expiry_date || null,
+    };
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<GmailTokens> {
+    this.oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const { credentials } = await this.oauth2Client.refreshAccessToken();
+    return {
+      access_token: credentials.access_token || null,
+      refresh_token: credentials.refresh_token || refreshToken,
+      expiry_date: credentials.expiry_date || null,
+    };
+  }
+
+  async getUserProfile(accessToken: string): Promise<GmailProfile> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    const profile = await gmail.users.getProfile({ userId: 'me' });
+    return { emailAddress: profile.data.emailAddress! };
+  }
+
+  async fetchRecentEmails(accessToken: string, maxResults = 50): Promise<NormalizedEmail[]> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults,
+      q: 'subject:(shipping OR tracking OR delivered OR order OR colis)',
+    });
+
+    const messages = response.data.messages || [];
+    const emails: NormalizedEmail[] = [];
+
+    for (const message of messages) {
+      const email = await this.getEmailDetails(gmail, message.id!);
+      if (email) {
+        emails.push(email);
+      }
+    }
+
+    return emails;
+  }
+
+  private async getEmailDetails(gmail: gmail_v1.Gmail, messageId: string): Promise<NormalizedEmail | null> {
+    try {
+      const response = await gmail.users.messages.get({
+        userId: 'me',
+        id: messageId,
+        format: 'full',
+      });
+
+      const headers = response.data.payload?.headers || [];
+      const getHeader = (name: string) => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+
+      const body = this.extractBody(response.data.payload);
+
+      return {
+        id: response.data.id!,
+        threadId: response.data.threadId!,
+        from: getHeader('from'),
+        subject: getHeader('subject'),
+        date: new Date(parseInt(response.data.internalDate!) || Date.now()),
+        body,
+        snippet: response.data.snippet || '',
+      };
+    } catch (error) {
+      console.error('Failed to fetch email details:', error);
+      return null;
+    }
+  }
+
+  private extractBody(payload: gmail_v1.Schema$MessagePart | undefined): string {
+    if (!payload) return '';
+
+    if (payload.body?.data) {
+      return Buffer.from(payload.body.data, 'base64').toString('utf-8');
+    }
+
+    if (payload.parts) {
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/plain' && part.body?.data) {
+          return Buffer.from(part.body.data, 'base64').toString('utf-8');
+        }
+      }
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/html' && part.body?.data) {
+          return Buffer.from(part.body.data, 'base64').toString('utf-8');
+        }
+      }
+      for (const part of payload.parts) {
+        const nested = this.extractBody(part);
+        if (nested) return nested;
+      }
+    }
+
+    return '';
+  }
+}

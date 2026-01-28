@@ -1,0 +1,222 @@
+You are a senior backend engineer building Fliptracker.
+
+Your task is to implement the email ingestion and analysis system.
+
+The goal:
+
+- Connect to a user's email account (Gmail or Outlook)
+- On first connection, scan the last 7 days of emails
+- Extract shipping / parcel / order information
+- Save it in database
+- Then listen for new emails continuously
+- Process each new email automatically
+- Avoid duplicates
+- Update parcel status when new emails arrive
+
+====================================================
+ARCHITECTURE CONTEXT
+====================================================
+
+Monorepo:
+
+apps/backend (NestJS)
+packages/domain
+packages/shared
+
+Backend uses:
+
+- Firebase Auth
+- Database: Firestore OR alternative faster MVP DB if justified (e.g. Supabase/Postgres + Prisma)
+- Gmail API
+- Microsoft Graph API
+
+====================================================
+EMAIL PROVIDER CONNECTION
+====================================================
+
+Implement provider services:
+
+/apps/backend/src/modules/email/providers/gmail
+/apps/backend/src/modules/email/providers/outlook
+
+Each provider must:
+
+- Handle OAuth flow
+- Store encrypted refresh tokens
+- Renew access tokens
+- Disconnect account
+- Support multiple accounts per user
+
+DB:
+
+email_accounts:
+  id
+  userId
+  provider (gmail | outlook)
+  email
+  refreshTokenEncrypted
+  scopes
+  createdAt
+  lastSyncAt
+
+====================================================
+FIRST SYNC LOGIC
+====================================================
+
+When user connects an email:
+
+- Fetch messages from last 7 days
+- Query filters:
+  Gmail: newer_than:7d
+  Outlook: receivedDateTime >= now - 7 days
+
+- Batch fetch messages
+- Send raw content to parser
+- Store parcels/orders
+- Save messageId to avoid duplicates
+- Update lastSyncAt
+
+====================================================
+CONTINUOUS SYNC
+====================================================
+
+Instead of cron initially:
+
+Implement background worker service:
+
+- Long polling / webhook based
+  Gmail Push Notifications (Pub/Sub)
+  Outlook subscriptions
+
+Webhook endpoints:
+
+POST /webhooks/gmail
+POST /webhooks/outlook
+
+Flow:
+
+Webhook → enqueue job → fetch email → parse → upsert parcel → update status
+
+====================================================
+EMAIL PARSING PIPELINE
+====================================================
+
+Implement pipeline:
+
+Raw email
+ → Normalize text/html
+ → Language detection
+ → Shipping provider detection (UPS, DHL, Chronopost, LaPoste, FedEx, USPS...)
+ → Tracking number regex library
+ → Order reference extraction
+ → Status detection (shipped, delivered, returned)
+ → Estimated delivery date
+ → Merchant name
+ → Total price (if present)
+ → Address (partial)
+
+Store confidence score.
+
+====================================================
+PARSER ARCHITECTURE
+====================================================
+
+Create:
+
+/packages/domain/email-parsing
+
+Interfaces:
+
+EmailParser
+ParcelExtractor
+CarrierDetector
+
+Implement:
+
+Regex-based first
+LLM-assisted optional fallback
+Rules per carrier templates
+
+====================================================
+DATABASE MODELS
+====================================================
+
+parcels:
+  id
+  userId
+  carrier
+  trackingNumber
+  status
+  merchant
+  origin
+  destination
+  estimatedDelivery
+  deliveredAt
+  createdAt
+  updatedAt
+
+email_events:
+  id
+  provider
+  messageId
+  parcelId
+  receivedAt
+
+====================================================
+DEDUPLICATION
+====================================================
+
+Never reprocess same email:
+
+Unique index on:
+
+(provider, messageId)
+
+If parcel exists → update status timeline.
+
+====================================================
+APIS
+====================================================
+
+Expose:
+
+POST /email/connect/gmail
+POST /email/connect/outlook
+POST /email/disconnect/:id
+
+GET /email/accounts
+
+GET /parcels
+GET /parcels/:id
+DELETE /parcels/:id
+
+====================================================
+SECURITY
+====================================================
+
+- Encrypt tokens before storing
+- Use KMS or env secret
+- Scope minimal read-only
+- Allow user to revoke access
+- GDPR delete cascade
+
+====================================================
+TESTING
+====================================================
+
+- Mock Gmail API
+- Mock Outlook Graph
+- Unit test parser
+- E2E webhook tests
+
+====================================================
+OUTPUT REQUIRED
+====================================================
+
+- Folder structure
+- Provider service implementations outline
+- Parsing pipeline design
+- DB schema
+- Webhook handlers
+- Sync flow diagrams (text)
+- MVP vs V2 improvements

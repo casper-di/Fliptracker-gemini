@@ -1,0 +1,246 @@
+You are a principal backend architect building a SaaS MVP called Fliptracker.
+
+We are implementing the backend in a monorepo using:
+
+- NestJS + TypeScript
+- pnpm workspaces
+- Firebase Auth for user authentication
+- Firebase Firestore for database (unless you propose a better MVP DB like Supabase/Postgres — justify choice)
+- Gmail API + Microsoft Graph API (Outlook / Hotmail)
+- REST APIs
+- Clean architecture with separation between:
+  - API layer
+  - Application services
+  - Domain
+  - Infrastructure (DB + providers)
+
+==================================================
+GOALS
+==================================================
+
+The backend must:
+
+- Authenticate users via Google and Microsoft
+- Persist users and connected inboxes
+- Allow multiple email accounts per user
+- Fetch emails securely
+- Analyze emails to detect shipments
+- Extract tracking numbers
+- Store parcels
+- Expose APIs for frontend
+- Be modular and future-proof
+
+==================================================
+MODULES TO IMPLEMENT
+==================================================
+
+AuthModule
+UsersModule
+ConnectedEmailsModule
+ParcelsModule
+ProvidersModule
+ProvidersModule/Gmail
+ProvidersModule/Outlook
+EmailAnalysisModule
+
+==================================================
+DATABASE CHOICE
+==================================================
+
+Primary option:
+- Firebase Firestore (easy, free tier, realtime, integrates with Auth)
+
+Alternative MVP option (justify if used):
+- Supabase Postgres + Row Level Security
+
+Implement repository interfaces so DB can be swapped later.
+
+==================================================
+DATA MODELS
+==================================================
+
+User:
+- id
+- email
+- provider
+- createdAt
+
+ConnectedEmail:
+- id
+- userId
+- provider (gmail | outlook)
+- emailAddress
+- refreshToken (encrypted)
+- accessToken
+- expiry
+- status
+- lastSyncAt
+- createdAt
+
+Parcel:
+- id
+- userId
+- trackingNumber
+- carrier
+- status
+- type (sale | purchase)
+- sourceEmailId
+- provider
+- title
+- createdAt
+- updatedAt
+
+==================================================
+AUTHENTICATION
+==================================================
+
+Frontend authenticates user via Firebase Auth.
+
+Backend:
+
+- Receives Firebase JWT
+- Validates token using Firebase Admin SDK
+- Extracts userId
+- Creates user record in DB if missing
+- Guards all endpoints
+
+==================================================
+EMAIL PROVIDER CONNECTION
+==================================================
+
+Gmail:
+- OAuth2 flow server-side
+- offline_access
+- store refresh token
+- scope: gmail.readonly
+
+Outlook:
+- Microsoft Graph OAuth
+- Mail.Read scope
+
+Endpoints:
+
+POST /emails/connect/:provider/start
+POST /emails/connect/:provider/callback
+GET /emails
+DELETE /emails/:id
+POST /emails/:id/reconnect
+
+==================================================
+EMAIL FETCHING
+==================================================
+
+Provide service methods:
+
+fetchRecentEmails(userId)
+fetchEmailsForAccount(connectedEmailId)
+getRawEmailBody()
+normalizeEmail()
+
+==================================================
+EMAIL ANALYSIS SCRIPT
+==================================================
+
+Implement EmailAnalyzer service:
+
+Steps:
+
+1. Clean HTML/text
+2. Detect language
+3. Regex tracking numbers (UPS/Fedex/LaPoste/DHL)
+4. Detect marketplaces keywords (Vinted, Amazon, Shopify)
+5. NLP classification:
+   - shipping confirmation
+   - delivered
+   - refund
+6. Extract:
+   - tracking number
+   - carrier
+   - order title
+   - price
+7. Create or update Parcel entity
+8. Deduplicate by tracking number + userId
+
+==================================================
+APIS — PARCELS
+==================================================
+
+GET /parcels
+GET /parcels/:id
+POST /parcels
+PATCH /parcels/:id
+DELETE /parcels/:id
+
+Filters:
+type
+status
+provider
+date range
+search
+sort
+pagination
+
+==================================================
+SECURITY
+==================================================
+
+- Encrypt refresh tokens before storing
+- Rate limit provider calls
+- Validate scopes
+- Never expose provider tokens to frontend
+
+==================================================
+IMPLEMENTATION TASKS
+==================================================
+
+1. Setup Firebase Admin SDK
+2. Implement AuthGuard
+3. Provider OAuth flows
+4. Token storage encryption
+5. Firestore repositories
+6. Email fetchers
+7. Analyzer service
+8. Parcels CRUD
+9. Filtering/search
+10. Logging
+11. Error handling
+12. DTO validation with Zod or class-validator
+
+==================================================
+OUTPUT REQUIRED
+==================================================
+
+- Folder structure
+- Interfaces for repositories
+- Example Gmail + Outlook services
+- EmailAnalyzer code
+- Controller examples
+- Firestore queries
+- DTOs
+- API examples
+- Explanation of DB choice
+
+==================================================
+ENVIRONMENT VARIABLES TO DEFINE
+==================================================
+
+FIREBASE_PROJECT_ID
+FIREBASE_CLIENT_EMAIL
+FIREBASE_PRIVATE_KEY
+
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+GOOGLE_REDIRECT_URI
+
+MICROSOFT_CLIENT_ID
+MICROSOFT_CLIENT_SECRET
+MICROSOFT_REDIRECT_URI
+
+TOKEN_ENCRYPTION_SECRET
+
+FRONTEND_URL
+BACKEND_URL
+
+NODE_ENV
+PORT
+
