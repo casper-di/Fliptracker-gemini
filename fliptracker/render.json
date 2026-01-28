@@ -1,0 +1,50 @@
+{
+  "name": "fliptracker-render-config",
+  "description": "Configuration and commands for Render.com deployment",
+  "scripts": {
+    "render:build-backend": "cd apps/backend && pnpm install && pnpm build",
+    "render:build-frontend": "cd apps/frontend && pnpm install && pnpm build",
+    "render:test-env": "node scripts/test-env.js",
+    "render:validate": "npm run render:test-env"
+  },
+  "renderConfig": {
+    "backend": {
+      "service": "Web Service",
+      "rootDirectory": "fliptracker/apps/backend",
+      "buildCommand": "pnpm install && pnpm build",
+      "startCommand": "node dist/main",
+      "environment": "Node",
+      "envVars": {
+        "NODE_ENV": "production",
+        "PORT": "3001",
+        "FRONTEND_URL": "https://fliptracker-frontend.onrender.com"
+      },
+      "secretEnvVars": [
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REDIRECT_URI",
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_PRIVATE_KEY"
+      ]
+    },
+    "frontend": {
+      "service": "Static Site",
+      "rootDirectory": "fliptracker/apps/frontend",
+      "buildCommand": "pnpm install && pnpm build",
+      "publishDirectory": "dist",
+      "envVars": {
+        "VITE_API_URL": "https://fliptracker-backend.onrender.com/api"
+      },
+      "publicEnvVars": [
+        "VITE_FIREBASE_API_KEY",
+        "VITE_FIREBASE_AUTH_DOMAIN",
+        "VITE_FIREBASE_PROJECT_ID",
+        "VITE_FIREBASE_STORAGE_BUCKET",
+        "VITE_FIREBASE_MESSAGING_SENDER_ID",
+        "VITE_FIREBASE_APP_ID",
+        "VITE_FIREBASE_MEASUREMENT_ID"
+      ]
+    }
+  }
+}
