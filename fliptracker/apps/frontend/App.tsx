@@ -13,6 +13,7 @@ import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { api } from './services/apiService';
+import { onAuthStateChange, signInWithGoogle, signOut, getCurrentSession } from './services/authService';
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'light',
@@ -43,13 +44,13 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('incoming');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
+  const [showAuthPage, setShowAuthPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'urgent' | 'transit'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Auth States
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [authView, setAuthView] = useState<'landing' | 'login' | 'signup'>('landing');
+  const [user, setUser] = useState<any>(null);
   const [appLoading, setAppLoading] = useState<boolean>(true);
 
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
@@ -57,49 +58,48 @@ const App: React.FC = () => {
 
   // Initial Data Loading
   useEffect(() => {
-    const savedAuth = localStorage.getItem('fliptracker_auth');
-    if (savedAuth === 'true') setIsAuthenticated(true);
+    const unsubscribe = onAuthStateChange((authSession) => {
+      setUser(authSession);
+      setAppLoading(false);
+    });
 
-    const savedShipments = localStorage.getItem('fliptracker_shipments');
-    const savedNotifs = localStorage.getItem('fliptracker_notifications');
     const savedPrefs = localStorage.getItem('fliptracker_preferences');
-    
-    if (savedShipments) {
-      try { setShipments(JSON.parse(savedShipments)); } catch (e) { console.error(e); }
-    } else {
-      setShipments(generateMockShipments(10));
-    }
-
-    if (savedNotifs) {
-      try { setNotifications(JSON.parse(savedNotifs)); } catch (e) { console.error(e); }
-    }
-
     if (savedPrefs) {
       try { setPreferences(JSON.parse(savedPrefs)); } catch (e) { console.error(e); }
     }
 
-    // Load connections from "API"
-    const loadConnections = async () => {
-      setSyncStatus(prev => ({ ...prev, isLoading: true }));
-      try {
-        const connections = await api.getEmails();
-        setSyncStatus({ connections, isLoading: false, error: null });
-      } catch (err) {
-        setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Failed to load connections' }));
-      }
-    };
-    loadConnections();
-
-    setTimeout(() => setAppLoading(false), 2500);
+    return unsubscribe;
   }, []);
+
+  // Load parcels and connections when user changes
+  useEffect(() => {
+    if (user) {
+      const loadData = async () => {
+        setSyncStatus(prev => ({ ...prev, isLoading: true }));
+        try {
+          // Load connected emails
+          const connections = await api.getEmails();
+          setSyncStatus({ connections, isLoading: false, error: null });
+
+          // Load parcels from backend
+          const response = await api.getParcels({ limit: 100, offset: 0 });
+          setShipments(response.data || []);
+        } catch (err) {
+          console.error('Failed to load data:', err);
+          setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Failed to load data' }));
+        }
+      };
+      loadData();
+    }
+  }, [user]);
+
 
   // Save State
   useEffect(() => {
     localStorage.setItem('fliptracker_shipments', JSON.stringify(shipments));
     localStorage.setItem('fliptracker_notifications', JSON.stringify(notifications));
     localStorage.setItem('fliptracker_preferences', JSON.stringify(preferences));
-    localStorage.setItem('fliptracker_auth', isAuthenticated.toString());
-  }, [shipments, notifications, preferences, isAuthenticated]);
+  }, [shipments, notifications, preferences]);
 
   const isDarkMode = preferences.theme === 'dark' || (preferences.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -131,16 +131,8 @@ const App: React.FC = () => {
     setSyncStatus(prev => ({ ...prev, isLoading: true }));
     try {
       if (action === 'connect_gmail') {
-        // Simulate redirect and return with code
-        const email = prompt("Enter Gmail address to simulate OAuth:") || "user@gmail.com";
-        const newConn = await api.gmail.connectCallback('simulated_code', email);
-        setSyncStatus(prev => ({
-          ...prev,
-          connections: prev.connections.some(c => c.id === newConn.id) 
-            ? prev.connections.map(c => c.id === newConn.id ? newConn : c)
-            : [...prev.connections, newConn],
-          isLoading: false
-        }));
+        const { authUrl } = await api.gmail.connectStart();
+        window.location.href = authUrl; // Redirect to OAuth
       } else if (action === 'delete') {
         await api.deleteEmail(payload);
         setSyncStatus(prev => ({
@@ -161,21 +153,30 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAuthComplete = () => {
-    setAppLoading(true);
-    setTimeout(() => {
-      setIsAuthenticated(true);
-      setAppLoading(false);
-    }, 2500);
+  const handleShowLogin = () => {
+    setShowAuthPage(true);
+  };
+
+  const handleAuthComplete = async () => {
+    try {
+      await signInWithGoogle();
+      setShowAuthPage(false);
+    } catch (error) {
+      console.error('Sign in failed:', error);
+    }
+  };
+
+  const handleBackFromAuth = () => {
+    setShowAuthPage(false);
   };
 
   if (appLoading) return <LoadingOverlay />;
 
-  if (!isAuthenticated) {
-    if (authView === 'landing') {
-      return <LandingPage onGetStarted={() => setAuthView('signup')} onLogin={() => setAuthView('login')} />;
+  if (!user) {
+    if (showAuthPage) {
+      return <AuthPage onAuthComplete={handleAuthComplete} onBack={handleBackFromAuth} />;
     }
-    return <AuthPage onAuthComplete={handleAuthComplete} onBack={() => setAuthView('landing')} />;
+    return <LandingPage onGetStarted={handleShowLogin} onLogin={handleShowLogin} />;
   }
 
   if (selectedShipment) {
@@ -243,7 +244,7 @@ const App: React.FC = () => {
         )}
 
         <main className={`flex-1 overflow-y-auto no-scrollbar relative ${activeTab === 'email_sync' ? '' : 'pb-32'}`}>
-          {isAuthenticated && syncStatus.connections.length === 0 && (activeTab === 'incoming' || activeTab === 'outgoing') && (
+          {user && syncStatus.connections.length === 0 && (activeTab === 'incoming' || activeTab === 'outgoing') && (
             <div className="px-5 pt-6 animate-in slide-in-from-top-4 duration-500">
               <div className="bg-blue-600 dark:bg-blue-700 rounded-[28px] p-6 shadow-xl shadow-blue-500/20 relative overflow-hidden group">
                 <div className="flex items-start gap-5 relative z-10">
@@ -279,8 +280,7 @@ const App: React.FC = () => {
               onUpdatePreferences={setPreferences}
               onNavigateToSync={() => setActiveTab('email_sync')}
               onLogout={() => {
-                setIsAuthenticated(false);
-                setAuthView('landing');
+                signOut();
               }}
             />
           ) : activeTab === 'email_sync' ? (

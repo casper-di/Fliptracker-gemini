@@ -6,6 +6,7 @@ import { ConnectedEmailsModule } from './modules/connected-emails/connected-emai
 import { ParcelsModule } from './modules/parcels/parcels.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { EmailAnalysisModule } from './modules/email-analysis/email-analysis.module';
+import { EmailEventsModule } from './modules/email-events/email-events.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { EmailAnalysisModule } from './modules/email-analysis/email-analysis.mod
     ParcelsModule,
     ProvidersModule,
     EmailAnalysisModule,
+    EmailEventsModule,
   ],
 })
 export class AppModule {}

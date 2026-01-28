@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Param, Query, UseGuards, Req, Res } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { Response } from 'express';
 import { ConnectedEmailsService } from './connected-emails.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
@@ -38,6 +39,7 @@ export class ConnectedEmailsController {
     return { error: 'Invalid provider' };
   }
 
+  @Get('connect/:provider/callback')
   @Post('connect/:provider/callback')
   async handleOAuthCallback(
     @Param('provider') provider: 'gmail' | 'outlook',
@@ -100,6 +102,11 @@ export class ConnectedEmailsController {
     }
 
     const state = Buffer.from(JSON.stringify({ userId: req.user.uid, reconnectId: id })).toString('base64');
+    
+      // ✅ SECURITY: Prevent reconnecting other users' emails
+      if (email.userId !== req.user.uid) {
+        throw new ForbiddenException('Cannot reconnect this email account');
+      }
     
     if (email.provider === 'gmail') {
       const authUrl = this.gmailService.getAuthUrl(state);

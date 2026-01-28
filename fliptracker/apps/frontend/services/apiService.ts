@@ -1,91 +1,131 @@
 
-import { ConnectedEmail } from '../types';
+import { ConnectedEmail, Shipment } from '../types';
+import { get, post, del, patch } from './httpClient';
 
-const STORAGE_KEY = 'fliptracker_email_connections';
+export interface ParcelFilters {
+  type?: 'purchase' | 'sale';
+  status?: string;
+  provider?: 'gmail' | 'outlook';
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+}
 
-// Simulated DB logic
-const getDb = (): ConnectedEmail[] => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveDb = (connections: ConnectedEmail[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(connections));
-};
+export interface ParcelResponse {
+  data: Shipment[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 export const api = {
-  // POST /api/gmail/connect/start
-  gmail: {
-    connectStart: async () => {
-      console.log("[API] GET /api/gmail/connect/start");
-      // Simulate returning an OAuth URL
-      return { url: "#oauth-simulation" };
-    },
-
-    // POST /api/gmail/connect/callback
-    connectCallback: async (code: string, email: string): Promise<ConnectedEmail> => {
-      console.log("[API] POST /api/gmail/connect/callback", { code, email });
-      
-      const db = getDb();
-      const existingIdx = db.findIndex(c => c.emailAddress === email && c.provider === 'gmail');
-      
-      const newConnection: ConnectedEmail = {
-        id: existingIdx >= 0 ? db[existingIdx].id : Math.random().toString(36).substr(2, 9),
-        userId: 'current-user',
-        provider: 'gmail',
-        emailAddress: email,
-        accessToken: 'simulated_access_token_' + Math.random(),
-        refreshToken: 'simulated_refresh_token_' + Math.random(),
-        tokenExpiry: new Date(Date.now() + 3600000).toISOString(),
-        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-        status: 'connected',
-        lastSyncAt: new Date().toISOString(),
-        createdAt: existingIdx >= 0 ? db[existingIdx].createdAt : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      if (existingIdx >= 0) {
-        db[existingIdx] = newConnection;
-      } else {
-        db.push(newConnection);
-      }
-
-      saveDb(db);
-      return newConnection;
-    }
-  },
-
+  // ========== EMAIL CONNECTIONS ==========
   // GET /api/emails
   getEmails: async (): Promise<ConnectedEmail[]> => {
-    console.log("[API] GET /api/emails");
-    return new Promise((resolve) => {
-      setTimeout(() => resolve(getDb()), 500);
-    });
+    const response = await get('/emails');
+    const data = await response.json();
+    return data.emails || [];
+  },
+
+  // POST /api/emails/connect/:provider/start
+  gmail: {
+    connectStart: async () => {
+      const response = await post('/emails/connect/gmail/start', {});
+      return response.json();
+    },
+  },
+
+  outlook: {
+    connectStart: async () => {
+      const response = await post('/emails/connect/outlook/start', {});
+      return response.json();
+    },
   },
 
   // DELETE /api/emails/:id
   deleteEmail: async (id: string): Promise<void> => {
-    console.log(`[API] DELETE /api/emails/${id}`);
-    const db = getDb();
-    const filtered = db.filter(c => c.id !== id);
-    saveDb(filtered);
+    await del(`/emails/${id}`);
   },
 
   // POST /api/emails/:id/reconnect
   reconnectEmail: async (id: string): Promise<ConnectedEmail> => {
-    console.log(`[API] POST /api/emails/${id}/reconnect`);
-    const db = getDb();
-    const idx = db.findIndex(c => c.id === id);
-    if (idx === -1) throw new Error("Connection not found");
-    
-    db[idx] = {
-      ...db[idx],
-      status: 'connected',
-      accessToken: 'refreshed_token_' + Math.random(),
-      updatedAt: new Date().toISOString()
-    };
-    
-    saveDb(db);
-    return db[idx];
-  }
+    const response = await post(`/emails/${id}/reconnect`, {});
+    const data = await response.json();
+    return data.authUrl ? { authUrl: data.authUrl } as any : data;
+  },
+
+  // ========== PARCELS ==========
+  // GET /api/parcels
+  getParcels: async (filters?: ParcelFilters): Promise<ParcelResponse> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const queryString = params.toString();
+    const endpoint = queryString ? `/parcels?${queryString}` : '/parcels';
+    const response = await get(endpoint);
+    return response.json();
+  },
+
+  // GET /api/parcels/:id
+  getParcelById: async (id: string): Promise<Shipment> => {
+    const response = await get(`/parcels/${id}`);
+    const data = await response.json();
+    return data.parcel;
+  },
+
+  // POST /api/parcels
+  createParcel: async (parcel: Omit<Shipment, 'id' | 'createdAt' | 'updatedAt'>): Promise<Shipment> => {
+    const response = await post('/parcels', parcel);
+    const data = await response.json();
+    return data.parcel;
+  },
+
+  // PATCH /api/parcels/:id
+  updateParcel: async (id: string, updates: Partial<Shipment>): Promise<Shipment> => {
+    const response = await patch(`/parcels/${id}`, updates);
+    const data = await response.json();
+    return data.parcel;
+  },
+
+  // DELETE /api/parcels/:id
+  deleteParcel: async (id: string): Promise<void> => {
+    await del(`/parcels/${id}`);
+  },
+
+  // ========== EMAIL EVENTS ==========
+  // GET /api/email-events
+  getEmailEvents: async (filters?: any): Promise<any> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      });
+    }
+    const queryString = params.toString();
+    const endpoint = queryString ? `/email-events?${queryString}` : '/email-events';
+    const response = await get(endpoint);
+    return response.json();
+  },
+
+  // GET /api/email-events/pending/list
+  getPendingEmailEvents: async (limit: number = 100): Promise<any> => {
+    const response = await get(`/email-events/pending/list?limit=${limit}`);
+    return response.json();
+  },
+
+  // DELETE /api/email-events/:id
+  deleteEmailEvent: async (id: string): Promise<void> => {
+    await del(`/email-events/${id}`);
+  },
 };

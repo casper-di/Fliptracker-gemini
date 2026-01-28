@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 🔐 SECURITY: DENY ALL CLIENT ACCESS BY DEFAULT
+    // Only backend Admin SDK can access Firestore (service account)
+    // Frontend must ONLY call HTTP APIs
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // 🔐 BACKEND ADMIN SDK ONLY ACCESS
+    // Service accounts can read/write all collections
+    // This is enforced by Firestore Admin SDK authentication (not client tokens)
+    
+    // Important: Firestore rules cannot directly verify service account access
+    // Service accounts bypass client-side rules and use IAM permissions instead
+    // Therefore, we deny all client access here and rely on IAM + backend code
+    
+    // DO NOT add any allow rules for request.auth (authenticated users)
+    // All user access must go through backend APIs with proper authorization
+  }
+}

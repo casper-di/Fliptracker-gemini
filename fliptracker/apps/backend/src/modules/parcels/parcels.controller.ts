@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards, Req } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { ParcelsService } from './parcels.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { CreateParcelDto, UpdateParcelDto, ParcelFiltersDto } from './dto';
@@ -48,6 +49,9 @@ export class ParcelsController {
   ) {
     const parcel = await this.parcelsService.create({
       ...createDto,
+      provider: (createDto.provider || 'gmail') as 'gmail' | 'outlook',
+      status: createDto.status || 'pending',
+      sourceEmailId: createDto.sourceEmailId || '',
       userId: req.user.uid,
     });
     return { parcel };
