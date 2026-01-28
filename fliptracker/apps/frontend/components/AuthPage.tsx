@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { signInWithGoogle } from '../services/authService';
 
 interface AuthPageProps {
   onAuthComplete: () => void;
@@ -18,6 +19,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, onBack }) =>
       setLoading(false);
       onAuthComplete();
     }, 2000);
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      await signInWithGoogle();
+      onAuthComplete();
+    } catch (error) {
+      console.error('Google sign-in failed:', error);
+      setLoading(false);
+    }
   };
 
   return (
@@ -101,7 +113,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, onBack }) =>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <button className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-95 transition-all">
+            <button 
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={loading}
+              className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-95 transition-all disabled:opacity-50"
+            >
               <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Google</span>
             </button>

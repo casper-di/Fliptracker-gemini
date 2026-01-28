@@ -1,3 +1,3 @@
 export * from './providers.module';
-export * from './gmail/gmail.service';
-export * from './outlook/outlook.service';
+export { GmailService } from './gmail/gmail.service';
+export { OutlookService } from './outlook/outlook.service';

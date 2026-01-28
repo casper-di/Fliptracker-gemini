@@ -22,4 +22,41 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# ⚠️  SECURITY: Never commit environment variables with secrets
 .env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backend environment files
+fliptracker/apps/backend/src/.env
+fliptracker/apps/backend/.env
+fliptracker/apps/backend/.env.local
+
+# Frontend environment files (may contain Firebase config)
+fliptracker/apps/frontend/.env
+fliptracker/apps/frontend/.env.local
+
+# IDE & Editor secrets
+.vscode/settings.json
+.vscode/launch.json
+.env.*.key
+
+# OS & temporary files
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+*~
+
+# Docker secrets
+docker-compose.override.yml
+.dockerenv
+
+# Firebase service account keys
+**/serviceAccountKey.json
+**/*-key.json

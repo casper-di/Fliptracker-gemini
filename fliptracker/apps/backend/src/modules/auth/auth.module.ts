@@ -17,12 +17,12 @@ import { ParcelsModule } from '../parcels/parcels.module';
       {
         name: 'short',
         ttl: 60000,
-        limit: 10,
+        limit: 100,  // Increased from 10
       },
       {
         name: 'long',
         ttl: 3600000,
-        limit: 100,
+        limit: 1000,  // Increased from 100
       },
     ]),
     forwardRef(() => UsersModule),

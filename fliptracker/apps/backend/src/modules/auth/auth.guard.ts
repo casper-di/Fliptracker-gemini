@@ -23,12 +23,21 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
+    const sessionCookie = request.cookies?.session;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Missing or invalid authorization header');
+    // Accept either Bearer token or session cookie
+    let token: string | null = null;
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.split('Bearer ')[1];
+    } else if (sessionCookie) {
+      token = sessionCookie;
     }
 
-    const token = authHeader.split('Bearer ')[1];
+    if (!token) {
+      throw new UnauthorizedException('Missing authentication token or session');
+    }
+
     const decodedToken = await this.firebaseService.verifyToken(token);
 
     if (!decodedToken) {
