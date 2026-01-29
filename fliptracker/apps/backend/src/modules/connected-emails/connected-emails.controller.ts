@@ -24,6 +24,42 @@ export class ConnectedEmailsController {
     return { emails: [] };
   }
 
+  @Get('summary')
+  async getEmailSummary(@Req() req: AuthenticatedRequest) {
+    let emails = [];
+    try {
+      // TODO: Enable once Firestore credentials fixed
+      // emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+    } catch (error) {
+      console.warn('Email summary fallback to empty list:', error?.message || error);
+      emails = [];
+    }
+
+    const totalConnections = emails.length;
+    const connected = emails.filter((e: any) => e.status === 'active' || e.status === 'connected').length;
+    const expired = emails.filter((e: any) => e.status === 'expired').length;
+    const error = emails.filter((e: any) => e.status === 'error' || e.status === 'revoked').length;
+
+    return {
+      stats: {
+        totalConnections,
+        connected,
+        expired,
+        error,
+        emailsAnalyzed: 0,
+        lastSyncAt: null,
+      },
+      recentParsed: [],
+      logs: [],
+    };
+  }
+
+  @Post('sync')
+  async manualSync(@Req() req: AuthenticatedRequest) {
+    // TODO: enqueue background job once queue is in place
+    return { success: true, queuedAt: new Date().toISOString() };
+  }
+
   @Post('connect/:provider/start')
   async startOAuthFlow(
     @Param('provider') provider: 'gmail' | 'outlook',

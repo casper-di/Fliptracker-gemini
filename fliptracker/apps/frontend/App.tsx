@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus, ConnectedEmail } from './types';
+import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus, ConnectedEmail, EmailSummary } from './types';
 import { generateMockShipments } from './services/mockDataService';
 import { ShipmentCard } from './components/ShipmentCard';
 import { ShipmentDetailsPage } from './components/ShipmentDetailsPage';
@@ -39,6 +39,19 @@ const INITIAL_SYNC_STATUS: SyncStatus = {
   error: null
 };
 
+const INITIAL_EMAIL_SUMMARY: EmailSummary = {
+  stats: {
+    totalConnections: 0,
+    connected: 0,
+    expired: 0,
+    error: 0,
+    emailsAnalyzed: 0,
+    lastSyncAt: null,
+  },
+  recentParsed: [],
+  logs: [],
+};
+
 const App: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -55,6 +68,7 @@ const App: React.FC = () => {
 
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(INITIAL_SYNC_STATUS);
+  const [emailSummary, setEmailSummary] = useState<EmailSummary>(INITIAL_EMAIL_SUMMARY);
 
   // Capture token from OAuth callback (cross-origin safe)
   useEffect(() => {
@@ -109,9 +123,13 @@ const App: React.FC = () => {
       const loadData = async () => {
         setSyncStatus(prev => ({ ...prev, isLoading: true }));
         try {
-          // Load connected emails
-          const connections = await api.getEmails();
+          // Load connected emails + summary
+          const [connections, summary] = await Promise.all([
+            api.getEmails(),
+            api.getEmailSummary(),
+          ]);
           setSyncStatus({ connections, isLoading: false, error: null });
+          setEmailSummary(summary);
 
           // Load parcels from backend
           const response = await api.getParcels({ limit: 100, offset: 0 });
@@ -172,6 +190,8 @@ const App: React.FC = () => {
           connections: prev.connections.filter(c => c.id !== payload),
           isLoading: false
         }));
+        const summary = await api.getEmailSummary();
+        setEmailSummary(summary);
       } else if (action === 'reconnect') {
         const updated = await api.reconnectEmail(payload);
         setSyncStatus(prev => ({
@@ -179,6 +199,13 @@ const App: React.FC = () => {
           connections: prev.connections.map(c => c.id === payload ? updated : c),
           isLoading: false
         }));
+        const summary = await api.getEmailSummary();
+        setEmailSummary(summary);
+      } else if (action === 'manual_sync') {
+        await api.syncEmails();
+        const summary = await api.getEmailSummary();
+        setEmailSummary(summary);
+        setSyncStatus(prev => ({ ...prev, isLoading: false }));
       }
     } catch (err) {
       setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Operation failed' }));
@@ -235,7 +262,7 @@ const App: React.FC = () => {
               <div onClick={() => setActiveTab('incoming')} className="cursor-pointer">
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-none tracking-tight italic">FlipTracker</h1>
                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${syncStatus.connections.some(c => c.status === 'connected') ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${syncStatus.connections.some(c => c.status === 'connected' || c.status === 'active') ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                   {syncStatus.connections.length > 0 ? `${syncStatus.connections.length} comptes connectés` : 'Aucun compte mail'}
                 </p>
               </div>
@@ -318,6 +345,7 @@ const App: React.FC = () => {
           ) : activeTab === 'email_sync' ? (
             <EmailSyncPage 
               status={syncStatus}
+              summary={emailSummary}
               preferences={preferences}
               onUpdatePreferences={setPreferences}
               onSyncAction={handleSyncAction}

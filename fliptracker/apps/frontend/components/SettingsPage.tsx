@@ -41,7 +41,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500">Compte Invité</p>
           </div>
         </div>
-        <button async () => {
+        <button 
+          onClick={async () => {
             setIsLoggingOut(true);
             await onLogout();
           }}
@@ -58,8 +59,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
               'Se déconnecter'
             )}
           </span>
-          {!isLoggingOut && <i className="fas fa-sign-out-alt text-slate-300 dark:text-slate-700 group-hover:text-rose-400 transition-colors"></i>}600">Se déconnecter</span>
-          <i className="fas fa-sign-out-alt text-slate-300 dark:text-slate-700 group-hover:text-rose-400 transition-colors"></i>
+          {!isLoggingOut && <i className="fas fa-sign-out-alt text-slate-300 dark:text-slate-700 group-hover:text-rose-400 transition-colors"></i>}
         </button>
       </section>
 

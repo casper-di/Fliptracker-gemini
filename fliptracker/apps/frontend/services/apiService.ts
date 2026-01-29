@@ -1,5 +1,5 @@
 
-import { ConnectedEmail, Shipment } from '../types';
+import { ConnectedEmail, EmailSummary, Shipment } from '../types';
 import { get, post, del, patch } from './httpClient';
 
 export interface ParcelFilters {
@@ -29,6 +29,19 @@ export const api = {
     const response = await get('/emails');
     const data = await response.json();
     return data.emails || [];
+  },
+
+  // GET /api/emails/summary
+  getEmailSummary: async (): Promise<EmailSummary> => {
+    const response = await get('/emails/summary');
+    const data = await response.json();
+    return data;
+  },
+
+  // POST /api/emails/sync
+  syncEmails: async (): Promise<{ success: boolean; queuedAt?: string }> => {
+    const response = await post('/emails/sync', {});
+    return response.json();
   },
 
   // POST /api/emails/connect/:provider/start

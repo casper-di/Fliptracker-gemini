@@ -92,10 +92,44 @@ export interface ConnectedEmail {
   refreshToken?: string;
   tokenExpiry: string;
   scopes: string[];
-  status: 'connected' | 'expired' | 'error';
+  status: 'connected' | 'active' | 'expired' | 'error' | 'revoked';
   lastSyncAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EmailStats {
+  totalConnections: number;
+  connected: number;
+  expired: number;
+  error: number;
+  emailsAnalyzed: number;
+  lastSyncAt: string | null;
+}
+
+export interface ParsedEmail {
+  id: string;
+  subject: string;
+  from: string;
+  receivedAt: string;
+  marketplace?: string;
+  carrier?: string;
+  status: 'parsed' | 'queued' | 'failed';
+  trackingNumber?: string;
+  orderId?: string;
+}
+
+export interface EmailLog {
+  id: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  createdAt: string;
+}
+
+export interface EmailSummary {
+  stats: EmailStats;
+  recentParsed: ParsedEmail[];
+  logs: EmailLog[];
 }
 
 export interface SyncStatus {
