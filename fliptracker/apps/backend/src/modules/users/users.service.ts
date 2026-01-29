@@ -14,6 +14,7 @@ export class UsersService {
     email: string,
     provider: 'google' | 'microsoft' | 'email',
     emailVerified?: boolean,
+    externalProviderId?: string,  // e.g., 'sub' from Google, 'oid' from Microsoft
   ): Promise<User> {
     let user = await this.userRepository.findById(uid);
     
@@ -33,24 +34,34 @@ export class UsersService {
         authFlags.lastPasswordAuthAt = new Date();
       }
 
+      const providerIds: Record<string, string> = {};
+      if (externalProviderId && provider !== 'email') {
+        providerIds[provider] = externalProviderId;
+      }
+
       user = await this.userRepository.create({
         id: uid,
         email,
         provider,
         emailVerified,
+        providerIds: Object.keys(providerIds).length > 0 ? providerIds : undefined,
         ...authFlags,
       });
     } else if (emailVerified !== undefined && user.emailVerified !== emailVerified) {
       user = await this.userRepository.update(uid, { emailVerified });
     }
 
-    // Update last auth timestamp
-    await this.trackAuthMethod(uid, provider);
+    // Update last auth timestamp and provider ID
+    await this.trackAuthMethod(uid, provider, externalProviderId);
 
     return user;
   }
 
-  private async trackAuthMethod(uid: string, provider: 'google' | 'microsoft' | 'email'): Promise<void> {
+  private async trackAuthMethod(
+    uid: string,
+    provider: 'google' | 'microsoft' | 'email',
+    externalProviderId?: string,
+  ): Promise<void> {
     const update: Partial<User> = {
       lastAuthAt: new Date(),
     };
@@ -58,9 +69,15 @@ export class UsersService {
     if (provider === 'google') {
       update.googleOAuthEnabled = true;
       update.lastGoogleAuthAt = new Date();
+      if (externalProviderId) {
+        update.providerIds = { ...((await this.userRepository.findById(uid))?.providerIds || {}), google: externalProviderId };
+      }
     } else if (provider === 'microsoft') {
       update.outlookOAuthEnabled = true;
       update.lastOutlookAuthAt = new Date();
+      if (externalProviderId) {
+        update.providerIds = { ...((await this.userRepository.findById(uid))?.providerIds || {}), microsoft: externalProviderId };
+      }
     } else if (provider === 'email') {
       update.passwordAuthEnabled = true;
       update.lastPasswordAuthAt = new Date();

@@ -5,6 +5,10 @@ export interface User {
   emailVerified?: boolean;
   createdAt: Date;
   
+  // Provider external IDs (for deduplication & account linking)
+  // Maps provider name to their unique user ID (sub, oid, etc)
+  providerIds?: Record<string, string>;
+  
   // Email connections (for fetching emails)
   gmailConnected?: boolean;
   outlookConnected?: boolean;

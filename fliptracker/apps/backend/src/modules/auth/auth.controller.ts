@@ -138,9 +138,12 @@ export class AuthController {
         return res.redirect(`${process.env.FRONTEND_URL}?error=missing_user_info`);
       }
 
-      // TODO: Create or update user in Firestore (after fixing credentials)
-      // For now, just authenticate and redirect
-      console.log('User authenticated:', { uid, email });
+      // Extract Google provider ID (sub claim)
+      const googleSub = (decodedToken as any).sub || (decodedToken as any).uid;
+
+      // Create or update user in Firestore with Google provider ID
+      await this.usersService.findOrCreate(uid, email, 'google', email_verified, googleSub);
+      console.log('User authenticated:', { uid, email, googleSub });
 
       // Set session cookie (for same-origin deployments)
       res.cookie('session', firebaseTokens.idToken, {
