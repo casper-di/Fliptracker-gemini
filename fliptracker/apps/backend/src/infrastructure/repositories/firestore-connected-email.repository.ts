@@ -20,13 +20,23 @@ export class FirestoreConnectedEmailRepository implements IConnectedEmailReposit
   }
 
   async findByUserId(userId: string): Promise<ConnectedEmail[]> {
-    const snapshot = await this.firebaseService
-      .getFirestore()
-      .collection(this.collection)
-      .where('userId', '==', userId)
-      .get();
+    console.log('[FirestoreConnectedEmailRepository] Finding emails for userId:', userId);
+    try {
+      const snapshot = await this.firebaseService
+        .getFirestore()
+        .collection(this.collection)
+        .where('userId', '==', userId)
+        .get();
 
-    return snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
+      console.log('[FirestoreConnectedEmailRepository] Found', snapshot.docs.length, 'email(s)');
+      return snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
+    } catch (error) {
+      console.error('[FirestoreConnectedEmailRepository] Failed to query emails:', {
+        error: error.message,
+        code: error.code,
+      });
+      throw error;
+    }
   }
 
   async findByEmailAddress(emailAddress: string): Promise<ConnectedEmail | null> {
@@ -46,21 +56,38 @@ export class FirestoreConnectedEmailRepository implements IConnectedEmailReposit
   }
 
   async create(email: Omit<ConnectedEmail, 'id' | 'createdAt'>): Promise<ConnectedEmail> {
+    console.log('[FirestoreConnectedEmailRepository] Creating email connection:', {
+      userId: email.userId,
+      provider: email.provider,
+      emailAddress: email.emailAddress,
+    });
+
     const data = {
       ...email,
       createdAt: new Date(),
     };
 
-    const docRef = await this.firebaseService.getFirestore().collection(this.collection).add({
-      ...data,
-      expiry: data.expiry,
-      lastSyncAt: data.lastSyncAt,
-    });
+    try {
+      const docRef = await this.firebaseService.getFirestore().collection(this.collection).add({
+        ...data,
+        expiry: data.expiry,
+        lastSyncAt: data.lastSyncAt,
+      });
 
-    return {
-      id: docRef.id,
-      ...data,
-    };
+      console.log('[FirestoreConnectedEmailRepository] Successfully created document with ID:', docRef.id);
+
+      return {
+        id: docRef.id,
+        ...data,
+      };
+    } catch (error) {
+      console.error('[FirestoreConnectedEmailRepository] Failed to create email connection:', {
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
+      throw error;
+    }
   }
 
   async update(id: string, data: Partial<ConnectedEmail>): Promise<ConnectedEmail> {

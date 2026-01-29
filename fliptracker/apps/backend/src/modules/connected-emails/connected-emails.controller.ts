@@ -119,7 +119,8 @@ export class ConnectedEmailsController {
         const tokens = await this.gmailService.exchangeCode(code);
         const profile = await this.gmailService.getUserProfile(tokens.access_token!);
         
-        await this.connectedEmailsService.connect(
+        console.log('[Gmail OAuth] Attempting to save connection for:', profile.emailAddress);
+        const savedEmail = await this.connectedEmailsService.connect(
           userId,
           'gmail',
           profile.emailAddress,
@@ -127,11 +128,13 @@ export class ConnectedEmailsController {
           tokens.refresh_token!,
           new Date(Date.now() + (tokens.expiry_date || 3600000)),
         );
+        console.log('[Gmail OAuth] Successfully saved connection with ID:', savedEmail.id);
       } else if (provider === 'outlook') {
         const tokens = await this.outlookService.exchangeCode(code);
         const profile = await this.outlookService.getUserProfile(tokens.accessToken);
         
-        await this.connectedEmailsService.connect(
+        console.log('[Outlook OAuth] Attempting to save connection for:', profile.mail || profile.userPrincipalName);
+        const savedEmail = await this.connectedEmailsService.connect(
           userId,
           'outlook',
           profile.mail || profile.userPrincipalName,
@@ -139,6 +142,7 @@ export class ConnectedEmailsController {
           tokens.refreshToken!,
           new Date(Date.now() + tokens.expiresIn * 1000),
         );
+        console.log('[Outlook OAuth] Successfully saved connection with ID:', savedEmail.id);
       }
 
       // Redirect to frontend with success
