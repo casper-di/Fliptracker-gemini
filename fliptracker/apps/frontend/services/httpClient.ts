@@ -3,7 +3,7 @@
  * Tokens are retrieved from backend session endpoint.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://improved-space-funicular-wv6xx6x9w5w35jxw-3001.app.github.dev/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://fliptracker-gemini.onrender.com/api';
 
 interface HttpOptions extends RequestInit {
   skipAuth?: boolean;

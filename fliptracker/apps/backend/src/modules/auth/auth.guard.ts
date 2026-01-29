@@ -21,6 +21,12 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Check if this route should skip authentication
+    const skipAuth = this.reflector.get<boolean>('skipAuth', context.getHandler());
+    if (skipAuth) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
     const sessionCookie = request.cookies?.session;

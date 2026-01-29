@@ -30,7 +30,8 @@ export class GmailService {
     this.oauth2Client = new google.auth.OAuth2(
       this.configService.get('GOOGLE_CLIENT_ID'),
       this.configService.get('GOOGLE_CLIENT_SECRET'),
-      this.configService.get('GOOGLE_REDIRECT_URI'),
+      // Use separate redirect URI for email connections, fallback to auth redirect URI
+      this.configService.get('GOOGLE_EMAIL_REDIRECT_URI') || this.configService.get('GOOGLE_REDIRECT_URI'),
     );
   }
 
