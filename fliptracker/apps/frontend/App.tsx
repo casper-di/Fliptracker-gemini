@@ -107,8 +107,9 @@ const App: React.FC = () => {
     const emailError = url.searchParams.get('error');
     
     if (emailSuccess === 'true' && emailProvider) {
-      console.log(`Email OAuth callback detected for ${emailProvider}, will reload connections`);
-      setActiveTab('email_sync'); // Switch to email sync tab
+      console.log(`Email OAuth callback detected for ${emailProvider}, will switch to email_sync tab when user is ready`);
+      // Store in sessionStorage to switch tab after user loads
+      sessionStorage.setItem('pendingEmailSyncTab', 'true');
     } else if (emailSuccess === 'false' && emailError) {
       console.error(`Email OAuth callback failed: ${emailError}`);
       alert(`Failed to connect email: ${decodeURIComponent(emailError)}`);
@@ -126,8 +127,16 @@ const App: React.FC = () => {
   // Initial Data Loading
   useEffect(() => {
     const unsubscribe = onAuthStateChange((authSession) => {
+      console.log('Auth state changed:', { hasUser: !!authSession });
       setUser(authSession);
       setAppLoading(false);
+
+      // If pending email sync tab switch, do it now
+      if (authSession && sessionStorage.getItem('pendingEmailSyncTab')) {
+        console.log('Switching to email_sync tab after auth');
+        sessionStorage.removeItem('pendingEmailSyncTab');
+        setActiveTab('email_sync');
+      }
     });
 
     const savedPrefs = localStorage.getItem('fliptracker_preferences');

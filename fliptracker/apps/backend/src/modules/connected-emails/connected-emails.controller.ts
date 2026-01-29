@@ -20,13 +20,22 @@ export class ConnectedEmailsController {
 
   @Get()
   async getConnectedEmails(@Req() req: AuthenticatedRequest) {
+    console.log('[getConnectedEmails] Called with userId:', req.user?.uid);
     try {
       const emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+      console.log('[getConnectedEmails] Found', emails.length, 'emails for userId:', req.user.uid);
       return { emails };
     } catch (error) {
       console.error('Failed to fetch connected emails:', error?.message || error);
       return { emails: [] };
     }
+  }
+
+  @Get('debug/all')
+  @SkipAuth()
+  async debugGetAllEmails() {
+    console.log('[DEBUG] Returning all in-memory emails (no auth)');
+    return { message: 'Debug endpoint - in-memory storage returns all data on restart', timestamp: new Date().toISOString() };
   }
 
   @Get('summary')
