@@ -121,9 +121,11 @@ export class AuthController {
         maxAge: 24 * 60 * 60 * 1000,
       });
 
-      // Redirect to frontend with token in hash for cross-origin usage
+      // Redirect to frontend with token in query param for cross-origin usage
+      // Frontend will capture it and store in localStorage
       const frontendUrl = process.env.FRONTEND_URL || '';
-      const redirectUrl = `${frontendUrl}/auth/callback#token=${encodeURIComponent(tokens.id_token)}`;
+      const redirectUrl = `${frontendUrl}?token=${encodeURIComponent(tokens.id_token)}&authenticated=true`;
+      console.log('Redirecting to frontend:', redirectUrl);
       return res.redirect(redirectUrl);
     } catch (err) {
       console.error('Google callback failed:', err);

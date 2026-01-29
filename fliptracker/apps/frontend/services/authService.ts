@@ -45,7 +45,18 @@ export const getCurrentSession = async (): Promise<AuthSession | null> => {
       return null; // Not logged in
     }
     const data = await response.json();
-    return data.user || null;
+    if (data?.user) {
+      return data.user;
+    }
+    if (data?.id && data?.email) {
+      return {
+        uid: data.id,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        provider: data.provider,
+      };
+    }
+    return null;
   } catch (error) {
     console.error('Failed to get session:', error);
     return null;
@@ -57,6 +68,7 @@ export const getCurrentSession = async (): Promise<AuthSession | null> => {
  */
 export const signOut = async (): Promise<void> => {
   try {
+    localStorage.removeItem('auth_token');
     await post('/auth/logout', {});
   } catch (error) {
     console.error('Failed to logout:', error);

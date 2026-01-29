@@ -14,7 +14,13 @@ interface HttpOptions extends RequestInit {
  */
 const getIdToken = async (): Promise<string | null> => {
   try {
-    // Get token from backend's session endpoint
+    // Prefer token stored in localStorage (cross-origin safe)
+    const storedToken = localStorage.getItem('auth_token');
+    if (storedToken) {
+      return storedToken;
+    }
+
+    // Fallback to backend session cookie
     const response = await fetch(`${API_BASE_URL}/auth/token`, {
       method: 'GET',
       credentials: 'include', // Include cookies if session is stored in httpOnly cookie
@@ -25,6 +31,9 @@ const getIdToken = async (): Promise<string | null> => {
     }
     
     const data = await response.json();
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+    }
     return data.token || null;
   } catch (error) {
     console.error('Failed to get ID token:', error);

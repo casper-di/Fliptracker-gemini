@@ -56,6 +56,28 @@ const App: React.FC = () => {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(INITIAL_SYNC_STATUS);
 
+  // Capture token from OAuth callback (cross-origin safe)
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    
+    // Try query param first, then hash
+    const tokenFromQuery = url.searchParams.get('token');
+    const hashParams = new URLSearchParams(url.hash.replace('#', ''));
+    const tokenFromHash = hashParams.get('token');
+    const token = tokenFromQuery || tokenFromHash;
+
+    if (token) {
+      console.log('Token captured from URL, storing in localStorage');
+      localStorage.setItem('auth_token', token);
+      
+      // Clean up URL
+      url.searchParams.delete('token');
+      url.searchParams.delete('authenticated');
+      url.hash = '';
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    }
+  }, []);
+
   // Initial Data Loading
   useEffect(() => {
     const unsubscribe = onAuthStateChange((authSession) => {
