@@ -100,28 +100,45 @@ const App: React.FC = () => {
     } else {
       console.log('No token found in URL');
     }
+  }, []);
 
-    // Check if redirected from email OAuth callback
-    const emailSuccess = url.searchParams.get('success');
-    const emailProvider = url.searchParams.get('provider');
-    const emailError = url.searchParams.get('error');
+  // Check for email OAuth callback (on mount and when URL changes)
+  useEffect(() => {
+    const checkEmailOAuthCallback = () => {
+      const url = new URL(window.location.href);
+      const emailSuccess = url.searchParams.get('success');
+      const emailProvider = url.searchParams.get('provider');
+      const emailError = url.searchParams.get('error');
+      
+      console.log('[Email OAuth] Checking for callback:', { emailSuccess, emailProvider, emailError });
+
+      if (emailSuccess === 'true' && emailProvider) {
+        console.log(`[Email OAuth] Callback detected for ${emailProvider}, will switch to email_sync tab`);
+        // Store in sessionStorage to switch tab after user loads
+        sessionStorage.setItem('pendingEmailSyncTab', 'true');
+        
+        // Clean up OAuth params from URL
+        url.searchParams.delete('success');
+        url.searchParams.delete('provider');
+        url.searchParams.delete('error');
+        window.history.replaceState({}, document.title, url.pathname + url.search);
+      } else if (emailSuccess === 'false' && emailError) {
+        console.error(`[Email OAuth] Callback failed: ${emailError}`);
+        alert(`Failed to connect email: ${decodeURIComponent(emailError)}`);
+        
+        // Clean up error params
+        url.searchParams.delete('success');
+        url.searchParams.delete('provider');
+        url.searchParams.delete('error');
+        window.history.replaceState({}, document.title, url.pathname + url.search);
+      }
+    };
+
+    checkEmailOAuthCallback();
     
-    if (emailSuccess === 'true' && emailProvider) {
-      console.log(`Email OAuth callback detected for ${emailProvider}, will switch to email_sync tab when user is ready`);
-      // Store in sessionStorage to switch tab after user loads
-      sessionStorage.setItem('pendingEmailSyncTab', 'true');
-    } else if (emailSuccess === 'false' && emailError) {
-      console.error(`Email OAuth callback failed: ${emailError}`);
-      alert(`Failed to connect email: ${decodeURIComponent(emailError)}`);
-    }
-    
-    // Clean up OAuth params from URL
-    if (emailSuccess || emailError) {
-      url.searchParams.delete('success');
-      url.searchParams.delete('provider');
-      url.searchParams.delete('error');
-      window.history.replaceState({}, document.title, url.pathname + url.search);
-    }
+    // Also check on URL change
+    window.addEventListener('popstate', checkEmailOAuthCallback);
+    return () => window.removeEventListener('popstate', checkEmailOAuthCallback);
   }, []);
 
   // Initial Data Loading
@@ -176,6 +193,7 @@ const App: React.FC = () => {
   // Reload connections when email_sync tab becomes active (after OAuth redirect)
   useEffect(() => {
     if (user && activeTab === 'email_sync') {
+      console.log('[Email Sync] Tab active and user loaded, reloading connections');
       const reloadConnections = async () => {
         setSyncStatus(prev => ({ ...prev, isLoading: true }));
         try {
@@ -183,6 +201,7 @@ const App: React.FC = () => {
             api.getEmails(),
             api.getEmailSummary(),
           ]);
+          console.log('[Email Sync] Loaded', connections.length, 'connections');
           setSyncStatus({ connections, isLoading: false, error: null });
           setEmailSummary(summary);
         } catch (err) {

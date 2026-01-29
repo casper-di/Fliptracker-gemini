@@ -100,7 +100,7 @@ export class ConnectedEmailsController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    console.log('OAuth callback received:', { provider, hasCode: !!code, state });
+    console.log('[OAuth Callback] Received:', { provider, hasCode: !!code, stateLength: state?.length });
     try {
       if (!state) {
         throw new Error('Missing state parameter');
@@ -114,9 +114,9 @@ export class ConnectedEmailsController {
       try {
         const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
         userId = decoded.userId;
-        console.log('Decoded state for userId:', userId);
+        console.log('[OAuth Callback] Decoded state for userId:', userId);
       } catch (parseError) {
-        console.error('Failed to parse state:', state, parseError);
+        console.error('[OAuth Callback] Failed to parse state:', state, parseError);
         throw new Error('Invalid state parameter - OAuth flow must be started through /api/emails/connect/:provider/start');
       }
 
@@ -125,8 +125,11 @@ export class ConnectedEmailsController {
       }
 
       if (provider === 'gmail') {
+        console.log('[Gmail OAuth] Exchanging code for tokens...');
         const tokens = await this.gmailService.exchangeCode(code);
+        console.log('[Gmail OAuth] Got tokens, fetching profile...');
         const profile = await this.gmailService.getUserProfile(tokens.access_token!);
+        console.log('[Gmail OAuth] Profile fetched:', { email: profile.emailAddress });
         
         console.log('[Gmail OAuth] Attempting to save connection for:', profile.emailAddress);
         const savedEmail = await this.connectedEmailsService.connect(
@@ -139,8 +142,11 @@ export class ConnectedEmailsController {
         );
         console.log('[Gmail OAuth] Successfully saved connection with ID:', savedEmail.id);
       } else if (provider === 'outlook') {
+        console.log('[Outlook OAuth] Exchanging code for tokens...');
         const tokens = await this.outlookService.exchangeCode(code);
+        console.log('[Outlook OAuth] Got tokens, fetching profile...');
         const profile = await this.outlookService.getUserProfile(tokens.accessToken);
+        console.log('[Outlook OAuth] Profile fetched:', { email: profile.mail || profile.userPrincipalName });
         
         console.log('[Outlook OAuth] Attempting to save connection for:', profile.mail || profile.userPrincipalName);
         const savedEmail = await this.connectedEmailsService.connect(
@@ -155,15 +161,16 @@ export class ConnectedEmailsController {
       }
 
       // Redirect to frontend with success
-      console.log(`Successfully connected ${provider} account for user ${userId}`);
+      console.log(`[OAuth Callback] Successfully connected ${provider} account for user ${userId}`);
       const frontendUrl = process.env.FRONTEND_URL || 'https://fliptracker-gemini.onrender.com';
       return res.redirect(`${frontendUrl}/?success=true&provider=${provider}`);
     } catch (error) {
-      console.error('OAuth callback error:', {
+      console.error('[OAuth Callback] ERROR:', {
         message: error.message,
-        stack: error.stack,
+        code: error.code,
+        status: error.status,
         provider,
-        state,
+        stack: error.stack,
       });
       const frontendUrl = process.env.FRONTEND_URL || 'https://fliptracker-gemini.onrender.com';
       return res.redirect(`${frontendUrl}/?success=false&error=${encodeURIComponent(error.message)}`);
