@@ -48,10 +48,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
           disabled={isLoggingOut}
           className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 rounded-2xl transition-all group disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <span className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-slate-200 group-hover:text-rose-600 flex items-center gap-2">
+          <span className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-slate-200 group-hover:text-rose-600 flex items-center gap-3">
             {isLoggingOut ? (
               <>
-                <i className="fas fa-spinner animate-spin"></i>
+                <div className="w-4 h-4 rounded-full border-2 border-rose-300 border-t-rose-600 animate-spin"></div>
                 Déconnexion...
               </>
             ) : (
