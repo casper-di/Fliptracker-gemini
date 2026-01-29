@@ -59,6 +59,11 @@ const App: React.FC = () => {
   // Capture token from OAuth callback (cross-origin safe)
   useEffect(() => {
     const url = new URL(window.location.href);
+    console.log('App mounted, checking for token in URL:', {
+      fullUrl: url.href,
+      searchParams: Object.fromEntries(url.searchParams),
+      hash: url.hash,
+    });
     
     // Try query param first, then hash
     const tokenFromQuery = url.searchParams.get('token');
@@ -66,15 +71,20 @@ const App: React.FC = () => {
     const tokenFromHash = hashParams.get('token');
     const token = tokenFromQuery || tokenFromHash;
 
+    console.log('Token search result:', { tokenFromQuery, tokenFromHash, token });
+
     if (token) {
       console.log('Token captured from URL, storing in localStorage');
       localStorage.setItem('auth_token', token);
+      console.log('Token stored, value:', localStorage.getItem('auth_token'));
       
       // Clean up URL
       url.searchParams.delete('token');
       url.searchParams.delete('authenticated');
       url.hash = '';
       window.history.replaceState({}, document.title, url.pathname + url.search);
+    } else {
+      console.log('No token found in URL');
     }
   }, []);
 
