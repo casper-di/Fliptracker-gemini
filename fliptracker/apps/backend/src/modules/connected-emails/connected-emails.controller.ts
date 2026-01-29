@@ -96,6 +96,7 @@ export class ConnectedEmailsController {
 
   @Get('connect/:provider/callback')
   @Post('connect/:provider/callback')
+  @UseGuards(AuthGuard)
   @SkipAuth()
   async handleOAuthCallback(
     @Param('provider') provider: 'gmail' | 'outlook',
