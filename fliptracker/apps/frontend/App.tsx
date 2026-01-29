@@ -104,10 +104,18 @@ const App: React.FC = () => {
     // Check if redirected from email OAuth callback
     const emailSuccess = url.searchParams.get('success');
     const emailProvider = url.searchParams.get('provider');
+    const emailError = url.searchParams.get('error');
+    
     if (emailSuccess === 'true' && emailProvider) {
       console.log(`Email OAuth callback detected for ${emailProvider}, will reload connections`);
       setActiveTab('email_sync'); // Switch to email sync tab
-      // Clean up success params
+    } else if (emailSuccess === 'false' && emailError) {
+      console.error(`Email OAuth callback failed: ${emailError}`);
+      alert(`Failed to connect email: ${decodeURIComponent(emailError)}`);
+    }
+    
+    // Clean up OAuth params from URL
+    if (emailSuccess || emailError) {
       url.searchParams.delete('success');
       url.searchParams.delete('provider');
       url.searchParams.delete('error');

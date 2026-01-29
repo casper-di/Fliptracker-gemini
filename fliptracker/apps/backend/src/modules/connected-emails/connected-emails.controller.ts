@@ -144,7 +144,7 @@ export class ConnectedEmailsController {
       // Redirect to frontend with success
       console.log(`Successfully connected ${provider} account for user ${userId}`);
       const frontendUrl = process.env.FRONTEND_URL || 'https://fliptracker-gemini.onrender.com';
-      return res.redirect(`${frontendUrl}/email-sync?success=true&provider=${provider}`);
+      return res.redirect(`${frontendUrl}/?success=true&provider=${provider}`);
     } catch (error) {
       console.error('OAuth callback error:', {
         message: error.message,
@@ -153,7 +153,7 @@ export class ConnectedEmailsController {
         state,
       });
       const frontendUrl = process.env.FRONTEND_URL || 'https://fliptracker-gemini.onrender.com';
-      return res.redirect(`${frontendUrl}/email-sync?success=false&error=${encodeURIComponent(error.message)}`);
+      return res.redirect(`${frontendUrl}/?success=false&error=${encodeURIComponent(error.message)}`);
     }
   }
 

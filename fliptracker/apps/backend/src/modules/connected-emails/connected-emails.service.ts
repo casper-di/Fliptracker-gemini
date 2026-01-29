@@ -27,18 +27,26 @@ export class ConnectedEmailsService {
     refreshToken: string,
     expiry: Date,
   ): Promise<ConnectedEmail> {
+    console.log('[ConnectedEmailsService] Connecting email:', { userId, provider, emailAddress });
     const encryptedRefreshToken = this.encryptionService.encrypt(refreshToken);
 
-    return this.repository.create({
-      userId,
-      provider,
-      emailAddress,
-      accessToken,
-      refreshToken: encryptedRefreshToken,
-      expiry,
-      status: 'active',
-      lastSyncAt: null,
-    });
+    try {
+      const result = await this.repository.create({
+        userId,
+        provider,
+        emailAddress,
+        accessToken,
+        refreshToken: encryptedRefreshToken,
+        expiry,
+        status: 'active',
+        lastSyncAt: null,
+      });
+      console.log('[ConnectedEmailsService] Email connected successfully:', result.id);
+      return result;
+    } catch (error) {
+      console.error('[ConnectedEmailsService] Failed to connect email:', error);
+      throw error;
+    }
   }
 
   async updateTokens(
