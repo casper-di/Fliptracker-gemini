@@ -96,8 +96,36 @@ export class AuthController {
         return res.redirect(`${process.env.FRONTEND_URL}?error=no_token`);
       }
 
-      // Verify the ID token
-      const decodedToken = await this.firebaseService.verifyToken(tokens.id_token);
+      // Exchange Google ID token for Firebase ID token
+      const firebaseApiKey = process.env.FIREBASE_API_KEY;
+      if (!firebaseApiKey) {
+        console.error('FIREBASE_API_KEY not configured');
+        return res.redirect(`${process.env.FRONTEND_URL}?error=firebase_api_key_missing`);
+      }
+
+      const requestUri = process.env.FRONTEND_URL || 'https://localhost';
+      const signInWithIdpResponse = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${encodeURIComponent(firebaseApiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            postBody: `id_token=${encodeURIComponent(tokens.id_token)}&providerId=google.com`,
+            requestUri,
+            returnIdpCredential: true,
+            returnSecureToken: true,
+          }),
+        },
+      );
+
+      const firebaseTokens = await signInWithIdpResponse.json();
+      if (!firebaseTokens.idToken) {
+        console.error('Failed to exchange Google token for Firebase token', firebaseTokens);
+        return res.redirect(`${process.env.FRONTEND_URL}?error=firebase_exchange_failed`);
+      }
+
+      // Verify the Firebase ID token
+      const decodedToken = await this.firebaseService.verifyToken(firebaseTokens.idToken);
       if (!decodedToken) {
         return res.redirect(`${process.env.FRONTEND_URL}?error=invalid_token`);
       }
@@ -114,7 +142,7 @@ export class AuthController {
       const user = await this.usersService.findOrCreate(uid, email, 'google', Boolean(email_verified));
 
       // Set session cookie (for same-origin deployments)
-      res.cookie('session', tokens.id_token, {
+      res.cookie('session', firebaseTokens.idToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'none',
@@ -124,7 +152,7 @@ export class AuthController {
       // Redirect to frontend with token in query param for cross-origin usage
       // Frontend will capture it and store in localStorage
       const frontendUrl = process.env.FRONTEND_URL || '';
-      const redirectUrl = `${frontendUrl}?token=${encodeURIComponent(tokens.id_token)}&authenticated=true`;
+      const redirectUrl = `${frontendUrl}?token=${encodeURIComponent(firebaseTokens.idToken)}&authenticated=true`;
       console.log('Redirecting to frontend:', redirectUrl);
       return res.redirect(redirectUrl);
     } catch (err) {
@@ -183,6 +211,7 @@ export class AuthController {
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET',
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET',
         GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'NOT SET',
+        FIREBASE_API_KEY: process.env.FIREBASE_API_KEY ? 'SET' : 'NOT SET',
       },
     };
   }
