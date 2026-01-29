@@ -138,14 +138,9 @@ export class AuthController {
         return res.redirect(`${process.env.FRONTEND_URL}?error=missing_user_info`);
       }
 
-      // Create or update user (handle Firestore NOT_FOUND gracefully)
-      try {
-        const user = await this.usersService.findOrCreate(uid, email, 'google', Boolean(email_verified));
-        console.log('User created/updated:', { uid, email });
-      } catch (userError) {
-        console.warn('Error creating user, but continuing with auth:', userError);
-        // Don't fail auth if user creation fails — just log it
-      }
+      // TODO: Create or update user in Firestore (after fixing credentials)
+      // For now, just authenticate and redirect
+      console.log('User authenticated:', { uid, email });
 
       // Set session cookie (for same-origin deployments)
       res.cookie('session', firebaseTokens.idToken, {
