@@ -10,7 +10,6 @@ import { ConnectedEmail } from '../../domain/entities';
 export const SkipAuth = () => SetMetadata('skipAuth', true);
 
 @Controller('emails')
-@UseGuards(AuthGuard)
 export class ConnectedEmailsController {
   constructor(
     private connectedEmailsService: ConnectedEmailsService,
@@ -19,6 +18,7 @@ export class ConnectedEmailsController {
   ) {}
 
   @Get()
+  @UseGuards(AuthGuard)
   async getConnectedEmails(@Req() req: AuthenticatedRequest) {
     console.log('[getConnectedEmails] Called with userId:', req.user?.uid);
     try {
@@ -39,6 +39,7 @@ export class ConnectedEmailsController {
   }
 
   @Get('summary')
+  @UseGuards(AuthGuard)
   async getEmailSummary(@Req() req: AuthenticatedRequest) {
     let emails: ConnectedEmail[] = [];
     try {
@@ -68,12 +69,14 @@ export class ConnectedEmailsController {
   }
 
   @Post('sync')
+  @UseGuards(AuthGuard)
   async manualSync(@Req() req: AuthenticatedRequest) {
     // TODO: enqueue background job once queue is in place
     return { success: true, queuedAt: new Date().toISOString() };
   }
 
   @Post('connect/:provider/start')
+  @UseGuards(AuthGuard)
   async startOAuthFlow(
     @Param('provider') provider: 'gmail' | 'outlook',
     @Req() req: AuthenticatedRequest,
@@ -178,6 +181,7 @@ export class ConnectedEmailsController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard)
   async disconnectEmail(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
@@ -192,6 +196,7 @@ export class ConnectedEmailsController {
   }
 
   @Post(':id/reconnect')
+  @UseGuards(AuthGuard)
   async reconnectEmail(
     @Param('id') id: string,
     @Req() req: AuthenticatedRequest,
