@@ -19,8 +19,9 @@ export class ConnectedEmailsController {
 
   @Get()
   async getConnectedEmails(@Req() req: AuthenticatedRequest) {
-    const emails = await this.connectedEmailsService.findByUserId(req.user.uid);
-    return { emails: emails.map(e => ({ ...e, refreshToken: undefined })) };
+    // TODO: Enable once Firestore credentials fixed
+    // const emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+    return { emails: [] };
   }
 
   @Post('connect/:provider/start')
