@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Response } from 'express';
 import { ConnectedEmailsService } from './connected-emails.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { FirebaseService } from '../auth/firebase.service';
 import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
 import { ConnectedEmail } from '../../domain/entities';
@@ -13,6 +14,7 @@ export const SkipAuth = () => SetMetadata('skipAuth', true);
 export class ConnectedEmailsController {
   constructor(
     private connectedEmailsService: ConnectedEmailsService,
+    private firebaseService: FirebaseService,
     private gmailService: GmailService,
     private outlookService: OutlookService,
   ) {}
@@ -35,7 +37,29 @@ export class ConnectedEmailsController {
   @SkipAuth()
   async debugGetAllEmails() {
     console.log('[DEBUG] Returning all in-memory emails (no auth)');
-    return { message: 'Debug endpoint - in-memory storage returns all data on restart', timestamp: new Date().toISOString() };
+    let firestoreStatus = 'ok';
+    let firestoreError: { message?: string; code?: string | number } | null = null;
+
+    try {
+      await this.firebaseService.getFirestore().collection('_health').limit(1).get();
+    } catch (error) {
+      firestoreStatus = 'error';
+      firestoreError = {
+        message: error?.message || String(error),
+        code: error?.code,
+      };
+    }
+
+    return {
+      message: 'Debug endpoint - in-memory storage returns all data on restart',
+      timestamp: new Date().toISOString(),
+      firebase: {
+        initialized: this.firebaseService.isInitialized(),
+        projectId: this.firebaseService.getProjectId(),
+        firestoreStatus,
+        firestoreError,
+      },
+    };
   }
 
   @Get('summary')

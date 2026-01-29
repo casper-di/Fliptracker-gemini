@@ -58,6 +58,14 @@ export class FirebaseService implements OnModuleInit {
     return admin.firestore();
   }
 
+  getProjectId(): string | undefined {
+    return this.app?.options?.projectId?.toString();
+  }
+
+  isInitialized(): boolean {
+    return !!this.app;
+  }
+
   isProduction(): boolean {
     return this.configService.get<string>('NODE_ENV') === 'production';
   }
