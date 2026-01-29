@@ -113,7 +113,7 @@ export class AuthController {
       // Create or update user
       const user = await this.usersService.findOrCreate(uid, email, 'google', Boolean(email_verified));
 
-      // Set session cookie
+      // Set session cookie (for same-origin deployments)
       res.cookie('session', tokens.id_token, {
         httpOnly: true,
         secure: true,
@@ -121,8 +121,10 @@ export class AuthController {
         maxAge: 24 * 60 * 60 * 1000,
       });
 
-      // Redirect to frontend dashboard
-      return res.redirect(`${process.env.FRONTEND_URL}`);
+      // Redirect to frontend with token in hash for cross-origin usage
+      const frontendUrl = process.env.FRONTEND_URL || '';
+      const redirectUrl = `${frontendUrl}/auth/callback#token=${encodeURIComponent(tokens.id_token)}`;
+      return res.redirect(redirectUrl);
     } catch (err) {
       console.error('Google callback failed:', err);
       return res.redirect(`${process.env.FRONTEND_URL}?error=callback_failed`);
