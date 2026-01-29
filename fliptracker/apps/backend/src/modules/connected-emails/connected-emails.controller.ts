@@ -51,11 +51,15 @@ export class ConnectedEmailsController {
     }
 
     return {
-      message: 'Debug endpoint - in-memory storage returns all data on restart',
+      message: 'Debug endpoint',
       timestamp: new Date().toISOString(),
       firebase: {
         initialized: this.firebaseService.isInitialized(),
         projectId: this.firebaseService.getProjectId(),
+        configuredProjectId: this.firebaseService.getConfiguredProjectId(),
+        clientEmail: this.firebaseService.getClientEmail(),
+        clientEmailProjectId: this.firebaseService.getClientEmailProjectId(),
+        configuredDatabaseId: this.firebaseService.getConfiguredDatabaseId(),
         firestoreStatus,
         firestoreError,
       },

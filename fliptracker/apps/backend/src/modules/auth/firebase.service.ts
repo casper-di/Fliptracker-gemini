@@ -62,6 +62,24 @@ export class FirebaseService implements OnModuleInit {
     return this.app?.options?.projectId?.toString();
   }
 
+  getConfiguredProjectId(): string | undefined {
+    return this.configService.get<string>('FIREBASE_PROJECT_ID');
+  }
+
+  getClientEmail(): string | undefined {
+    return this.configService.get<string>('FIREBASE_CLIENT_EMAIL');
+  }
+
+  getClientEmailProjectId(): string | undefined {
+    const clientEmail = this.getClientEmail();
+    const match = clientEmail?.match(/@(.+?)\.iam\.gserviceaccount\.com$/);
+    return match?.[1];
+  }
+
+  getConfiguredDatabaseId(): string | undefined {
+    return this.configService.get<string>('FIREBASE_DATABASE_ID');
+  }
+
   isInitialized(): boolean {
     return !!this.app;
   }
