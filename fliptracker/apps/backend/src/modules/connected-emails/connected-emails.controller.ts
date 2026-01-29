@@ -5,6 +5,7 @@ import { ConnectedEmailsService } from './connected-emails.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
+import { ConnectedEmail } from '../../domain/entities';
 
 export const SkipAuth = () => SetMetadata('skipAuth', true);
 
@@ -26,7 +27,7 @@ export class ConnectedEmailsController {
 
   @Get('summary')
   async getEmailSummary(@Req() req: AuthenticatedRequest) {
-    let emails = [];
+    let emails: ConnectedEmail[] = [];
     try {
       // TODO: Enable once Firestore credentials fixed
       // emails = await this.connectedEmailsService.findByUserId(req.user.uid);
@@ -36,16 +37,16 @@ export class ConnectedEmailsController {
     }
 
     const totalConnections = emails.length;
-    const connected = emails.filter((e: any) => e.status === 'active' || e.status === 'connected').length;
-    const expired = emails.filter((e: any) => e.status === 'expired').length;
-    const error = emails.filter((e: any) => e.status === 'error' || e.status === 'revoked').length;
+    const connected = emails.filter((e: ConnectedEmail) => e.status === 'active').length;
+    const expired = emails.filter((e: ConnectedEmail) => e.status === 'expired').length;
+    const errorCount = emails.filter((e: ConnectedEmail) => e.status === 'revoked').length;
 
     return {
       stats: {
         totalConnections,
         connected,
         expired,
-        error,
+        error: errorCount,
         emailsAnalyzed: 0,
         lastSyncAt: null,
       },
