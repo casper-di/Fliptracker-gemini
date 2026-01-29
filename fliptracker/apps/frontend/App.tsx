@@ -100,6 +100,19 @@ const App: React.FC = () => {
     } else {
       console.log('No token found in URL');
     }
+
+    // Check if redirected from email OAuth callback
+    const emailSuccess = url.searchParams.get('success');
+    const emailProvider = url.searchParams.get('provider');
+    if (emailSuccess === 'true' && emailProvider) {
+      console.log(`Email OAuth callback detected for ${emailProvider}, will reload connections`);
+      setActiveTab('email_sync'); // Switch to email sync tab
+      // Clean up success params
+      url.searchParams.delete('success');
+      url.searchParams.delete('provider');
+      url.searchParams.delete('error');
+      window.history.replaceState({}, document.title, url.pathname + url.search);
+    }
   }, []);
 
   // Initial Data Loading
@@ -143,6 +156,27 @@ const App: React.FC = () => {
     }
   }, [user]);
 
+  // Reload connections when email_sync tab becomes active (after OAuth redirect)
+  useEffect(() => {
+    if (user && activeTab === 'email_sync') {
+      const reloadConnections = async () => {
+        setSyncStatus(prev => ({ ...prev, isLoading: true }));
+        try {
+          const [connections, summary] = await Promise.all([
+            api.getEmails(),
+            api.getEmailSummary(),
+          ]);
+          setSyncStatus({ connections, isLoading: false, error: null });
+          setEmailSummary(summary);
+        } catch (err) {
+          console.error('Failed to reload email connections:', err);
+          setSyncStatus(prev => ({ ...prev, isLoading: false }));
+        }
+      };
+      reloadConnections();
+    }
+  }, [user, activeTab]);
+
 
   // Save State
   useEffect(() => {
@@ -182,6 +216,9 @@ const App: React.FC = () => {
     try {
       if (action === 'connect_gmail') {
         const { authUrl } = await api.gmail.connectStart();
+        window.location.href = authUrl; // Redirect to OAuth
+      } else if (action === 'connect_outlook') {
+        const { authUrl } = await api.outlook.connectStart();
         window.location.href = authUrl; // Redirect to OAuth
       } else if (action === 'delete') {
         await api.deleteEmail(payload);

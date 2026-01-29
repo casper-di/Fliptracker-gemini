@@ -157,13 +157,25 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
             ))
           )}
 
-          <button 
-            onClick={() => onSyncAction('connect_gmail')}
-            className="w-full bg-slate-900 dark:bg-blue-600 text-white p-5 rounded-[24px] flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-xl shadow-slate-200 dark:shadow-none"
-          >
-            <i className="fas fa-plus-circle opacity-50"></i>
-            <span className="text-[11px] font-black uppercase tracking-widest">Ajouter un nouveau email</span>
-          </button>
+          <div className="space-y-3">
+            <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">Ajouter un compte</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => onSyncAction('connect_gmail')}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md"
+              >
+                <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Gmail</span>
+              </button>
+              <button 
+                onClick={() => onSyncAction('connect_outlook')}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md"
+              >
+                <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Outlook</span>
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* Recently Parsed Emails */}

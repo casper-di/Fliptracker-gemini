@@ -20,17 +20,20 @@ export class ConnectedEmailsController {
 
   @Get()
   async getConnectedEmails(@Req() req: AuthenticatedRequest) {
-    // TODO: Enable once Firestore credentials fixed
-    // const emails = await this.connectedEmailsService.findByUserId(req.user.uid);
-    return { emails: [] };
+    try {
+      const emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+      return { emails };
+    } catch (error) {
+      console.error('Failed to fetch connected emails:', error?.message || error);
+      return { emails: [] };
+    }
   }
 
   @Get('summary')
   async getEmailSummary(@Req() req: AuthenticatedRequest) {
     let emails: ConnectedEmail[] = [];
     try {
-      // TODO: Enable once Firestore credentials fixed
-      // emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+      emails = await this.connectedEmailsService.findByUserId(req.user.uid);
     } catch (error) {
       console.warn('Email summary fallback to empty list:', error?.message || error);
       emails = [];
