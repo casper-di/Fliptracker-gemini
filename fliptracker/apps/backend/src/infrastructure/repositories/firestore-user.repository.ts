@@ -42,6 +42,10 @@ export class FirestoreUserRepository implements IUserRepository {
       emailVerified: user.emailVerified || false,
       gmailConnected: user.gmailConnected || false,
       outlookConnected: user.outlookConnected || false,
+      passwordAuthEnabled: user.passwordAuthEnabled || false,
+      googleOAuthEnabled: user.googleOAuthEnabled || false,
+      outlookOAuthEnabled: user.outlookOAuthEnabled || false,
+      lastAuthAt: user.lastAuthAt || new Date(),
       createdAt: new Date(),
     };
 
@@ -75,6 +79,13 @@ export class FirestoreUserRepository implements IUserRepository {
       emailVerified: data.emailVerified || false,
       gmailConnected: data.gmailConnected || false,
       outlookConnected: data.outlookConnected || false,
+      passwordAuthEnabled: data.passwordAuthEnabled || false,
+      googleOAuthEnabled: data.googleOAuthEnabled || false,
+      outlookOAuthEnabled: data.outlookOAuthEnabled || false,
+      lastAuthAt: data.lastAuthAt?.toDate() || new Date(),
+      lastPasswordAuthAt: data.lastPasswordAuthAt?.toDate() || null,
+      lastGoogleAuthAt: data.lastGoogleAuthAt?.toDate() || null,
+      lastOutlookAuthAt: data.lastOutlookAuthAt?.toDate() || null,
       createdAt: data.createdAt?.toDate() || new Date(),
     };
   }
