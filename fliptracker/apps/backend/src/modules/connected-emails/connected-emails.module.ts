@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConnectedEmailsService } from './connected-emails.service';
 import { ConnectedEmailsController } from './connected-emails.controller';
-import { FirestoreConnectedEmailRepository } from '../../infrastructure/repositories/firestore-connected-email.repository';
+import { InMemoryConnectedEmailRepository } from '../../infrastructure/repositories/in-memory-connected-email.repository';
 import { CONNECTED_EMAIL_REPOSITORY } from '../../domain/repositories';
 import { ProvidersModule } from '../providers/providers.module';
 
@@ -12,7 +12,7 @@ import { ProvidersModule } from '../providers/providers.module';
     ConnectedEmailsService,
     {
       provide: CONNECTED_EMAIL_REPOSITORY,
-      useClass: FirestoreConnectedEmailRepository,
+      useClass: InMemoryConnectedEmailRepository,
     },
   ],
   exports: [ConnectedEmailsService],
