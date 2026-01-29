@@ -3,5 +3,7 @@ export interface User {
   email: string;
   provider: 'google' | 'microsoft' | 'email';
   emailVerified?: boolean;
+  gmailConnected?: boolean;
+  outlookConnected?: boolean;
   createdAt: Date;
 }

@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { ConnectedEmail, EmailProvider } from '../../domain/entities';
 import { IConnectedEmailRepository, CONNECTED_EMAIL_REPOSITORY } from '../../domain/repositories';
 import { EncryptionService } from '../../infrastructure/services/encryption.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class ConnectedEmailsService {
@@ -9,6 +10,7 @@ export class ConnectedEmailsService {
     @Inject(CONNECTED_EMAIL_REPOSITORY)
     private repository: IConnectedEmailRepository,
     private encryptionService: EncryptionService,
+    private usersService: UsersService,
   ) {}
 
   async findByUserId(userId: string): Promise<ConnectedEmail[]> {
@@ -41,6 +43,7 @@ export class ConnectedEmailsService {
         status: 'active',
         lastSyncAt: null,
       });
+      await this.updateUserProviderFlag(userId, provider, true);
       console.log('[ConnectedEmailsService] Email connected successfully:', result.id);
       return result;
     } catch (error) {
@@ -77,6 +80,9 @@ export class ConnectedEmailsService {
       throw new NotFoundException('Connected email not found');
     }
     await this.repository.delete(id);
+    const remaining = await this.repository.findByUserId(email.userId);
+    const stillConnected = remaining.some(item => item.provider === email.provider);
+    await this.updateUserProviderFlag(email.userId, email.provider, stillConnected);
   }
 
   async delete(id: string): Promise<void> {
@@ -85,5 +91,29 @@ export class ConnectedEmailsService {
 
   getDecryptedRefreshToken(email: ConnectedEmail): string {
     return this.encryptionService.decrypt(email.refreshToken);
+  }
+
+  private async updateUserProviderFlag(
+    userId: string,
+    provider: EmailProvider,
+    isConnected: boolean,
+  ): Promise<void> {
+    const update: Record<string, boolean> = {};
+    if (provider === 'gmail') {
+      update.gmailConnected = isConnected;
+    } else if (provider === 'outlook') {
+      update.outlookConnected = isConnected;
+    }
+
+    try {
+      await this.usersService.update(userId, update);
+    } catch (error) {
+      console.warn('[ConnectedEmailsService] Failed to update user provider flag:', {
+        userId,
+        provider,
+        isConnected,
+        error: error?.message || error,
+      });
+    }
   }
 }

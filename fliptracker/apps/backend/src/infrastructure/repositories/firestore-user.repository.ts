@@ -40,6 +40,8 @@ export class FirestoreUserRepository implements IUserRepository {
       email: user.email,
       provider: user.provider,
       emailVerified: user.emailVerified || false,
+      gmailConnected: user.gmailConnected || false,
+      outlookConnected: user.outlookConnected || false,
       createdAt: new Date(),
     };
 
@@ -71,6 +73,8 @@ export class FirestoreUserRepository implements IUserRepository {
       email: data.email,
       provider: data.provider,
       emailVerified: data.emailVerified || false,
+      gmailConnected: data.gmailConnected || false,
+      outlookConnected: data.outlookConnected || false,
       createdAt: data.createdAt?.toDate() || new Date(),
     };
   }
