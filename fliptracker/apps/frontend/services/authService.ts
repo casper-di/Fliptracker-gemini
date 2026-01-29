@@ -69,9 +69,14 @@ export const getCurrentSession = async (): Promise<AuthSession | null> => {
 export const signOut = async (): Promise<void> => {
   try {
     localStorage.removeItem('auth_token');
-    await post('/auth/logout', {});
+    await post('/auth/logout', {}, { skipAuth: true });
+    // Redirect to login page
+    window.location.href = '/';
   } catch (error) {
     console.error('Failed to logout:', error);
+    // Still redirect even if logout fails
+    localStorage.removeItem('auth_token');
+    window.location.href = '/';
   }
 };
 

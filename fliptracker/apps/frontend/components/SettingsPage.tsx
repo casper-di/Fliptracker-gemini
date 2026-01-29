@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { SyncStatus, UserPreferences } from '../types';
 
 interface SettingsPageProps {
@@ -11,6 +11,7 @@ interface SettingsPageProps {
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences, onUpdatePreferences, onNavigateToSync, onLogout }) => {
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const toggleNotifPref = (key: keyof UserPreferences['notifications']) => {
     onUpdatePreferences({
@@ -40,11 +41,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
             <p className="text-xs font-bold text-slate-400 dark:text-slate-500">Compte Invité</p>
           </div>
         </div>
-        <button 
-          onClick={onLogout}
-          className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 rounded-2xl transition-all group"
+        <button async () => {
+            setIsLoggingOut(true);
+            await onLogout();
+          }}
+          disabled={isLoggingOut}
+          className="w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900/50 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 rounded-2xl transition-all group disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <span className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-slate-200 group-hover:text-rose-600">Se déconnecter</span>
+          <span className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-slate-200 group-hover:text-rose-600 flex items-center gap-2">
+            {isLoggingOut ? (
+              <>
+                <i className="fas fa-spinner animate-spin"></i>
+                Déconnexion...
+              </>
+            ) : (
+              'Se déconnecter'
+            )}
+          </span>
+          {!isLoggingOut && <i className="fas fa-sign-out-alt text-slate-300 dark:text-slate-700 group-hover:text-rose-400 transition-colors"></i>}600">Se déconnecter</span>
           <i className="fas fa-sign-out-alt text-slate-300 dark:text-slate-700 group-hover:text-rose-400 transition-colors"></i>
         </button>
       </section>
