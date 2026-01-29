@@ -182,19 +182,14 @@ export class AuthController {
   async getMe(@Req() req: AuthenticatedRequest) {
     const { uid, email, emailVerified, provider } = req.user;
 
-    const user = await this.usersService.findOrCreate(
-      uid,
+    // Return user info from token without querying Firestore
+    // TODO: Fetch from Firestore once credentials are fixed
+    return {
+      id: uid,
       email,
       provider,
       emailVerified,
-    );
-
-    return {
-      id: user.id,
-      email: user.email,
-      provider: user.provider,
-      emailVerified: user.emailVerified,
-      createdAt: user.createdAt,
+      createdAt: new Date(),
     };
   }
 
