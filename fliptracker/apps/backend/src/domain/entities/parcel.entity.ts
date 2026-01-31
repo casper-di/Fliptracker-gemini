@@ -1,6 +1,6 @@
 export type ParcelStatus = 'pending' | 'in_transit' | 'delivered' | 'returned' | 'unknown';
 export type ParcelType = 'sale' | 'purchase';
-export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'other';
+export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'vinted_go' | 'mondial_relay' | 'other';
 
 export interface Parcel {
   id: string;

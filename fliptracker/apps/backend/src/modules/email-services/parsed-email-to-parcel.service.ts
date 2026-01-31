@@ -19,8 +19,16 @@ export class ParsedEmailToParcelService {
    */
   async createParcelFromParsedEmail(parsedEmail: ParsedEmail): Promise<Parcel | null> {
     if (!parsedEmail.trackingNumber) {
+      console.log(`      ⚠️  Skipping: No tracking number`);
       return null;
     }
+
+    console.log(`      📦 Creating parcel from ParsedEmail:`, {
+      trackingNumber: parsedEmail.trackingNumber,
+      carrier: parsedEmail.carrier,
+      marketplace: parsedEmail.marketplace,
+      withdrawalCode: parsedEmail.withdrawalCode,
+    });
 
     // Check if parcel already exists
     const existing = await this.parcelRepository.findByTrackingNumber(
@@ -29,6 +37,7 @@ export class ParsedEmailToParcelService {
     );
 
     if (existing) {
+      console.log(`      ℹ️  Parcel already exists: ${existing.id}`);
       return existing;
     }
 
@@ -44,6 +53,9 @@ export class ParsedEmailToParcelService {
     else if (parsedEmail.carrier === 'fedex') carrier = 'fedex';
     else if (parsedEmail.carrier === 'laposte' || parsedEmail.carrier === 'colissimo')
       carrier = 'laposte';
+    else if (parsedEmail.carrier === 'chronopost') carrier = 'chronopost';
+    else if (parsedEmail.carrier === 'vinted_go') carrier = 'vinted_go';
+    else if (parsedEmail.carrier === 'mondial_relay') carrier = 'mondial_relay';
 
     // Create parcel title from available info
     const title = this.generateTitle(parsedEmail);
@@ -60,6 +72,7 @@ export class ParsedEmailToParcelService {
         title,
       });
 
+      console.log(`      ✅ Parcel created: ${parcel.id} - "${title}"`);
       return parcel;
     } catch (error) {
       console.error(`      ❌ Failed to create parcel:`, error.message);
@@ -73,27 +86,41 @@ export class ParsedEmailToParcelService {
   private generateTitle(parsedEmail: ParsedEmail): string {
     const parts: string[] = [];
 
+    // Add marketplace
     if (parsedEmail.marketplace) {
-      parts.push(parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1));
+      const marketplaceLabel = parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1);
+      parts.push(marketplaceLabel);
     }
 
-    if (parsedEmail.articleId) {
-      parts.push(`Article ${parsedEmail.articleId}`);
-    }
-
+    // Add carrier with nice labels
     if (parsedEmail.carrier) {
-      parts.push(parsedEmail.carrier.toUpperCase());
+      let carrierLabel = parsedEmail.carrier.toUpperCase();
+      if (parsedEmail.carrier === 'vinted_go') carrierLabel = 'VINTED GO';
+      if (parsedEmail.carrier === 'mondial_relay') carrierLabel = 'MONDIAL RELAY';
+      if (parsedEmail.carrier === 'chronopost') carrierLabel = 'CHRONOPOST';
+      if (parsedEmail.carrier === 'laposte') carrierLabel = 'LA POSTE';
+      if (parsedEmail.carrier === 'colissimo') carrierLabel = 'COLISSIMO';
+      parts.push(carrierLabel);
     }
 
+    // Add article ID if available
+    if (parsedEmail.articleId) {
+      parts.push(`Ref: ${parsedEmail.articleId}`);
+    }
+
+    // Add withdrawal code
     if (parsedEmail.withdrawalCode) {
-      parts.push(`(Point relais: ${parsedEmail.withdrawalCode})`);
+      parts.push(`Code: ${parsedEmail.withdrawalCode}`);
     }
 
+    // Fallback: use tracking number
     if (parts.length === 0) {
       parts.push(`Colis ${parsedEmail.trackingNumber?.substring(0, 10) || 'inconnu'}`);
     }
 
-    return parts.join(' - ');
+    const title = parts.join(' · ');
+    console.log(`      📝 Generated title: "${title}"`);
+    return title;
   }
 
   /**
