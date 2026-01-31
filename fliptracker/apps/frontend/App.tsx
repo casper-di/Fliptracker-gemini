@@ -12,6 +12,7 @@ import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { LoadingOverlay } from './components/LoadingOverlay';
 import { LoadingSpinner, LoadingCard } from './components/LoadingSpinner';
+import { SyncIndicator } from './components/SyncIndicator';
 import { api } from './services/apiService';
 import { onAuthStateChange, signInWithGoogle, signOut, getCurrentSession } from './services/authService';
 
@@ -70,6 +71,7 @@ const App: React.FC = () => {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(INITIAL_SYNC_STATUS);
   const [emailSummary, setEmailSummary] = useState<EmailSummary>(INITIAL_EMAIL_SUMMARY);
+  const previousConnectionCountRef = useRef<number>(0);
 
   // Capture token from OAuth callback (cross-origin safe)
   useEffect(() => {
@@ -206,7 +208,33 @@ const App: React.FC = () => {
             api.getEmailSummary(),
           ]);
           console.log('[Email Sync] Loaded', connections.length, 'connections');
-          setSyncStatus({ connections, isLoading: false, error: null });
+          
+          // Auto-sync if new email was just connected
+          const previousCount = previousConnectionCountRef.current;
+          const currentCount = connections.length;
+          
+          if (currentCount > previousCount && previousCount > 0) {
+            console.log('[Email Sync] New email detected, triggering auto-sync...');
+            // Launch sync in background
+            api.syncEmails()
+              .then(async () => {
+                const [updatedSummary, parcelsResponse] = await Promise.all([
+                  api.getEmailSummary(),
+                  api.getParcels({ limit: 100, offset: 0 })
+                ]);
+                setEmailSummary(updatedSummary);
+                setShipments(parcelsResponse.data || []);
+                setSyncStatus({ connections, isLoading: false, error: null });
+              })
+              .catch(err => {
+                console.error('Auto-sync failed:', err);
+                setSyncStatus({ connections, isLoading: false, error: null });
+              });
+          } else {
+            setSyncStatus({ connections, isLoading: false, error: null });
+          }
+          
+          previousConnectionCountRef.current = currentCount;
           setEmailSummary(summary);
         } catch (err) {
           console.error('Failed to reload email connections:', err);
@@ -335,8 +363,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
-      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden ring-1 ring-slate-200 dark:ring-white/10 theme-transition">
+    <div className={isDarkMode ? 'dark' : ''}>      <SyncIndicator isLoading={syncStatus.isLoading} />      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden ring-1 ring-slate-200 dark:ring-white/10 theme-transition">
         
         {activeTab !== 'email_sync' && (
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-5 pt-8 pb-4 sticky top-0 z-40 border-b border-slate-100 dark:border-white/10 shadow-sm theme-transition">
