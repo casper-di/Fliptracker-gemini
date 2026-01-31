@@ -40,7 +40,12 @@ import { ParcelsModule } from '../parcels/parcels.module';
       useClass: FirestoreEmailSyncEventRepository,
     },
   ],
-  exports: [EmailSyncOrchestrator],
+  exports: [
+    EmailSyncOrchestrator,
+    RAW_EMAIL_REPOSITORY,
+    PARSED_EMAIL_REPOSITORY,
+    EMAIL_SYNC_EVENT_REPOSITORY,
+  ],
 })
 export class EmailServicesModule {}
 
