@@ -45,11 +45,20 @@ export class GmailService {
   }
 
   async exchangeCode(code: string): Promise<GmailTokens> {
+    console.log('[GmailService] Starting token exchange with code:', code.substring(0, 10) + '...');
     const { tokens } = await this.oauth2Client.getToken(code);
-    return {
+    console.log('[GmailService] Token response:', {
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+      expiryDate: tokens.expiry_date,
+    });
+    const result = {
       access_token: tokens.access_token || null,
       refresh_token: tokens.refresh_token || null,
       expiry_date: tokens.expiry_date || null,
+    };
+    console.log('[GmailService] Returning tokens:', result);
+    return result;
     };
   }
 

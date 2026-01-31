@@ -29,8 +29,24 @@ export class ConnectedEmailsService {
     refreshToken: string,
     expiry: Date,
   ): Promise<ConnectedEmail> {
-    console.log('[ConnectedEmailsService] Connecting email:', { userId, provider, emailAddress });
+    console.log('[ConnectedEmailsService] Connecting email:', { 
+      userId, 
+      provider, 
+      emailAddress,
+      accessTokenLength: accessToken?.length,
+      refreshTokenLength: refreshToken?.length,
+      expiry
+    });
+    
+    if (!accessToken) {
+      throw new Error('accessToken is required');
+    }
+    if (!refreshToken) {
+      throw new Error('refreshToken is required');
+    }
+    
     const encryptedRefreshToken = this.encryptionService.encrypt(refreshToken);
+    console.log('[ConnectedEmailsService] Encrypted refreshToken, length:', encryptedRefreshToken.length);
 
     try {
       const result = await this.repository.create({
@@ -43,6 +59,13 @@ export class ConnectedEmailsService {
         status: 'active',
         lastSyncAt: null,
       });
+      console.log('[ConnectedEmailsService] Created entity in Firestore with data:', {
+        id: result.id,
+        hasAccessToken: !!result.accessToken,
+        accessTokenLength: result.accessToken?.length,
+        hasRefreshToken: !!result.refreshToken,
+      });
+      
       await this.updateUserProviderFlag(userId, provider, true);
       console.log('[ConnectedEmailsService] Email connected successfully:', result.id);
       return result;

@@ -311,8 +311,19 @@ export class ConnectedEmailsController {
       if (provider === 'gmail') {
         console.log('[Gmail OAuth] Exchanging code for tokens...');
         const tokens = await this.gmailService.exchangeCode(code);
-        console.log('[Gmail OAuth] Got tokens, fetching profile...');
-        const profile = await this.gmailService.getUserProfile(tokens.access_token!);
+        console.log('[Gmail OAuth] Token exchange result:', {
+          accessToken: tokens.access_token ? 'present' : 'MISSING',
+          accessTokenLength: tokens.access_token?.length,
+          refreshToken: tokens.refresh_token ? 'present' : 'MISSING',
+          expiry_date: tokens.expiry_date,
+        });
+        
+        if (!tokens.access_token) {
+          throw new Error('No access token received from Google OAuth');
+        }
+        
+        console.log('[Gmail OAuth] Fetching profile with token...');
+        const profile = await this.gmailService.getUserProfile(tokens.access_token);
         console.log('[Gmail OAuth] Profile fetched:', { email: profile.emailAddress });
         
         console.log('[Gmail OAuth] Attempting to save connection for:', profile.emailAddress);
@@ -320,7 +331,7 @@ export class ConnectedEmailsController {
           userId,
           'gmail',
           profile.emailAddress,
-          tokens.access_token!,
+          tokens.access_token,
           tokens.refresh_token!,
           new Date(Date.now() + (tokens.expiry_date || 3600000)),
         );

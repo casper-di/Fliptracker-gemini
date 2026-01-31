@@ -34,9 +34,26 @@ export class EmailFetchService {
     limit: number = 50,
   ): Promise<FetchedEmail[]> {
     try {
+      console.log('[EmailFetchService] Starting fetch for:', {
+        email: connectedEmail.emailAddress,
+        provider: connectedEmail.provider,
+        hasAccessToken: !!connectedEmail.accessToken,
+        accessTokenLength: connectedEmail.accessToken?.length,
+        status: connectedEmail.status,
+      });
+      
       // Check if token needs refresh
       const refreshedEmail = await this.ensureValidToken(connectedEmail);
       const accessToken = refreshedEmail.accessToken;
+      
+      console.log('[EmailFetchService] After token check:', {
+        hasAccessToken: !!accessToken,
+        accessTokenLength: accessToken?.length,
+      });
+
+      if (!accessToken) {
+        throw new Error('No access token available after refresh attempt');
+      }
 
       let normalizedEmails;
       
