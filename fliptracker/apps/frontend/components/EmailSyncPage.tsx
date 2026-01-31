@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { SyncStatus, UserPreferences, ConnectedEmail, EmailSummary, ParsedEmail, EmailLog } from '../types';
-import { LoadingSection, LoadingSpinner } from './LoadingSpinner';
 
 interface EmailSyncPageProps {
   status: SyncStatus;
@@ -72,9 +71,8 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
             <button
               onClick={() => onSyncAction('manual_sync')}
               disabled={status.isLoading}
-              className="text-[9px] font-black uppercase tracking-widest bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-xl active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              className="text-[9px] font-black uppercase tracking-widest bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-xl active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {status.isLoading && <LoadingSpinner size="sm" text="" />}
               {status.isLoading ? 'Synchronisation...' : 'Synchroniser'}
             </button>
           </div>
@@ -109,12 +107,10 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
         <section className="space-y-3">
           <div className="flex justify-between items-center mb-1 px-1">
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Comptes connectés</p>
-            {status.isLoading && <LoadingSpinner size="sm" text="" />}
+            {status.isLoading && <i className="fas fa-circle-notch animate-spin text-blue-500 text-xs"></i>}
           </div>
 
-          {status.isLoading ? (
-            <LoadingSection text="Chargement des comptes..." />
-          ) : status.connections.length === 0 ? (
+          {status.connections.length === 0 ? (
             <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-10 text-center border border-slate-100 dark:border-white/5 border-dashed">
               <i className="fas fa-envelope-open text-slate-200 dark:text-slate-800 text-3xl mb-4"></i>
               <p className="text-xs font-bold text-slate-400 dark:text-slate-600">Aucun compte Gmail ou Outlook n'est actuellement lié.</p>
@@ -174,14 +170,8 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
                 disabled={connectingProvider === 'gmail'}
                 className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {connectingProvider === 'gmail' ? (
-                  <LoadingSpinner size="sm" text="" />
-                ) : (
-                  <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
-                )}
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">
-                  {connectingProvider === 'gmail' ? 'Connexion...' : 'Gmail'}
-                </span>
+                <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Gmail</span>
               </button>
               <button 
                 onClick={() => {
@@ -191,14 +181,8 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
                 disabled={connectingProvider === 'outlook'}
                 className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {connectingProvider === 'outlook' ? (
-                  <LoadingSpinner size="sm" text="" />
-                ) : (
-                  <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
-                )}
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">
-                  {connectingProvider === 'outlook' ? 'Connexion...' : 'Outlook'}
-                </span>
+                <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Outlook</span>
               </button>
             </div>
           </div>
