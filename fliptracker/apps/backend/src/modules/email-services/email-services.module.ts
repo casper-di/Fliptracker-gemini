@@ -42,6 +42,7 @@ import { ParcelsModule } from '../parcels/parcels.module';
   ],
   exports: [
     EmailSyncOrchestrator,
+    EmailFetchService,
     RAW_EMAIL_REPOSITORY,
     PARSED_EMAIL_REPOSITORY,
     EMAIL_SYNC_EVENT_REPOSITORY,

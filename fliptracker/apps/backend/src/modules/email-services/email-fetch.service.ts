@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
+import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { ConnectedEmail } from '../../domain/entities';
 import {
   CONNECTED_EMAIL_REPOSITORY,
@@ -20,6 +21,7 @@ export class EmailFetchService {
   constructor(
     private gmailService: GmailService,
     private outlookService: OutlookService,
+    private connectedEmailsService: ConnectedEmailsService,
     @Inject(CONNECTED_EMAIL_REPOSITORY)
     private connectedEmailRepository: IConnectedEmailRepository,
   ) {}
@@ -113,8 +115,12 @@ export class EmailFetchService {
       console.log(`[EmailFetchService] Token expiring soon for ${connectedEmail.emailAddress}, refreshing...`);
       
       try {
+        // 🔑 DECRYPT the refresh token before using it
+        const decryptedRefreshToken = this.connectedEmailsService.getDecryptedRefreshToken(connectedEmail);
+        console.log('[EmailFetchService] Decrypted refresh token length:', decryptedRefreshToken?.length);
+        
         if (connectedEmail.provider === 'gmail') {
-          const newTokens = await this.gmailService.refreshAccessToken(connectedEmail.refreshToken);
+          const newTokens = await this.gmailService.refreshAccessToken(decryptedRefreshToken);
           const expiryDate = newTokens.expiry_date
             ? new Date(newTokens.expiry_date)
             : new Date(Date.now() + 3600 * 1000); // Default 1 hour
@@ -128,7 +134,7 @@ export class EmailFetchService {
           console.log(`[EmailFetchService] Token refreshed successfully for ${connectedEmail.emailAddress}`);
           return updatedEmail;
         } else if (connectedEmail.provider === 'outlook') {
-          const newTokens = await this.outlookService.refreshAccessToken(connectedEmail.refreshToken);
+          const newTokens = await this.outlookService.refreshAccessToken(decryptedRefreshToken);
           const expiryDate = new Date(Date.now() + newTokens.expiresIn * 1000);
           
           const updatedEmail = await this.connectedEmailRepository.update(connectedEmail.id, {

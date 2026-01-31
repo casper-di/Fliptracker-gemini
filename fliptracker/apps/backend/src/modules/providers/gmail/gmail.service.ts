@@ -59,7 +59,6 @@ export class GmailService {
     };
     console.log('[GmailService] Returning tokens:', result);
     return result;
-    };
   }
 
   async refreshAccessToken(refreshToken: string): Promise<GmailTokens> {
