@@ -17,6 +17,6 @@ import { EmailServicesModule } from '../email-services/email-services.module';
       useClass: FirestoreConnectedEmailRepository,
     },
   ],
-  exports: [ConnectedEmailsService],
+  exports: [ConnectedEmailsService, CONNECTED_EMAIL_REPOSITORY],
 })
 export class ConnectedEmailsModule {}

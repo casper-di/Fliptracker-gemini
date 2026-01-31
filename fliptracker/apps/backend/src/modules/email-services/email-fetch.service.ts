@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
 import { ConnectedEmail } from '../../domain/entities';
+import {
+  CONNECTED_EMAIL_REPOSITORY,
+  IConnectedEmailRepository,
+} from '../../domain/repositories';
 
 export interface FetchedEmail {
   messageId: string;
@@ -16,6 +20,8 @@ export class EmailFetchService {
   constructor(
     private gmailService: GmailService,
     private outlookService: OutlookService,
+    @Inject(CONNECTED_EMAIL_REPOSITORY)
+    private connectedEmailRepository: IConnectedEmailRepository,
   ) {}
 
   /**
@@ -28,10 +34,14 @@ export class EmailFetchService {
     limit: number = 50,
   ): Promise<FetchedEmail[]> {
     try {
+      // Check if token needs refresh
+      const refreshedEmail = await this.ensureValidToken(connectedEmail);
+      const accessToken = refreshedEmail.accessToken;
+
       let normalizedEmails;
       
       if (connectedEmail.provider === 'gmail') {
-        const gmailEmails = await this.gmailService.fetchRecentEmails(connectedEmail.accessToken, limit);
+        const gmailEmails = await this.gmailService.fetchRecentEmails(accessToken, limit);
         normalizedEmails = gmailEmails.map(email => ({
           messageId: email.id,
           subject: email.subject,
@@ -40,8 +50,7 @@ export class EmailFetchService {
           receivedAt: email.date,
         }));
       } else if (connectedEmail.provider === 'outlook') {
-        const outlookEmails = await this.outlookService.fetchRecentEmails(connectedEmail.accessToken, limit);
-        // Outlook NormalizedEmail has conversationId instead of threadId
+        const outlookEmails = await this.outlookService.fetchRecentEmails(accessToken, limit);
         normalizedEmails = outlookEmails.map(email => ({
           messageId: email.id,
           subject: email.subject,
@@ -58,5 +67,58 @@ export class EmailFetchService {
       console.error('[EmailFetchService] Failed to fetch emails:', error);
       throw error;
     }
+  }
+
+  /**
+   * Ensure token is valid, refresh if needed
+   */
+  private async ensureValidToken(connectedEmail: ConnectedEmail): Promise<ConnectedEmail> {
+    const now = new Date();
+    
+    // If token expires in less than 5 minutes, refresh it
+    if (connectedEmail.expiry && connectedEmail.expiry.getTime() - now.getTime() < 5 * 60 * 1000) {
+      console.log(`[EmailFetchService] Token expiring soon for ${connectedEmail.emailAddress}, refreshing...`);
+      
+      try {
+        if (connectedEmail.provider === 'gmail') {
+          const newTokens = await this.gmailService.refreshAccessToken(connectedEmail.refreshToken);
+          const expiryDate = newTokens.expiry_date
+            ? new Date(newTokens.expiry_date)
+            : new Date(Date.now() + 3600 * 1000); // Default 1 hour
+          
+          const updatedEmail = await this.connectedEmailRepository.update(connectedEmail.id, {
+            accessToken: newTokens.access_token || connectedEmail.accessToken,
+            refreshToken: newTokens.refresh_token || connectedEmail.refreshToken,
+            expiry: expiryDate,
+            status: 'active' as const,
+          });
+          console.log(`[EmailFetchService] Token refreshed successfully for ${connectedEmail.emailAddress}`);
+          return updatedEmail;
+        } else if (connectedEmail.provider === 'outlook') {
+          const newTokens = await this.outlookService.refreshAccessToken(connectedEmail.refreshToken);
+          const expiryDate = new Date(Date.now() + newTokens.expiresIn * 1000);
+          
+          const updatedEmail = await this.connectedEmailRepository.update(connectedEmail.id, {
+            accessToken: newTokens.accessToken,
+            refreshToken: newTokens.refreshToken || connectedEmail.refreshToken,
+            expiry: expiryDate,
+            status: 'active' as const,
+          });
+          console.log(`[EmailFetchService] Token refreshed successfully for ${connectedEmail.emailAddress}`);
+          return updatedEmail;
+        }
+      } catch (error) {
+        console.error(
+          `[EmailFetchService] Failed to refresh token for ${connectedEmail.emailAddress}:`,
+          error,
+        );
+        // Mark as expired but continue with current token (might still work)
+        await this.connectedEmailRepository.update(connectedEmail.id, {
+          status: 'expired' as const,
+        });
+      }
+    }
+    
+    return connectedEmail;
   }
 }
