@@ -204,7 +204,7 @@ export class EmailSyncOrchestrator {
               if (parsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${parsed.withdrawalCode}`);
               if (parsed.marketplace) console.log(`      🛒 Marketplace: ${parsed.marketplace}`);
 
-              // STEP 4: UPSERT PARSED EMAIL (check if tracking already exists)
+              // STEP 4: CHECK IF TRACKING ALREADY EXISTS (skip if duplicate)
               let parsedEmail = await this.parsedEmailRepository.findByTrackingNumber(
                 userId,
                 parsed.trackingNumber,
@@ -212,31 +212,10 @@ export class EmailSyncOrchestrator {
 
               if (parsedEmail) {
                 console.log(
-                  `[EmailSyncOrchestrator] Tracking already exists: ${parsed.trackingNumber}, updating...`,
+                  `[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, skipping duplicate...`,
                 );
-                // Update with new info - convert undefined to null for Firestore
-                parsedEmail = await this.parsedEmailRepository.update(parsedEmail.id, {
-                  trackingNumber: parsed.trackingNumber,
-                  carrier: parsed.carrier,
-                  qrCode: parsed.qrCode ?? null,
-                  withdrawalCode: parsed.withdrawalCode ?? null,
-                  articleId: parsed.articleId ?? null,
-                  marketplace: parsed.marketplace ?? null,
-                  status: 'pending_shipment_lookup',
-                  // Metadata fields
-                  provider: rawEmailData.provider ?? null,
-                  senderEmail: rawEmailData.from ?? null,
-                  senderName: parsed.senderName ?? null,
-                  receivedAt: rawEmailData.receivedAt ?? null,
-                  productName: parsed.productName ?? null,
-                  productDescription: parsed.productDescription ?? null,
-                  recipientName: parsed.recipientName ?? null,
-                  pickupAddress: parsed.pickupAddress ?? null,
-                  pickupDeadline: parsed.pickupDeadline ?? null,
-                  orderNumber: parsed.orderNumber ?? null,
-                  estimatedValue: parsed.estimatedValue ?? null,
-                  currency: parsed.currency ?? null,
-                });
+                // Skip processing - parcel already exists
+                continue;
               } else {
                 // Create new - convert undefined to null for Firestore
                 parsedEmail = await this.parsedEmailRepository.create({

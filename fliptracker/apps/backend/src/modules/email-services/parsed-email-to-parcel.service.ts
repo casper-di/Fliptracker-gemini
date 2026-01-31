@@ -92,53 +92,26 @@ export class ParsedEmailToParcelService {
 
   /**
    * Generate a human-readable title for the parcel
+   * Only displays product name - other details shown elsewhere
    */
   private generateTitle(parsedEmail: ParsedEmail): string {
-    const parts: string[] = [];
-
-    // Prioritize product name if available
+    // Prioritize product name only
     if (parsedEmail.productName) {
-      parts.push(parsedEmail.productName);
-    } else if (parsedEmail.marketplace) {
-      // Fallback to marketplace if no product name
+      console.log(`      📝 Generated title: "${parsedEmail.productName}"`);
+      return parsedEmail.productName;
+    }
+
+    // Fallback to marketplace name
+    if (parsedEmail.marketplace) {
       const marketplaceLabel = parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1);
-      parts.push(marketplaceLabel);
+      console.log(`      📝 Generated title: "${marketplaceLabel}"`);
+      return marketplaceLabel;
     }
 
-    // Add carrier with nice labels
-    if (parsedEmail.carrier) {
-      let carrierLabel = parsedEmail.carrier.toUpperCase();
-      if (parsedEmail.carrier === 'vinted_go') carrierLabel = 'VINTED GO';
-      if (parsedEmail.carrier === 'mondial_relay') carrierLabel = 'MONDIAL RELAY';
-      if (parsedEmail.carrier === 'chronopost') carrierLabel = 'CHRONOPOST';
-      if (parsedEmail.carrier === 'laposte') carrierLabel = 'LA POSTE';
-      if (parsedEmail.carrier === 'colissimo') carrierLabel = 'COLISSIMO';
-      parts.push(carrierLabel);
-    }
-
-    // Add recipient name if available and not already in product
-    if (parsedEmail.recipientName && !parsedEmail.productName) {
-      parts.push(`pour ${parsedEmail.recipientName}`);
-    }
-
-    // Add article ID if available
-    if (parsedEmail.articleId) {
-      parts.push(`Ref: ${parsedEmail.articleId}`);
-    }
-
-    // Add withdrawal code
-    if (parsedEmail.withdrawalCode) {
-      parts.push(`Code: ${parsedEmail.withdrawalCode}`);
-    }
-
-    // Fallback: use tracking number
-    if (parts.length === 0) {
-      parts.push(`Colis ${parsedEmail.trackingNumber?.substring(0, 10) || 'inconnu'}`);
-    }
-
-    const title = parts.join(' · ');
-    console.log(`      📝 Generated title: "${title}"`);
-    return title;
+    // Last fallback: tracking number
+    const fallback = `Colis ${parsedEmail.trackingNumber?.substring(0, 10) || 'inconnu'}`;
+    console.log(`      📝 Generated title: "${fallback}"`);
+    return fallback;
   }
 
   /**
