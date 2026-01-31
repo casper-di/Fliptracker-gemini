@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { SyncStatus, UserPreferences } from '../types';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface SettingsPageProps {
   status: SyncStatus;
@@ -52,7 +53,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ status, preferences,
           <span className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-slate-200 group-hover:text-rose-600 flex items-center gap-3">
             {isLoggingOut ? (
               <>
-                <div className="w-4 h-4 rounded-full border-2 border-rose-300 border-t-rose-600 animate-spin"></div>
+                <LoadingSpinner size="sm" text="" />
                 Déconnexion...
               </>
             ) : (

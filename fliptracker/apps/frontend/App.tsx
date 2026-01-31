@@ -11,6 +11,7 @@ import { EmailSyncPage } from './components/EmailSyncPage';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { LoadingOverlay } from './components/LoadingOverlay';
+import { LoadingSpinner, LoadingCard } from './components/LoadingSpinner';
 import { api } from './services/apiService';
 import { onAuthStateChange, signInWithGoogle, signOut, getCurrentSession } from './services/authService';
 
@@ -53,6 +54,7 @@ const INITIAL_EMAIL_SUMMARY: EmailSummary = {
 
 const App: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [isLoadingShipments, setIsLoadingShipments] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('incoming');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
@@ -168,6 +170,7 @@ const App: React.FC = () => {
     if (user) {
       const loadData = async () => {
         setSyncStatus(prev => ({ ...prev, isLoading: true }));
+        setIsLoadingShipments(true);
         try {
           // Load connected emails + summary
           const [connections, summary] = await Promise.all([
@@ -183,6 +186,8 @@ const App: React.FC = () => {
         } catch (err) {
           console.error('Failed to load data:', err);
           setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Failed to load data' }));
+        } finally {
+          setIsLoadingShipments(false);
         }
       };
       loadData();
@@ -440,7 +445,15 @@ const App: React.FC = () => {
             />
           ) : (
             <div className="px-5 py-6">
-              {filteredShipments.length === 0 ? (
+              {isLoadingShipments ? (
+                // Show loading skeleton cards
+                <>
+                  <LoadingCard />
+                  <LoadingCard />
+                  <LoadingCard />
+                  <LoadingCard />
+                </>
+              ) : filteredShipments.length === 0 ? (
                 <div className="text-center py-24 opacity-50">
                   <i className="fas fa-box-archive text-4xl mb-4 text-slate-300 dark:text-slate-700"></i>
                   <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Aucun colis trouvé</p>

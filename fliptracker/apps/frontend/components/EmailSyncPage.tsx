@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { SyncStatus, UserPreferences, ConnectedEmail, EmailSummary, ParsedEmail, EmailLog } from '../types';
+import { LoadingSection, LoadingSpinner } from './LoadingSpinner';
 
 interface EmailSyncPageProps {
   status: SyncStatus;
@@ -105,10 +106,12 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
         <section className="space-y-3">
           <div className="flex justify-between items-center mb-1 px-1">
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Comptes connectés</p>
-            {status.isLoading && <i className="fas fa-circle-notch animate-spin text-blue-500 text-xs"></i>}
+            {status.isLoading && <LoadingSpinner size="sm" text="" />}
           </div>
 
-          {status.connections.length === 0 ? (
+          {status.isLoading ? (
+            <LoadingSection text="Chargement des comptes..." />
+          ) : status.connections.length === 0 ? (
             <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-10 text-center border border-slate-100 dark:border-white/5 border-dashed">
               <i className="fas fa-envelope-open text-slate-200 dark:text-slate-800 text-3xl mb-4"></i>
               <p className="text-xs font-bold text-slate-400 dark:text-slate-600">Aucun compte Gmail ou Outlook n'est actuellement lié.</p>
