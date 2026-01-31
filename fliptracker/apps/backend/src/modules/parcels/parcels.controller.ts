@@ -29,8 +29,13 @@ export class ParcelsController {
     const mappedData = (result.data || []).map(parcel => ({
       ...parcel,
       direction: parcel.type === 'purchase' ? 'INBOUND' : 'OUTBOUND',
-      sender: parcel.type === 'purchase' ? 'Marketplace' : 'You',
-      recipient: parcel.type === 'purchase' ? 'You' : 'Customer',
+      // Use product name if available, otherwise fall back to title or generic labels
+      sender: parcel.type === 'purchase' 
+        ? (parcel.productName || parcel.senderName || parcel.title || 'Marketplace')
+        : 'You',
+      recipient: parcel.type === 'purchase' 
+        ? (parcel.recipientName || 'You')
+        : (parcel.recipientName || 'Customer'),
       history: [],
       lastUpdated: parcel.updatedAt || parcel.createdAt,
     }));
