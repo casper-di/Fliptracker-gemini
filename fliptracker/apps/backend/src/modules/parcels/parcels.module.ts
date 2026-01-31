@@ -13,6 +13,6 @@ import { PARCEL_REPOSITORY } from '../../domain/repositories';
       useClass: FirestoreParcelRepository,
     },
   ],
-  exports: [ParcelsService],
+  exports: [ParcelsService, PARCEL_REPOSITORY],
 })
 export class ParcelsModule {}
