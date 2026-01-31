@@ -10,7 +10,7 @@ export class ConnectedEmailsService {
     @Inject(CONNECTED_EMAIL_REPOSITORY)
     private repository: IConnectedEmailRepository,
     private encryptionService: EncryptionService,
-    private usersService: UsersService,
+    public usersService: UsersService,
   ) {}
 
   async findByUserId(userId: string): Promise<ConnectedEmail[]> {
@@ -72,6 +72,10 @@ export class ConnectedEmailsService {
     return this.repository.update(id, {
       lastSyncAt: new Date(),
     });
+  }
+
+  async update(id: string, data: Partial<ConnectedEmail>): Promise<ConnectedEmail> {
+    return this.repository.update(id, data);
   }
 
   async disconnect(id: string): Promise<void> {

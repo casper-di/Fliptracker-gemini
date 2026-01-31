@@ -12,4 +12,8 @@ export interface ConnectedEmail {
   status: ConnectionStatus;
   lastSyncAt: Date | null;
   createdAt: Date;
+  
+  // Email sync tracking
+  initialSyncCompleted?: boolean;
+  initialSyncCompletedAt?: Date;
 }

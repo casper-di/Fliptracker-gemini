@@ -6,6 +6,7 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { FirebaseService } from '../auth/firebase.service';
 import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
+import { EmailSyncOrchestrator } from '../email-services/email-sync.orchestrator';
 import { ConnectedEmail } from '../../domain/entities';
 
 export const SkipAuth = () => SetMetadata('skipAuth', true);
@@ -17,6 +18,7 @@ export class ConnectedEmailsController {
     private firebaseService: FirebaseService,
     private gmailService: GmailService,
     private outlookService: OutlookService,
+    private emailSyncOrchestrator: EmailSyncOrchestrator,
   ) {}
 
   @Get()
@@ -99,8 +101,32 @@ export class ConnectedEmailsController {
   @Post('sync')
   @UseGuards(AuthGuard)
   async manualSync(@Req() req: AuthenticatedRequest) {
-    // TODO: enqueue background job once queue is in place
-    return { success: true, queuedAt: new Date().toISOString() };
+    const userId = req.user.uid;
+    
+    // Return immediately (async background processing)
+    this.emailSyncOrchestrator.syncEmailsForUser(userId).catch((err) => {
+      console.error('[ConnectedEmailsController] Background sync failed:', err);
+    });
+
+    return {
+      success: true,
+      status: 'started',
+      message: 'Email sync started in background',
+      startedAt: new Date().toISOString(),
+    };
+  }
+
+  @Get('sync/status')
+  @UseGuards(AuthGuard)
+  async getSyncStatus(@Req() req: AuthenticatedRequest) {
+    const user = await this.connectedEmailsService.usersService.findById(req.user.uid);
+    return {
+      status: user?.emailSyncStatus || 'idle',
+      startedAt: user?.emailSyncStartedAt,
+      finishedAt: user?.emailSyncLastFinishedAt,
+      error: user?.emailSyncLastError,
+      lastUpdate: new Date().toISOString(),
+    };
   }
 
   @Post('connect/:provider/start')

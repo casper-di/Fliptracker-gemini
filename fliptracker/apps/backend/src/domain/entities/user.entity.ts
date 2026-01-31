@@ -23,4 +23,10 @@ export interface User {
   lastPasswordAuthAt?: Date;
   lastGoogleAuthAt?: Date;
   lastOutlookAuthAt?: Date;
+  
+  // Email sync status
+  emailSyncStatus?: 'idle' | 'syncing' | 'error';
+  emailSyncStartedAt?: Date;
+  emailSyncLastFinishedAt?: Date;
+  emailSyncLastError?: string;
 }

@@ -5,9 +5,10 @@ import { FirestoreConnectedEmailRepository } from '../../infrastructure/reposito
 import { CONNECTED_EMAIL_REPOSITORY } from '../../domain/repositories';
 import { ProvidersModule } from '../providers/providers.module';
 import { UsersModule } from '../users/users.module';
+import { EmailServicesModule } from '../email-services/email-services.module';
 
 @Module({
-  imports: [ProvidersModule, UsersModule],
+  imports: [ProvidersModule, UsersModule, EmailServicesModule],
   controllers: [ConnectedEmailsController],
   providers: [
     ConnectedEmailsService,
