@@ -68,8 +68,18 @@ export class ParsedEmailToParcelService {
         status: 'pending', // Initial status
         type,
         sourceEmailId: parsedEmail.rawEmailId,
-        provider: 'gmail', // TODO: get from RawEmail
+        provider: parsedEmail.provider ?? 'gmail',
         title,
+        // Map all metadata fields from ParsedEmail
+        productName: parsedEmail.productName ?? null,
+        productDescription: parsedEmail.productDescription ?? null,
+        recipientName: parsedEmail.recipientName ?? null,
+        senderName: parsedEmail.senderName ?? null,
+        senderEmail: parsedEmail.senderEmail ?? null,
+        pickupAddress: parsedEmail.pickupAddress ?? null,
+        pickupDeadline: parsedEmail.pickupDeadline ?? null,
+        orderNumber: parsedEmail.orderNumber ?? null,
+        withdrawalCode: parsedEmail.withdrawalCode ?? null,
       });
 
       console.log(`      ✅ Parcel created: ${parcel.id} - "${title}"`);
@@ -86,8 +96,11 @@ export class ParsedEmailToParcelService {
   private generateTitle(parsedEmail: ParsedEmail): string {
     const parts: string[] = [];
 
-    // Add marketplace
-    if (parsedEmail.marketplace) {
+    // Prioritize product name if available
+    if (parsedEmail.productName) {
+      parts.push(parsedEmail.productName);
+    } else if (parsedEmail.marketplace) {
+      // Fallback to marketplace if no product name
       const marketplaceLabel = parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1);
       parts.push(marketplaceLabel);
     }
@@ -101,6 +114,11 @@ export class ParsedEmailToParcelService {
       if (parsedEmail.carrier === 'laposte') carrierLabel = 'LA POSTE';
       if (parsedEmail.carrier === 'colissimo') carrierLabel = 'COLISSIMO';
       parts.push(carrierLabel);
+    }
+
+    // Add recipient name if available and not already in product
+    if (parsedEmail.recipientName && !parsedEmail.productName) {
+      parts.push(`pour ${parsedEmail.recipientName}`);
     }
 
     // Add article ID if available

@@ -10,10 +10,22 @@ export interface Parcel {
   status: ParcelStatus;
   type: ParcelType;
   sourceEmailId: string;
-  provider: 'gmail' | 'outlook';
+  provider: string; // 'gmail', 'outlook', etc
   title: string;
   price?: number;
   currency?: string;
+  
+  // Enhanced metadata from emails
+  productName?: string | null; // "Nike Air Force 1"
+  productDescription?: string | null; // Size, condition, etc
+  recipientName?: string | null; // Who receives it
+  senderName?: string | null; // Who sent it
+  senderEmail?: string | null; // Original email sender
+  pickupAddress?: string | null; // Point relais address
+  pickupDeadline?: Date | null; // Deadline to pickup
+  orderNumber?: string | null; // Transaction reference
+  withdrawalCode?: string | null; // Code for point relais
+  
   createdAt: Date;
   updatedAt: Date;
 }

@@ -11,6 +11,16 @@ export interface ParsedTrackingInfo {
   withdrawalCode?: string | null;
   articleId?: string | null;
   marketplace?: string | null;
+  // Metadata fields
+  productName?: string | null;
+  productDescription?: string | null;
+  recipientName?: string | null;
+  senderName?: string | null;
+  pickupAddress?: string | null;
+  pickupDeadline?: Date | null;
+  orderNumber?: string | null;
+  estimatedValue?: number | null;
+  currency?: string | null;
 }
 
 @Injectable()
@@ -30,6 +40,7 @@ export class EmailParsingService {
     subject: string;
     from: string;
     body: string;
+    receivedAt?: Date;
   }): Promise<ParsedTrackingInfo> {
     // Detect carrier from sender/subject
     const carrierType = this.carrierDetector.detectCarrier(email);
@@ -38,17 +49,22 @@ export class EmailParsingService {
     // Route to carrier-specific parser
     let result: ParsedTrackingInfo = {};
 
+    const emailWithDate = {
+      ...email,
+      receivedAt: email.receivedAt || new Date(),
+    };
+
     switch (carrierType) {
       case 'vinted_go':
-        result = this.vintedGoParser.parse(email);
+        result = this.vintedGoParser.parse(emailWithDate);
         break;
 
       case 'mondial_relay':
-        result = this.mondialRelayParser.parse(email);
+        result = this.mondialRelayParser.parse(emailWithDate);
         break;
 
       case 'chronopost':
-        result = this.chronopostParser.parse(email);
+        result = this.chronopostParser.parse(emailWithDate);
         break;
 
       case 'other':

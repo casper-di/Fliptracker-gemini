@@ -186,8 +186,11 @@ export class EmailSyncOrchestrator {
                 continue;
               }
 
-              // Parse email
-              const parsed = await this.parsingService.parseEmail(rawEmailData.fetched);
+              // Parse email - pass receivedAt for metadata extraction
+              const parsed = await this.parsingService.parseEmail({
+                ...rawEmailData.fetched,
+                receivedAt: rawEmailData.receivedAt,
+              });
 
               if (!parsed.trackingNumber) {
                 parsedNoTracking++;
@@ -220,6 +223,19 @@ export class EmailSyncOrchestrator {
                   articleId: parsed.articleId ?? null,
                   marketplace: parsed.marketplace ?? null,
                   status: 'pending_shipment_lookup',
+                  // Metadata fields
+                  provider: rawEmailData.provider ?? null,
+                  senderEmail: rawEmailData.from ?? null,
+                  senderName: parsed.senderName ?? null,
+                  receivedAt: rawEmailData.receivedAt ?? null,
+                  productName: parsed.productName ?? null,
+                  productDescription: parsed.productDescription ?? null,
+                  recipientName: parsed.recipientName ?? null,
+                  pickupAddress: parsed.pickupAddress ?? null,
+                  pickupDeadline: parsed.pickupDeadline ?? null,
+                  orderNumber: parsed.orderNumber ?? null,
+                  estimatedValue: parsed.estimatedValue ?? null,
+                  currency: parsed.currency ?? null,
                 });
               } else {
                 // Create new - convert undefined to null for Firestore
@@ -233,6 +249,19 @@ export class EmailSyncOrchestrator {
                   articleId: parsed.articleId ?? null,
                   marketplace: parsed.marketplace ?? null,
                   status: 'pending_shipment_lookup',
+                  // Metadata fields
+                  provider: rawEmailData.provider ?? null,
+                  senderEmail: rawEmailData.from ?? null,
+                  senderName: parsed.senderName ?? null,
+                  receivedAt: rawEmailData.receivedAt ?? null,
+                  productName: parsed.productName ?? null,
+                  productDescription: parsed.productDescription ?? null,
+                  recipientName: parsed.recipientName ?? null,
+                  pickupAddress: parsed.pickupAddress ?? null,
+                  pickupDeadline: parsed.pickupDeadline ?? null,
+                  orderNumber: parsed.orderNumber ?? null,
+                  estimatedValue: parsed.estimatedValue ?? null,
+                  currency: parsed.currency ?? null,
                 });
                 totalEmailsParsed++;
               }

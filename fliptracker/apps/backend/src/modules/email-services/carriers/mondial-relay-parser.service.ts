@@ -7,17 +7,20 @@ export interface ParsedTrackingInfo {
   withdrawalCode?: string | null;
   articleId?: string | null;
   marketplace?: string | null;
+  // New fields
+  productName?: string | null;
+  productDescription?: string | null;
+  recipientName?: string | null;
+  pickupAddress?: string | null;
+  pickupDeadline?: Date | null;
 }
 
 @Injectable()
 export class MondialRelayParserService {
   /**
    * Parse Mondial Relay / Relais Colis emails
-   * Pattern 1 (Relais Colis): Reference "VD3000015539" in body
-   * Pattern 2 (Mondial Relay): "VINTED 49022413" format
-   * Withdrawal code: Large numeric code (usually 6 digits)
    */
-  parse(email: { subject: string; body: string; from: string }): ParsedTrackingInfo {
+  parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
     const result: ParsedTrackingInfo = {
       marketplace: 'vinted',
       carrier: 'mondial_relay',
@@ -25,10 +28,9 @@ export class MondialRelayParserService {
 
     // Pattern 1: Reference like "VD3000015539" or "VINTED <number>"
     const refPatterns = [
-      /VD(\d{10,})/i, // "VD3000015539"
-      /VINTED\s+(\d{8,})/i, // "VINTED 49022413"
-      /Référence.*?<b>([A-Z0-9]{10,})/i, // HTML formatted
-      /référence.*?(\d{8,})/i, // French text
+      /VD(\d{10,})/i,
+      /VINTED\s+(\d{8,})/i,
+      /Référence.*?<b>([A-Z0-9]{10,})/i,
     ];
 
     for (const pattern of refPatterns) {
@@ -39,13 +41,11 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract withdrawal code - typically 6 digits, often styled large
+    // Extract withdrawal code - typically 6 digits
     const withdrawalPatterns = [
       /Code de retrait[\s\S]*?(\d{6})/i,
       /code\s+de\s+retrait[\s:]*<[^>]*>[\s\S]*?(\d{6})/i,
       /<span[^>]*>\s*(\d{6})\s*<\/span>/i,
-      /font-size:\s*48px[^>]*>(\d{6})</i,
-      /font-weight:\s*700[^>]*>(\d{6})</i,
     ];
 
     for (const pattern of withdrawalPatterns) {
@@ -56,7 +56,7 @@ export class MondialRelayParserService {
       }
     }
 
-    // Fallback: extract any 6-digit code that looks significant
+    // Fallback: extract any 6-digit code
     if (!result.withdrawalCode) {
       const fallbackMatch = email.body.match(/(\d{6})/);
       if (fallbackMatch) {
@@ -64,9 +64,54 @@ export class MondialRelayParserService {
       }
     }
 
+    // Extract recipient name (usually in greeting or pickup section)
+    const recipientPatterns = [
+      /Bonjour\s+([A-Z][A-Z\s]+)\s*!/i,
+      /Hello\s+([A-Z][A-Z\s]+)\s*!/i,
+    ];
+
+    for (const pattern of recipientPatterns) {
+      const match = email.body.match(pattern);
+      if (match) {
+        result.recipientName = match[1]?.trim() || null;
+        break;
+      }
+    }
+
+    // Extract pickup address and location
+    const addressMatch = email.body.match(/<strong>([^<]+)<\/strong>[\s\S]*?(\d+.*?(?:OULLINS|LYON|PARIS)[^<]*)/i);
+    if (addressMatch) {
+      result.pickupAddress = `${addressMatch[1]?.trim()}, ${addressMatch[2]?.trim()}` || null;
+    }
+
+    // Extract pickup deadline
+    const deadlinePatterns = [
+      /jusqu'(?:au|à)\s+(?:vendredi\s+)?(\d{1,2})\s+(?:novembre|january|january|février|mars|avril|mai|juin|juillet|août|septembre|octobre|décembre)/i,
+      /available[\s\S]*?until[\s\S]*?(\d{1,2})\s+(\w+)\s+(\d{4})/i,
+    ];
+
+    for (const pattern of deadlinePatterns) {
+      const match = email.body.match(pattern);
+      if (match) {
+        try {
+          // Try to parse the date
+          const dateStr = match[1];
+          if (dateStr) {
+            result.pickupDeadline = new Date(dateStr) || null;
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+        break;
+      }
+    }
+
     console.log(`[MondialRelayParser] Parsed:`, {
       trackingNumber: result.trackingNumber,
       withdrawalCode: result.withdrawalCode,
+      recipientName: result.recipientName,
+      pickupAddress: result.pickupAddress,
+      pickupDeadline: result.pickupDeadline,
     });
 
     return result;
