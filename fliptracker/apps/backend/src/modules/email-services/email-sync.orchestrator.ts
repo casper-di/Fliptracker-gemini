@@ -85,6 +85,19 @@ export class EmailSyncOrchestrator {
         console.log('\n');
         console.log('-'.repeat(80));
         console.log(`📬 Processing: ${connectedEmail.provider.toUpperCase()} - ${connectedEmail.emailAddress}`);
+        
+        // Check account status
+        if (connectedEmail.status === 'expired') {
+          console.log(`❌ Account status: EXPIRED - User needs to reconnect`);
+          console.log('-'.repeat(80));
+          continue;
+        } else if (connectedEmail.status === 'revoked') {
+          console.log(`❌ Account status: REVOKED - User revoked access`);
+          console.log('-'.repeat(80));
+          continue;
+        } else {
+          console.log(`✅ Account status: ${connectedEmail.status.toUpperCase()}`);
+        }
         console.log('-'.repeat(80));
 
         try {

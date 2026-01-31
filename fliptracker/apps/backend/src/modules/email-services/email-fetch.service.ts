@@ -63,8 +63,24 @@ export class EmailFetchService {
       }
       
       return normalizedEmails;
-    } catch (error) {
-      console.error('[EmailFetchService] Failed to fetch emails:', error);
+    } catch (error: any) {
+      // Handle 401 Unauthorized errors - token is invalid/revoked
+      if (error?.response?.status === 401 || error?.status === 401 || error?.message?.includes('Invalid Credentials')) {
+        console.error(`[EmailFetchService] 🔴 Authentication failed for ${connectedEmail.emailAddress}`);
+        console.error(`[EmailFetchService] Token is invalid or revoked - user needs to reconnect`);
+        
+        // Mark account as expired so user knows to reconnect
+        try {
+          await this.connectedEmailRepository.update(connectedEmail.id, {
+            status: 'expired' as const,
+          });
+          console.log(`[EmailFetchService] Marked ${connectedEmail.emailAddress} as expired`);
+        } catch (updateError) {
+          console.error('[EmailFetchService] Failed to mark account as expired:', updateError);
+        }
+      }
+      
+      console.error('[EmailFetchService] Failed to fetch emails:', error?.message || error);
       throw error;
     }
   }
