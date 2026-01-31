@@ -315,7 +315,7 @@ export class EmailSyncOrchestrator {
         userId,
         eventType,
         status,
-        data,
+        data: data || null, // Firestore doesn't accept undefined
       });
     } catch (error) {
       console.warn('[EmailSyncOrchestrator] Failed to log event:', error);
