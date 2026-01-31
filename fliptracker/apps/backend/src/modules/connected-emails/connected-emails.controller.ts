@@ -110,9 +110,7 @@ export class ConnectedEmailsController {
 
     return {
       success: true,
-      status: 'started',
-      message: 'Email sync started in background',
-      startedAt: new Date().toISOString(),
+      queuedAt: new Date().toISOString(),
     };
   }
 
