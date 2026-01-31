@@ -19,7 +19,6 @@ export class ParsedEmailToParcelService {
    */
   async createParcelFromParsedEmail(parsedEmail: ParsedEmail): Promise<Parcel | null> {
     if (!parsedEmail.trackingNumber) {
-      console.log('[ParsedEmailToParcelService] No tracking number, skipping parcel creation');
       return null;
     }
 
@@ -30,9 +29,6 @@ export class ParsedEmailToParcelService {
     );
 
     if (existing) {
-      console.log(
-        `[ParsedEmailToParcelService] Parcel already exists for tracking: ${parsedEmail.trackingNumber}`,
-      );
       return existing;
     }
 
@@ -64,13 +60,9 @@ export class ParsedEmailToParcelService {
         title,
       });
 
-      console.log(
-        `[ParsedEmailToParcelService] Created parcel: ${parcel.id} (${type}) - ${parsedEmail.trackingNumber}`,
-      );
-
       return parcel;
     } catch (error) {
-      console.error('[ParsedEmailToParcelService] Failed to create parcel:', error);
+      console.error(`      ❌ Failed to create parcel:`, error.message);
       return null;
     }
   }

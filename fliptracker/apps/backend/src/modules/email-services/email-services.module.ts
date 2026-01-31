@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
 import { EmailParsingService } from './email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
@@ -20,7 +20,7 @@ import { UsersModule } from '../users/users.module';
 import { ParcelsModule } from '../parcels/parcels.module';
 
 @Module({
-  imports: [ProvidersModule, ConnectedEmailsModule, UsersModule, ParcelsModule],
+  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule],
   providers: [
     EmailFetchService,
     EmailParsingService,

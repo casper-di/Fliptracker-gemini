@@ -41,23 +41,40 @@ export class EmailSyncOrchestrator {
    */
   async syncEmailsForUser(userId: string): Promise<void> {
     const syncId = this.generateId();
-    console.log(`[EmailSyncOrchestrator] Starting sync ${syncId} for user ${userId}`);
+    console.log('\n');
+    console.log('='.repeat(80));
+    console.log(`🔄 EMAIL SYNC STARTED`);
+    console.log(`   Sync ID: ${syncId}`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Timestamp: ${new Date().toISOString()}`);
+    console.log('='.repeat(80));
+    console.log('\n');
 
     try {
       // 1. Mark user as syncing
+      console.log('📝 Marking user status as SYNCING...');
       await this.usersService.update(userId, {
         emailSyncStatus: 'syncing',
         emailSyncStartedAt: new Date(),
       });
       await this.logEvent(syncId, userId, 'SYNC_STARTED', 'completed');
+      console.log('✅ User status updated');
 
       // 2. Get all connected emails
+      console.log('\n📧 Fetching connected email accounts...');
       const connectedEmails = await this.connectedEmailsService.findByUserId(userId);
+      
       if (connectedEmails.length === 0) {
-        console.log(`[EmailSyncOrchestrator] No connected emails for user ${userId}`);
+        console.log('⚠️  No connected emails found for this user');
         await this.usersService.update(userId, { emailSyncStatus: 'idle' });
+        console.log('🛑 Sync aborted - no email accounts to sync');
         return;
       }
+      
+      console.log(`✅ Found ${connectedEmails.length} connected email account(s):`);
+      connectedEmails.forEach((email, index) => {
+        console.log(`   ${index + 1}. ${email.provider.toUpperCase()}: ${email.emailAddress} (Initial sync: ${email.initialSyncCompleted ? 'DONE' : 'PENDING'})`);
+      });
 
       let totalEmailsFetched = 0;
       let totalEmailsParsed = 0;
@@ -65,9 +82,10 @@ export class EmailSyncOrchestrator {
 
       // 3. For each connected email account
       for (const connectedEmail of connectedEmails) {
-        console.log(
-          `[EmailSyncOrchestrator] Syncing ${connectedEmail.provider} account: ${connectedEmail.emailAddress}`,
-        );
+        console.log('\n');
+        console.log('-'.repeat(80));
+        console.log(`📬 Processing: ${connectedEmail.provider.toUpperCase()} - ${connectedEmail.emailAddress}`);
+        console.log('-'.repeat(80));
 
         try {
           // Decide fetch limit based on whether initial sync was done
@@ -75,19 +93,24 @@ export class EmailSyncOrchestrator {
             ? this.MAINTENANCE_SYNC_LIMIT
             : this.INITIAL_SYNC_LIMIT;
 
-          console.log(
-            `[EmailSyncOrchestrator] Fetching ${limit} emails (initialSync: ${!connectedEmail.initialSyncCompleted})`,
-          );
+          const syncType = connectedEmail.initialSyncCompleted ? 'MAINTENANCE' : 'INITIAL';
+          console.log(`🎯 Sync type: ${syncType}`);
+          console.log(`📊 Email limit: ${limit} emails`);
 
           // STEP 1: FETCH
+          console.log(`\n📥 STEP 1: Fetching emails from ${connectedEmail.provider.toUpperCase()}...`);
           const fetchedEmails = await this.fetchService.fetchEmails(connectedEmail, limit);
           totalEmailsFetched += fetchedEmails.length;
-          console.log(
-            `[EmailSyncOrchestrator] Fetched ${fetchedEmails.length} emails from ${connectedEmail.emailAddress}`,
-          );
+          console.log(`✅ Fetched ${fetchedEmails.length} emails`);
+          if (fetchedEmails.length > 0) {
+            console.log(`   Latest email: "${fetchedEmails[0].subject}" from ${fetchedEmails[0].from}`);
+          }
 
           // STEP 2: SAVE RAW EMAILS + CHECK FOR DUPLICATES
+          console.log(`\n💾 STEP 2: Saving raw emails to database...`);
           const savedRawEmails: (RawEmail & { fetched: typeof fetchedEmails[0] })[] = [];
+          let duplicateCount = 0;
+          let newEmailCount = 0;
 
           for (const fetchedEmail of fetchedEmails) {
             try {
@@ -99,11 +122,10 @@ export class EmailSyncOrchestrator {
 
               let rawEmail: RawEmail;
               if (existing) {
-                console.log(
-                  `[EmailSyncOrchestrator] Duplicate email found: ${fetchedEmail.messageId}`,
-                );
+                duplicateCount++;
                 rawEmail = existing;
               } else {
+                newEmailCount++;
                 // Save new raw email
                 rawEmail = await this.rawEmailRepository.create({
                   userId,
@@ -123,11 +145,21 @@ export class EmailSyncOrchestrator {
             }
           }
 
+          console.log(`✅ Raw emails saved:`);
+          console.log(`   - New emails: ${newEmailCount}`);
+          console.log(`   - Duplicates skipped: ${duplicateCount}`);
+          console.log(`   - Total processed: ${savedRawEmails.length}`);
+
           await this.logEvent(syncId, userId, 'EMAILS_FETCHED', 'completed', {
             totalEmails: fetchedEmails.length,
           });
 
           // STEP 3: PARSE EMAILS + EXTRACT TRACKING
+          console.log(`\n🔍 STEP 3: Parsing emails for tracking information...`);
+          let skippedNonTracking = 0;
+          let parsedWithTracking = 0;
+          let parsedNoTracking = 0;
+
           for (const rawEmailData of savedRawEmails) {
             try {
               // On INITIAL sync: parse tous les emails
@@ -137,9 +169,7 @@ export class EmailSyncOrchestrator {
                 this.trackingDetector.isTrackingEmail(rawEmailData.fetched);
 
               if (!shouldParse) {
-                console.log(
-                  `[EmailSyncOrchestrator] Skipping non-tracking email from ${rawEmailData.from}`,
-                );
+                skippedNonTracking++;
                 continue;
               }
 
@@ -147,16 +177,16 @@ export class EmailSyncOrchestrator {
               const parsed = await this.parsingService.parseEmail(rawEmailData.fetched);
 
               if (!parsed.trackingNumber) {
-                console.log(
-                  `[EmailSyncOrchestrator] No tracking found in email from ${rawEmailData.from}`,
-                );
+                parsedNoTracking++;
                 continue;
               }
 
               totalTrackingEmails++;
-              console.log(
-                `[EmailSyncOrchestrator] Tracking found: ${parsed.trackingNumber} (${parsed.carrier})`,
-              );
+              parsedWithTracking++;
+              console.log(`   ✅ Found tracking: ${parsed.trackingNumber} (${parsed.carrier || 'unknown carrier'})`);
+              if (parsed.qrCode) console.log(`      📦 QR Code: ${parsed.qrCode}`);
+              if (parsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${parsed.withdrawalCode}`);
+              if (parsed.marketplace) console.log(`      🛒 Marketplace: ${parsed.marketplace}`);
 
               // STEP 4: UPSERT PARSED EMAIL (check if tracking already exists)
               let parsedEmail = await this.parsedEmailRepository.findByTrackingNumber(
@@ -184,23 +214,28 @@ export class EmailSyncOrchestrator {
                 totalEmailsParsed++;
               }
 
-              console.log(
-                `[EmailSyncOrchestrator] Parsed email: ${parsed.trackingNumber} | QR: ${parsed.qrCode || 'N/A'} | Withdrawal: ${parsed.withdrawalCode || 'N/A'}`,
-              );
-
               // STEP 4.5: CREATE PARCEL FROM PARSED EMAIL
               try {
-                await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
+                const parcel = await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
+                if (parcel) {
+                  const direction = parcel.type === 'purchase' ? '📥 INCOMING' : '📤 OUTGOING';
+                  console.log(`      🎯 Created shipment: ${direction} - ${parcel.title}`);
+                }
               } catch (parcelError) {
                 console.warn(
-                  `[EmailSyncOrchestrator] Failed to create parcel for ${parsed.trackingNumber}:`,
-                  parcelError,
+                  `      ⚠️  Failed to create parcel for ${parsed.trackingNumber}:`,
+                  parcelError.message,
                 );
               }
             } catch (parseError) {
               console.warn('[EmailSyncOrchestrator] Failed to parse email:', parseError);
             }
           }
+
+          console.log(`\n📊 Parsing summary:`);
+          console.log(`   - Emails with tracking: ${parsedWithTracking}`);
+          console.log(`   - Emails without tracking: ${parsedNoTracking}`);
+          console.log(`   - Non-tracking emails skipped: ${skippedNonTracking}`);
 
           await this.logEvent(syncId, userId, 'EMAIL_PARSED', 'completed', {
             parsedEmails: totalEmailsParsed,
@@ -213,10 +248,11 @@ export class EmailSyncOrchestrator {
               initialSyncCompleted: true,
               initialSyncCompletedAt: new Date(),
             });
-            console.log(
-              `[EmailSyncOrchestrator] Marked initial sync as completed for ${connectedEmail.emailAddress}`,
-            );
+            console.log(`\n🎉 Initial sync completed for ${connectedEmail.emailAddress}`);
+            console.log(`   Future syncs will only fetch ${this.MAINTENANCE_SYNC_LIMIT} recent emails`);
           }
+          
+          console.log(`\n✅ Account processing complete: ${connectedEmail.emailAddress}`);
         } catch (accountError) {
           console.error(
             `[EmailSyncOrchestrator] Failed to sync ${connectedEmail.provider} account:`,
@@ -237,9 +273,25 @@ export class EmailSyncOrchestrator {
         trackingEmails: totalTrackingEmails,
       });
 
-      console.log(`[EmailSyncOrchestrator] Sync ${syncId} completed successfully`);
+      console.log('\n');
+      console.log('='.repeat(80));
+      console.log('✅ SYNC COMPLETED SUCCESSFULLY');
+      console.log(`   Total emails fetched: ${totalEmailsFetched}`);
+      console.log(`   Emails parsed: ${totalEmailsParsed}`);
+      console.log(`   Tracking emails found: ${totalTrackingEmails}`);
+      console.log(`   Sync ID: ${syncId}`);
+      console.log(`   Duration: ${Date.now() - new Date().getTime()}ms`);
+      console.log('='.repeat(80));
+      console.log('\n');
     } catch (error) {
-      console.error(`[EmailSyncOrchestrator] Sync ${syncId} failed:`, error);
+      console.log('\n');
+      console.log('='.repeat(80));
+      console.error('❌ SYNC FAILED');
+      console.error(`   Error: ${error.message}`);
+      console.error(`   Sync ID: ${syncId}`);
+      console.log('='.repeat(80));
+      console.error('\n', error);
+      
       await this.usersService.update(userId, {
         emailSyncStatus: 'error',
         emailSyncLastError: error.message,
