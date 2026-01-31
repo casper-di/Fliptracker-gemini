@@ -30,9 +30,13 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onClick })
     (new Date(shipment.pickupInfo.deadlineDate).getTime() - new Date().getTime()) < 48 * 60 * 60 * 1000
   );
 
-  const statusMessage = shipment.history[0]?.description || 'Mise à jour en attente';
-  const displayDate = shipment.status === ShipmentStatus.PICKUP_AVAILABLE 
-    ? `Limite: ${new Date(shipment.pickupInfo!.deadlineDate!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
+  // Use pickupAddress from backend metadata if available
+  const statusMessage = (shipment as any).pickupAddress || shipment.history[0]?.description || 'Mise à jour en attente';
+  
+  // Use pickupDeadline from backend metadata
+  const deadlineDate = (shipment as any).pickupDeadline || shipment.pickupInfo?.deadlineDate;
+  const displayDate = shipment.status === ShipmentStatus.PICKUP_AVAILABLE && deadlineDate
+    ? `Limite: ${new Date(deadlineDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
     : shipment.estimatedDelivery 
     ? `Estimé: ${new Date(shipment.estimatedDelivery).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
     : 'Date inconnue';
@@ -51,7 +55,7 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onClick })
               {isInbound ? shipment.sender : `À: ${shipment.recipient}`}
             </h3>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight">
-              {shipment.carrier}
+              {shipment.carrier.replace('_', ' ')}
             </p>
           </div>
           <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${visuals.bg} ${visuals.color} border border-current border-opacity-10 shrink-0`}>

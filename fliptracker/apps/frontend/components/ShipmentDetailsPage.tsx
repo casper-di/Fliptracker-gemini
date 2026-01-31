@@ -13,9 +13,10 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const isPickupReady = shipment.status === ShipmentStatus.PICKUP_AVAILABLE;
   const isDelivered = shipment.status === ShipmentStatus.DELIVERED;
   
-  const displayAddress = shipment.pickupInfo?.address || shipment.destinationAddress;
+  // Use metadata from backend
+  const displayAddress = (shipment as any).pickupAddress || shipment.pickupInfo?.address || shipment.destinationAddress;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(shipment.trackingNumber)}`;
-  const pickupCodeDisplay = shipment.pickupInfo?.pickupCode || shipment.trackingNumber.slice(-4);
+  const pickupCodeDisplay = (shipment as any).withdrawalCode || shipment.pickupInfo?.pickupCode || shipment.trackingNumber.slice(-4);
   const pendingPickups = allShipments.filter(s => s.status === ShipmentStatus.PICKUP_AVAILABLE);
 
   const getStatusColor = (status: ShipmentStatus) => {
@@ -42,11 +43,11 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
              <div key={p.id} className="bg-slate-900 border border-white/5 rounded-[32px] overflow-hidden">
                 <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                    <div>
-                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{p.carrier}</p>
+                     <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">{p.carrier.replace('_', ' ').toUpperCase()}</p>
                      <h3 className="text-sm font-black text-white">{p.sender}</h3>
                    </div>
                    <div className="text-right">
-                     <p className="text-lg font-mono font-black text-white">*{p.pickupInfo?.pickupCode || p.trackingNumber.slice(-4)}</p>
+                     <p className="text-lg font-mono font-black text-white">*{(p as any).withdrawalCode || p.pickupInfo?.pickupCode || p.trackingNumber.slice(-4)}</p>
                    </div>
                 </div>
                 <div className="p-8 flex justify-center bg-white">
@@ -80,7 +81,13 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             {isDelivered ? 'Colis livré' : isPickupReady ? 'Prêt au retrait' : 'En transit'}
           </h2>
           <p className="text-sm font-bold text-slate-400 dark:text-slate-600">
-            {shipment.carrier} • Estimé le <span className="text-slate-900 dark:text-slate-300">{new Date(shipment.estimatedDelivery || '').toLocaleDateString('fr-FR')}</span>
+            {shipment.carrier.replace('_', ' ').toUpperCase()}
+            {shipment.estimatedDelivery && (
+              <> • Estimé le <span className="text-slate-900 dark:text-slate-300">{new Date(shipment.estimatedDelivery).toLocaleDateString('fr-FR')}</span></>
+            )}
+            {(shipment as any).pickupDeadline && (
+              <> • Retrait avant le <span className="text-slate-900 dark:text-slate-300">{new Date((shipment as any).pickupDeadline).toLocaleDateString('fr-FR')}</span></>
+            )}
           </p>
         </section>
 
@@ -92,11 +99,16 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
               </div>
               <div className="flex-1 overflow-hidden">
                 <h3 className="font-black text-slate-900 dark:text-white text-lg truncate">
-                  {shipment.pickupInfo?.locationName || shipment.sender}
+                  {shipment.pickupInfo?.locationName || (shipment as any).recipientName || shipment.sender}
                 </h3>
                 <p className="text-sm font-bold text-slate-500 dark:text-slate-500 leading-snug">
                   {displayAddress}
                 </p>
+                {(shipment as any).productName && (
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
+                    {(shipment as any).productName}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
