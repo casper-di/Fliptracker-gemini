@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Query, UseGuards, Req, Res, SetMetadata } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Query, UseGuards, Req, Res, SetMetadata, Inject } from '@nestjs/common';
 import { ForbiddenException } from '@nestjs/common';
 import { Response } from 'express';
 import { ConnectedEmailsService } from './connected-emails.service';
@@ -8,6 +8,14 @@ import { GmailService } from '../providers/gmail/gmail.service';
 import { OutlookService } from '../providers/outlook/outlook.service';
 import { EmailSyncOrchestrator } from '../email-services/email-sync.orchestrator';
 import { ConnectedEmail } from '../../domain/entities';
+import {
+  RAW_EMAIL_REPOSITORY,
+  PARSED_EMAIL_REPOSITORY,
+  EMAIL_SYNC_EVENT_REPOSITORY,
+  IRawEmailRepository,
+  IParsedEmailRepository,
+  IEmailSyncEventRepository,
+} from '../../domain/repositories/email-sync.repository';
 
 export const SkipAuth = () => SetMetadata('skipAuth', true);
 
@@ -19,6 +27,12 @@ export class ConnectedEmailsController {
     private gmailService: GmailService,
     private outlookService: OutlookService,
     private emailSyncOrchestrator: EmailSyncOrchestrator,
+    @Inject(RAW_EMAIL_REPOSITORY)
+    private rawEmailRepository: IRawEmailRepository,
+    @Inject(PARSED_EMAIL_REPOSITORY)
+    private parsedEmailRepository: IParsedEmailRepository,
+    @Inject(EMAIL_SYNC_EVENT_REPOSITORY)
+    private emailSyncEventRepository: IEmailSyncEventRepository,
   ) {}
 
   @Get()
@@ -72,11 +86,25 @@ export class ConnectedEmailsController {
   @UseGuards(AuthGuard)
   async getEmailSummary(@Req() req: AuthenticatedRequest) {
     let emails: ConnectedEmail[] = [];
+    let parsedEmails: any[] = [];
+    let rawEmailsCount = 0;
+    let lastSyncAt: Date | null = null;
+
     try {
       emails = await this.connectedEmailsService.findByUserId(req.user.uid);
+      
+      // Get parsed emails
+      parsedEmails = await this.parsedEmailRepository.findByUserId(req.user.uid);
+      
+      // Get raw emails count
+      const rawEmails = await this.rawEmailRepository.findByUserId(req.user.uid);
+      rawEmailsCount = rawEmails.length;
+      
+      // Get last sync time from user
+      const user = await this.connectedEmailsService.usersService.findById(req.user.uid);
+      lastSyncAt = user?.emailSyncLastFinishedAt || null;
     } catch (error) {
-      console.warn('Email summary fallback to empty list:', error?.message || error);
-      emails = [];
+      console.warn('Email summary fallback:', error?.message || error);
     }
 
     const totalConnections = emails.length;
@@ -84,16 +112,33 @@ export class ConnectedEmailsController {
     const expired = emails.filter((e: ConnectedEmail) => e.status === 'expired').length;
     const errorCount = emails.filter((e: ConnectedEmail) => e.status === 'revoked').length;
 
+    // Format recent parsed emails for frontend
+    const recentParsed = parsedEmails
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10)
+      .map(email => ({
+        id: email.id,
+        subject: `Tracking: ${email.trackingNumber || 'N/A'}`,
+        from: email.marketplace || 'Unknown',
+        trackingNumber: email.trackingNumber,
+        carrier: email.carrier,
+        qrCode: email.qrCode,
+        withdrawalCode: email.withdrawalCode,
+        articleId: email.articleId,
+        status: email.status,
+        parsedAt: email.createdAt,
+      }));
+
     return {
       stats: {
         totalConnections,
         connected,
         expired,
         error: errorCount,
-        emailsAnalyzed: 0,
-        lastSyncAt: null,
+        emailsAnalyzed: rawEmailsCount,
+        lastSyncAt,
       },
-      recentParsed: [],
+      recentParsed,
       logs: [],
     };
   }
@@ -125,6 +170,89 @@ export class ConnectedEmailsController {
       error: user?.emailSyncLastError,
       lastUpdate: new Date().toISOString(),
     };
+  }
+
+  @Get('parsed')
+  @UseGuards(AuthGuard)
+  async getParsedEmails(@Req() req: AuthenticatedRequest) {
+    try {
+      const parsedEmails = await this.parsedEmailRepository.findByUserId(req.user.uid);
+      return {
+        success: true,
+        emails: parsedEmails,
+        total: parsedEmails.length,
+      };
+    } catch (error) {
+      console.error('[getParsedEmails] Error:', error);
+      return {
+        success: false,
+        emails: [],
+        total: 0,
+        error: error.message,
+      };
+    }
+  }
+
+  @Get('raw')
+  @UseGuards(AuthGuard)
+  async getRawEmails(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      let rawEmails = await this.rawEmailRepository.findByUserId(req.user.uid);
+      
+      // Apply limit if provided
+      if (limit) {
+        const limitNum = parseInt(limit, 10);
+        rawEmails = rawEmails.slice(0, limitNum);
+      }
+      
+      return {
+        success: true,
+        emails: rawEmails,
+        total: rawEmails.length,
+      };
+    } catch (error) {
+      console.error('[getRawEmails] Error:', error);
+      return {
+        success: false,
+        emails: [],
+        total: 0,
+        error: error.message,
+      };
+    }
+  }
+
+  @Get('sync/events')
+  @UseGuards(AuthGuard)
+  async getSyncEvents(
+    @Req() req: AuthenticatedRequest,
+    @Query('limit') limit?: string,
+  ) {
+    try {
+      let events = await this.emailSyncEventRepository.findByUserId(req.user.uid);
+      
+      // Apply limit if provided
+      if (limit) {
+        const limitNum = parseInt(limit, 10);
+        events = events.slice(0, limitNum);
+      }
+      
+      return {
+        success: true,
+        events,
+        total: events.length,
+      };
+    } catch (error) {
+      console.error('[getSyncEvents] Error:', error);
+      return {
+        success: false,
+        events: [],
+        total: 0,
+        error: error.message,
+      };
+    }
   }
 
   @Post('connect/:provider/start')

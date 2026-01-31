@@ -44,6 +44,32 @@ export const api = {
     return response.json();
   },
 
+  // GET /api/emails/sync/status
+  getSyncStatus: async (): Promise<{ status: string; startedAt?: string; finishedAt?: string; error?: string; lastUpdate: string }> => {
+    const response = await get('/emails/sync/status');
+    return response.json();
+  },
+
+  // GET /api/emails/parsed
+  getParsedEmails: async (): Promise<{ success: boolean; emails: any[]; total: number }> => {
+    const response = await get('/emails/parsed');
+    return response.json();
+  },
+
+  // GET /api/emails/raw
+  getRawEmails: async (limit?: number): Promise<{ success: boolean; emails: any[]; total: number }> => {
+    const params = limit ? `?limit=${limit}` : '';
+    const response = await get(`/emails/raw${params}`);
+    return response.json();
+  },
+
+  // GET /api/emails/sync/events
+  getSyncEvents: async (limit?: number): Promise<{ success: boolean; events: any[]; total: number }> => {
+    const params = limit ? `?limit=${limit}` : '';
+    const response = await get(`/emails/sync/events${params}`);
+    return response.json();
+  },
+
   // POST /api/emails/connect/:provider/start
   gmail: {
     connectStart: async () => {

@@ -20,6 +20,7 @@ export interface IParsedEmailRepository {
 
 export interface IEmailSyncEventRepository {
   findById(id: string): Promise<EmailSyncEvent | null>;
+  findByUserId(userId: string): Promise<EmailSyncEvent[]>;
   findBySyncId(syncId: string): Promise<EmailSyncEvent[]>;
   create(event: Omit<EmailSyncEvent, 'id' | 'createdAt'>): Promise<EmailSyncEvent>;
 }

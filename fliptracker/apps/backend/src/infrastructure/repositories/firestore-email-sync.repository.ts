@@ -169,6 +169,16 @@ export class FirestoreEmailSyncEventRepository implements IEmailSyncEventReposit
     return doc.exists ? this.toEntity(doc.id, doc.data()!) : null;
   }
 
+  async findByUserId(userId: string): Promise<EmailSyncEvent[]> {
+    const snapshot = await this.firebaseService
+      .getFirestore()
+      .collection(this.collection)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
+  }
+
   async findBySyncId(syncId: string): Promise<EmailSyncEvent[]> {
     const snapshot = await this.firebaseService
       .getFirestore()
