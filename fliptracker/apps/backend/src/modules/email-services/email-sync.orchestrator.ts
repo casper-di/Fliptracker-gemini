@@ -211,17 +211,27 @@ export class EmailSyncOrchestrator {
                 console.log(
                   `[EmailSyncOrchestrator] Tracking already exists: ${parsed.trackingNumber}, updating...`,
                 );
-                // Update with new info (QR, withdrawal code, etc.)
+                // Update with new info - convert undefined to null for Firestore
                 parsedEmail = await this.parsedEmailRepository.update(parsedEmail.id, {
-                  ...parsed,
+                  trackingNumber: parsed.trackingNumber,
+                  carrier: parsed.carrier,
+                  qrCode: parsed.qrCode ?? null,
+                  withdrawalCode: parsed.withdrawalCode ?? null,
+                  articleId: parsed.articleId ?? null,
+                  marketplace: parsed.marketplace ?? null,
                   status: 'pending_shipment_lookup',
                 });
               } else {
-                // Create new
+                // Create new - convert undefined to null for Firestore
                 parsedEmail = await this.parsedEmailRepository.create({
                   rawEmailId: rawEmailData.id,
                   userId,
-                  ...parsed,
+                  trackingNumber: parsed.trackingNumber,
+                  carrier: parsed.carrier,
+                  qrCode: parsed.qrCode ?? null,
+                  withdrawalCode: parsed.withdrawalCode ?? null,
+                  articleId: parsed.articleId ?? null,
+                  marketplace: parsed.marketplace ?? null,
                   status: 'pending_shipment_lookup',
                 });
                 totalEmailsParsed++;
