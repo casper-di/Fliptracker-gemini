@@ -14,6 +14,7 @@ interface EmailSyncPageProps {
 
 export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, preferences, onUpdatePreferences, onSyncAction, onBack }) => {
   const [showLogs, setShowLogs] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState<'gmail' | 'outlook' | null>(null);
 
   const toggleSyncPref = (key: keyof UserPreferences['sync']) => {
     onUpdatePreferences({
@@ -164,18 +165,38 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
             <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">Ajouter un compte</p>
             <div className="grid grid-cols-2 gap-3">
               <button 
-                onClick={() => onSyncAction('connect_gmail')}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md"
+                onClick={() => {
+                  setConnectingProvider('gmail');
+                  onSyncAction('connect_gmail');
+                }}
+                disabled={connectingProvider === 'gmail'}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Gmail</span>
+                {connectingProvider === 'gmail' ? (
+                  <LoadingSpinner size="sm" text="" />
+                ) : (
+                  <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
+                )}
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                  {connectingProvider === 'gmail' ? 'Connexion...' : 'Gmail'}
+                </span>
               </button>
               <button 
-                onClick={() => onSyncAction('connect_outlook')}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md"
+                onClick={() => {
+                  setConnectingProvider('outlook');
+                  onSyncAction('connect_outlook');
+                }}
+                disabled={connectingProvider === 'outlook'}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Outlook</span>
+                {connectingProvider === 'outlook' ? (
+                  <LoadingSpinner size="sm" text="" />
+                ) : (
+                  <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
+                )}
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                  {connectingProvider === 'outlook' ? 'Connexion...' : 'Outlook'}
+                </span>
               </button>
             </div>
           </div>
