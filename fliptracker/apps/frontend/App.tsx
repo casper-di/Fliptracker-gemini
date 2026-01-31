@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus, ConnectedEmail, EmailSummary } from './types';
-import { generateMockShipments } from './services/mockDataService';
 import { ShipmentCard } from './components/ShipmentCard';
 import { ShipmentDetailsPage } from './components/ShipmentDetailsPage';
 import { BottomNav } from './components/BottomNav';
@@ -278,6 +277,11 @@ const App: React.FC = () => {
         await api.syncEmails();
         const summary = await api.getEmailSummary();
         setEmailSummary(summary);
+        
+        // Reload shipments after sync to show new parcels
+        const response = await api.getParcels({ limit: 100, offset: 0 });
+        setShipments(response.data || []);
+        
         setSyncStatus(prev => ({ ...prev, isLoading: false }));
       }
     } catch (err) {
@@ -398,7 +402,17 @@ const App: React.FC = () => {
           )}
 
           {activeTab === 'add' ? (
-            <AddShipmentPage onBack={() => setActiveTab('incoming')} onSubmit={(data) => { setShipments(prev => [{...generateMockShipments(1)[0], ...data}, ...prev]); setActiveTab('incoming'); }} />
+            <AddShipmentPage onBack={() => setActiveTab('incoming')} onSubmit={async (data) => { 
+              // Create shipment via API instead of using mock
+              try {
+                await api.createParcel(data);
+                // Reload shipments
+                loadShipments();
+                setActiveTab('incoming');
+              } catch (error) {
+                console.error('Failed to create shipment:', error);
+              }
+            }} />
           ) : activeTab === 'notifications' ? (
             <NotificationPage 
               notifications={notifications} 

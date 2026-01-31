@@ -14,9 +14,28 @@ export class ParcelsController {
     @Req() req: AuthenticatedRequest,
     @Query() filters: ParcelFiltersDto,
   ) {
-    // TODO: Enable once Firestore credentials fixed
-    // const result = await this.parcelsService.findByUserId(req.user.uid, {...filters});
-    return { data: [], total: 0 };
+    // Convert query params to correct types
+    const parsedFilters: any = {
+      ...filters,
+      limit: filters.limit ? parseInt(filters.limit, 10) : undefined,
+      offset: filters.offset ? parseInt(filters.offset, 10) : undefined,
+      startDate: filters.startDate ? new Date(filters.startDate) : undefined,
+      endDate: filters.endDate ? new Date(filters.endDate) : undefined,
+    };
+    
+    const result = await this.parcelsService.findByUserId(req.user.uid, parsedFilters);
+    
+    // Map Parcel.type to Shipment.direction for frontend compatibility
+    const mappedData = (result.data || []).map(parcel => ({
+      ...parcel,
+      direction: parcel.type === 'purchase' ? 'INBOUND' : 'OUTBOUND',
+      sender: parcel.type === 'purchase' ? 'Marketplace' : 'You',
+      recipient: parcel.type === 'purchase' ? 'You' : 'Customer',
+      history: [],
+      lastUpdated: parcel.updatedAt || parcel.createdAt,
+    }));
+    
+    return { data: mappedData, total: result.total, limit: result.limit, offset: result.offset };
   }
 
   @Get(':id')

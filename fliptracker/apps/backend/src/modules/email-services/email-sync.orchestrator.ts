@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
 import { EmailParsingService } from './email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
+import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -23,6 +24,7 @@ export class EmailSyncOrchestrator {
     private fetchService: EmailFetchService,
     private parsingService: EmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
+    private parsedEmailToParcelService: ParsedEmailToParcelService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
     @Inject(RAW_EMAIL_REPOSITORY)
@@ -185,6 +187,16 @@ export class EmailSyncOrchestrator {
               console.log(
                 `[EmailSyncOrchestrator] Parsed email: ${parsed.trackingNumber} | QR: ${parsed.qrCode || 'N/A'} | Withdrawal: ${parsed.withdrawalCode || 'N/A'}`,
               );
+
+              // STEP 4.5: CREATE PARCEL FROM PARSED EMAIL
+              try {
+                await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
+              } catch (parcelError) {
+                console.warn(
+                  `[EmailSyncOrchestrator] Failed to create parcel for ${parsed.trackingNumber}:`,
+                  parcelError,
+                );
+              }
             } catch (parseError) {
               console.warn('[EmailSyncOrchestrator] Failed to parse email:', parseError);
             }
