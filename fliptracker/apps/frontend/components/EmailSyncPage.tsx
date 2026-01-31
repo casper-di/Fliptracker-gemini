@@ -71,9 +71,11 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
             <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Connected Emails</p>
             <button
               onClick={() => onSyncAction('manual_sync')}
-              className="text-[9px] font-black uppercase tracking-widest bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-xl active:scale-95 transition-all"
+              disabled={status.isLoading}
+              className="text-[9px] font-black uppercase tracking-widest bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-xl active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Synchroniser
+              {status.isLoading && <LoadingSpinner size="sm" text="" />}
+              {status.isLoading ? 'Synchronisation...' : 'Synchroniser'}
             </button>
           </div>
           <div className="grid grid-cols-3 gap-3">
