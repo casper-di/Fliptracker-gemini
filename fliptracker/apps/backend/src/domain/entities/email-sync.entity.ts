@@ -20,7 +20,7 @@ export interface ParsedEmail {
   
   // Extracted tracking info
   trackingNumber?: string;
-  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other';
+  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'other';
   qrCode?: string | null;
   withdrawalCode?: string | null; // Code de retrait (pour points relais)
   articleId?: string | null;

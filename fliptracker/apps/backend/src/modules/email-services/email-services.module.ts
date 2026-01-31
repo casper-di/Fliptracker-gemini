@@ -4,6 +4,10 @@ import { EmailParsingService } from './email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
+import { CarrierDetectorService } from './carriers/carrier-detector.service';
+import { VintedGoParserService } from './carriers/vinted-go-parser.service';
+import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
+import { ChronopostParserService } from './carriers/chronopost-parser.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -27,6 +31,10 @@ import { ParcelsModule } from '../parcels/parcels.module';
     EmailTrackingDetectorService,
     ParsedEmailToParcelService,
     EmailSyncOrchestrator,
+    CarrierDetectorService,
+    VintedGoParserService,
+    MondialRelayParserService,
+    ChronopostParserService,
     {
       provide: RAW_EMAIL_REPOSITORY,
       useClass: FirestoreRawEmailRepository,

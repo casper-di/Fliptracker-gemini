@@ -1,25 +1,70 @@
 import { Injectable } from '@nestjs/common';
+import { CarrierDetectorService } from './carriers/carrier-detector.service';
+import { VintedGoParserService } from './carriers/vinted-go-parser.service';
+import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
+import { ChronopostParserService } from './carriers/chronopost-parser.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
-  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other';
-  qrCode?: string;
-  withdrawalCode?: string;
-  articleId?: string;
-  marketplace?: string;
+  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost';
+  qrCode?: string | null;
+  withdrawalCode?: string | null;
+  articleId?: string | null;
+  marketplace?: string | null;
 }
 
 @Injectable()
 export class EmailParsingService {
+  constructor(
+    private carrierDetector: CarrierDetectorService,
+    private vintedGoParser: VintedGoParserService,
+    private mondialRelayParser: MondialRelayParserService,
+    private chronopostParser: ChronopostParserService,
+  ) {}
+
   /**
-   * Parse email to extract tracking information
+   * Parse email using carrier-specific parsers
+   * Falls back to generic parsing for unknown carriers
    */
   async parseEmail(email: {
     subject: string;
     from: string;
     body: string;
   }): Promise<ParsedTrackingInfo> {
-    const result: ParsedTrackingInfo = {};
+    // Detect carrier from sender/subject
+    const carrierType = this.carrierDetector.detectCarrier(email);
+    console.log(`[EmailParsingService] Detected carrier: ${carrierType}`);
+
+    // Route to carrier-specific parser
+    let result: ParsedTrackingInfo = {};
+
+    switch (carrierType) {
+      case 'vinted_go':
+        result = this.vintedGoParser.parse(email);
+        break;
+
+      case 'mondial_relay':
+        result = this.mondialRelayParser.parse(email);
+        break;
+
+      case 'chronopost':
+        result = this.chronopostParser.parse(email);
+        break;
+
+      case 'other':
+      default:
+        result = this.parseGeneric(email);
+        break;
+    }
+
+    return result;
+  }
+
+  /**
+   * Fallback generic parser for unknown carriers
+   */
+  private parseGeneric(email: { subject: string; from: string; body: string }): ParsedTrackingInfo {
+    const result: ParsedTrackingInfo = { marketplace: null, carrier: 'other' };
 
     // 1. Extract tracking number (common patterns)
     const trackingPatterns = [
@@ -41,7 +86,7 @@ export class EmailParsingService {
     const qrPattern = /(?:qr code|code qr|qr)[\s:]*([A-Z0-9]{10,50})/gi;
     const qrMatch = email.body.match(qrPattern);
     if (qrMatch) {
-      result.qrCode = qrMatch[0].split(':')[1]?.trim();
+      result.qrCode = qrMatch[0].split(':')[1]?.trim() || null;
     }
 
     // 3. Extract withdrawal/pickup code (for parcel points)
@@ -53,7 +98,7 @@ export class EmailParsingService {
     for (const pattern of withdrawalPatterns) {
       const match = email.body.match(pattern);
       if (match) {
-        result.withdrawalCode = match[0].split(':')[1]?.trim();
+        result.withdrawalCode = match[0].split(':')[1]?.trim() || null;
         break;
       }
     }
@@ -67,12 +112,12 @@ export class EmailParsingService {
     for (const pattern of articlePatterns) {
       const match = email.body.match(pattern);
       if (match) {
-        result.articleId = match[0].split(':')[1]?.trim();
+        result.articleId = match[0].split(':')[1]?.trim() || null;
         break;
       }
     }
 
-    // 5. Guess marketplace from sender or subject
+    // 5. Detect marketplace
     const combined = `${email.subject} ${email.from}`.toLowerCase();
     if (combined.includes('amazon')) result.marketplace = 'amazon';
     else if (combined.includes('ebay')) result.marketplace = 'ebay';
@@ -80,12 +125,11 @@ export class EmailParsingService {
     else if (combined.includes('cdiscount')) result.marketplace = 'cdiscount';
     else if (combined.includes('fnac')) result.marketplace = 'fnac';
 
-    // 6. Guess carrier
+    // 6. Detect carrier
     if (combined.includes('dhl')) result.carrier = 'dhl';
     else if (combined.includes('ups')) result.carrier = 'ups';
     else if (combined.includes('fedex')) result.carrier = 'fedex';
     else if (combined.includes('laposte') || combined.includes('colissimo')) result.carrier = 'laposte';
-    else result.carrier = 'other';
 
     return result;
   }
