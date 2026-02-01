@@ -80,6 +80,7 @@ export class ParsedEmailToParcelService {
         pickupDeadline: parsedEmail.pickupDeadline ?? null,
         orderNumber: parsedEmail.orderNumber ?? null,
         withdrawalCode: parsedEmail.withdrawalCode ?? null,
+        qrCode: parsedEmail.qrCode ?? null,
       });
 
       console.log(`      ✅ Parcel created: ${parcel.id} - "${title}"`);
@@ -92,24 +93,33 @@ export class ParsedEmailToParcelService {
 
   /**
    * Generate a human-readable title for the parcel
-   * Only displays product name - other details shown elsewhere
+   * Prioritizes: productName > senderName > marketplace > carrier
    */
   private generateTitle(parsedEmail: ParsedEmail): string {
-    // Prioritize product name only
+    // Priority 1: Product name
     if (parsedEmail.productName) {
       console.log(`      📝 Generated title: "${parsedEmail.productName}"`);
       return parsedEmail.productName;
     }
 
-    // Fallback to marketplace name
-    if (parsedEmail.marketplace) {
-      const marketplaceLabel = parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1);
-      console.log(`      📝 Generated title: "${marketplaceLabel}"`);
-      return marketplaceLabel;
+    // Priority 2: Sender name (e.g., "Vinted Go", "Amazon")
+    if (parsedEmail.senderName) {
+      const title = `Colis de ${parsedEmail.senderName}`;
+      console.log(`      📝 Generated title: "${title}"`);
+      return title;
     }
 
-    // Last fallback: tracking number
-    const fallback = `Colis ${parsedEmail.trackingNumber?.substring(0, 10) || 'inconnu'}`;
+    // Priority 3: Marketplace
+    if (parsedEmail.marketplace) {
+      const marketplaceLabel = parsedEmail.marketplace.charAt(0).toUpperCase() + parsedEmail.marketplace.slice(1);
+      const title = `Achat ${marketplaceLabel}`;
+      console.log(`      📝 Generated title: "${title}"`);
+      return title;
+    }
+
+    // Fallback: Carrier + tracking
+    const carrier = parsedEmail.carrier || 'Unknown';
+    const fallback = `${carrier.toUpperCase()} - ${parsedEmail.trackingNumber?.substring(0, 10) || 'inconnu'}`;
     console.log(`      📝 Generated title: "${fallback}"`);
     return fallback;
   }

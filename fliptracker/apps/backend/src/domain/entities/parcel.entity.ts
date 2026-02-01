@@ -25,6 +25,7 @@ export interface Parcel {
   pickupDeadline?: Date | null; // Deadline to pickup
   orderNumber?: string | null; // Transaction reference
   withdrawalCode?: string | null; // Code for point relais
+  qrCode?: string | null; // QR code for pickup
   
   createdAt: Date;
   updatedAt: Date;

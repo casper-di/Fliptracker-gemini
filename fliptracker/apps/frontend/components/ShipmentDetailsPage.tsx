@@ -15,9 +15,11 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   
   // Use metadata from backend
   const displayAddress = (shipment as any).pickupAddress || shipment.pickupInfo?.address || shipment.destinationAddress;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(shipment.trackingNumber)}`;
+  const qrCodeData = (shipment as any).qrCode || shipment.trackingNumber;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeData)}`;
   const pickupCodeDisplay = (shipment as any).withdrawalCode || shipment.pickupInfo?.pickupCode || shipment.trackingNumber.slice(-4);
   const pendingPickups = allShipments.filter(s => s.status === ShipmentStatus.PICKUP_AVAILABLE);
+  const parcelTitle = shipment.title || (shipment as any).productName || shipment.sender || 'Colis';
 
   const getStatusColor = (status: ShipmentStatus) => {
     switch (status) {
@@ -51,7 +53,7 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                    </div>
                 </div>
                 <div className="p-8 flex justify-center bg-white">
-                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(p.trackingNumber)}`} alt="QR" className="w-40 h-40 mix-blend-multiply" />
+                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent((p as any).qrCode || p.trackingNumber)}`} alt="QR" className="w-40 h-40 mix-blend-multiply" />
                 </div>
              </div>
            ))}
@@ -78,8 +80,11 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             {shipment.status.replace(/_/g, ' ')}
           </div>
           <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight mb-2">
-            {isDelivered ? 'Colis livré' : isPickupReady ? 'Prêt au retrait' : 'En transit'}
+            {parcelTitle}
           </h2>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-500 mb-1">
+            {isDelivered ? 'Colis livré' : isPickupReady ? 'Prêt au retrait' : 'En transit'}
+          </p>
           <p className="text-sm font-bold text-slate-400 dark:text-slate-600">
             {shipment.carrier.replace('_', ' ').toUpperCase()}
             {shipment.estimatedDelivery && (
@@ -105,8 +110,18 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                   {displayAddress}
                 </p>
                 {(shipment as any).productName && (
-                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-1">
-                    {(shipment as any).productName}
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mt-2">
+                    📦 {(shipment as any).productName}
+                  </p>
+                )}
+                {(shipment as any).productDescription && (
+                  <p className="text-xs text-slate-400 dark:text-slate-600 mt-1">
+                    {(shipment as any).productDescription}
+                  </p>
+                )}
+                {(shipment as any).orderNumber && (
+                  <p className="text-xs font-mono text-slate-400 dark:text-slate-600 mt-1">
+                    Commande: {(shipment as any).orderNumber}
                   </p>
                 )}
               </div>
