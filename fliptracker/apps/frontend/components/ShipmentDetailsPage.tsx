@@ -21,6 +21,14 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const pendingPickups = allShipments.filter(s => s.status === ShipmentStatus.PICKUP_AVAILABLE);
   const parcelTitle = shipment.title || (shipment as any).productName || shipment.sender || 'Colis';
 
+  const openGoogleMaps = () => {
+    if (displayAddress) {
+      // Format: Google Maps search URL compatible avec mobile et desktop
+      const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`;
+      window.open(mapsUrl, '_blank');
+    }
+  };
+
   const getStatusColor = (status: ShipmentStatus) => {
     switch (status) {
       case ShipmentStatus.PICKUP_AVAILABLE: return 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20';
@@ -146,7 +154,10 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
               </div>
             </div>
             <div className="flex gap-3">
-              <button className="flex-1 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              <button 
+                onClick={openGoogleMaps}
+                className="flex-1 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-transform"
+              >
                 <i className="fas fa-directions"></i> Itinéraire
               </button>
               {isPickupReady && pendingPickups.length > 1 && (
