@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
@@ -18,6 +19,8 @@ export interface ParsedTrackingInfo {
 
 @Injectable()
 export class VintedGoParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
    * Parse Vinted Go emails
    */
@@ -27,9 +30,8 @@ export class VintedGoParserService {
       carrier: 'vinted_go',
     };
 
-    // Detect if it's a SALE (outgoing shipment) or PURCHASE (incoming pickup)
-    const isSale = this.detectSaleEmail(email);
-    result.type = isSale ? 'sale' : 'purchase';
+    // Detect type using universal detector
+    result.type = this.shipmentTypeDetector.detectType(email);
 
     // Extract tracking number from subject: "Il est temps de récupérer ton colis ! #1761843602574816"
     const subjectMatch = email.subject.match(/#(\d{16,20})/);
@@ -106,59 +108,5 @@ export class VintedGoParserService {
     });
 
     return result;
-  }
-
-  /**
-   * Detect if email is for a SALE (outgoing shipment with label) or PURCHASE (incoming pickup)
-   */
-  private detectSaleEmail(email: { subject: string; body: string }): boolean {
-    const bodyLower = email.body.toLowerCase();
-    const subjectLower = email.subject.toLowerCase();
-    
-    // Keywords indicating SALE (you are sending)
-    const saleKeywords = [
-      'bordereau',
-      'étiquette',
-      'shipping label',
-      'expédier',
-      'envoyer',
-      'déposer votre colis',
-      'dépose ton colis',
-      'imprimer',
-      'print',
-      'télécharger le bordereau',
-      'download label',
-      'apporter le colis',
-    ];
-    
-    // Keywords indicating PURCHASE (you are receiving)
-    const purchaseKeywords = [
-      'récupérer ton colis',
-      'récupérer votre colis',
-      'pickup your parcel',
-      'retirer',
-      'code de retrait',
-      'withdrawal code',
-      'prêt à être récupéré',
-      'ready for pickup',
-      'à retirer avant le',
-    ];
-    
-    // Check for sale keywords first (more specific)
-    for (const keyword of saleKeywords) {
-      if (bodyLower.includes(keyword) || subjectLower.includes(keyword)) {
-        return true; // It's a SALE
-      }
-    }
-    
-    // Check for purchase keywords
-    for (const keyword of purchaseKeywords) {
-      if (bodyLower.includes(keyword) || subjectLower.includes(keyword)) {
-        return false; // It's a PURCHASE
-      }
-    }
-    
-    // Default: if withdrawal code exists, it's likely a purchase
-    return false;
   }
 }

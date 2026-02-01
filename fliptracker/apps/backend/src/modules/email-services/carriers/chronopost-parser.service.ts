@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
   carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost';
+  type?: 'purchase' | 'sale';
   qrCode?: string | null;
   withdrawalCode?: string | null;
   articleId?: string | null;
@@ -17,13 +19,16 @@ export interface ParsedTrackingInfo {
 
 @Injectable()
 export class ChronopostParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
-   * Parse Chronopost Pickup emails
+   * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
     const result: ParsedTrackingInfo = {
-      marketplace: 'vinted',
+      marketplace: null,
       carrier: 'chronopost',
+      type: this.shipmentTypeDetector.detectType(email),
     };
 
     // Extract tracking number - Chronopost format: XW261547816TS

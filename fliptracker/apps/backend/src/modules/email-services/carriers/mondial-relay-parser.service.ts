@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
   carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost';
+  type?: 'purchase' | 'sale';
   qrCode?: string | null;
   withdrawalCode?: string | null;
   articleId?: string | null;

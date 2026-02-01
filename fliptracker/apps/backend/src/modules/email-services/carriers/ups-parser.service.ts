@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 /**
  * Parser spécialisé pour UPS (United Parcel Service)
  */
 @Injectable()
 export class UPSParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
    * Parse un email UPS pour extraire les informations de livraison
    */
@@ -13,6 +16,7 @@ export class UPSParserService {
     const result: ParsedTrackingInfo = {
       carrier: 'ups',
       marketplace: null,
+      type: this.shipmentTypeDetector.detectType(email),
     };
 
     const bodyOriginal = email.body;

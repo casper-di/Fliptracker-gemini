@@ -8,6 +8,7 @@ import { DHLParserService } from './carriers/dhl-parser.service';
 import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
+import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
@@ -33,6 +34,7 @@ export interface ParsedTrackingInfo {
 export class EmailParsingService {
   constructor(
     private carrierDetector: CarrierDetectorService,
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
     private vintedGoParser: VintedGoParserService,
     private mondialRelayParser: MondialRelayParserService,
     private chronopostParser: ChronopostParserService,
@@ -160,7 +162,11 @@ export class EmailParsingService {
    * Fallback generic parser for unknown carriers
    */
   private parseGeneric(email: { subject: string; from: string; body: string }): ParsedTrackingInfo {
-    const result: ParsedTrackingInfo = { marketplace: null, carrier: 'other' };
+    const result: ParsedTrackingInfo = { 
+      marketplace: null, 
+      carrier: 'other',
+      type: this.shipmentTypeDetector.detectType(email),
+    };
 
     // 1. Extract tracking number (common patterns)
     const trackingPatterns = [

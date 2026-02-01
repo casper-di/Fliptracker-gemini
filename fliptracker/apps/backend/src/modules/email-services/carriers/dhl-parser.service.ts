@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 /**
  * Parser spécialisé pour DHL Express et DHL Parcel
  */
 @Injectable()
 export class DHLParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
    * Parse un email DHL pour extraire les informations de livraison
    */
@@ -13,6 +16,7 @@ export class DHLParserService {
     const result: ParsedTrackingInfo = {
       carrier: 'dhl',
       marketplace: null,
+      type: this.shipmentTypeDetector.detectType(email),
     };
 
     const body = email.body.toLowerCase();

@@ -13,6 +13,7 @@ import { DHLParserService } from './carriers/dhl-parser.service';
 import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
+import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -37,6 +38,7 @@ import { ParcelsModule } from '../parcels/parcels.module';
     ParsedEmailToParcelService,
     EmailSyncOrchestrator,
     CarrierDetectorService,
+    ShipmentTypeDetectorService,
     VintedGoParserService,
     MondialRelayParserService,
     ChronopostParserService,

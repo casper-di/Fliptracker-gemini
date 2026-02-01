@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 /**
  * Parser spécialisé pour Colissimo / La Poste
@@ -7,6 +8,8 @@ import { ParsedTrackingInfo } from '../email-parsing.service';
  */
 @Injectable()
 export class ColissimoParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
    * Parse un email Colissimo pour extraire les informations de livraison
    */
@@ -14,6 +17,7 @@ export class ColissimoParserService {
     const result: ParsedTrackingInfo = {
       carrier: 'colissimo',
       marketplace: null,
+      type: this.shipmentTypeDetector.detectType(email),
     };
 
     const body = email.body.toLowerCase();

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
+import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
 
 /**
  * Parser spécialisé pour FedEx
  */
 @Injectable()
 export class FedExParserService {
+  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+
   /**
    * Parse un email FedEx pour extraire les informations de livraison
    */
@@ -13,6 +16,7 @@ export class FedExParserService {
     const result: ParsedTrackingInfo = {
       carrier: 'fedex',
       marketplace: null,
+      type: this.shipmentTypeDetector.detectType(email),
     };
 
     const bodyOriginal = email.body;
