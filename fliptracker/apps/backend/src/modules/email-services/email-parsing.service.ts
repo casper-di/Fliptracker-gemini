@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { CarrierDetectorService } from './carriers/carrier-detector.service';
+import { CarrierDetectorService, CarrierType } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
 import { ChronopostParserService } from './carriers/chronopost-parser.service';
+import { ColissimoParserService } from './carriers/colissimo-parser.service';
+import { DHLParserService } from './carriers/dhl-parser.service';
+import { UPSParserService } from './carriers/ups-parser.service';
+import { FedExParserService } from './carriers/fedex-parser.service';
+import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
-  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost';
+  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics';
   qrCode?: string | null;
   withdrawalCode?: string | null;
   articleId?: string | null;
@@ -30,11 +35,19 @@ export class EmailParsingService {
     private vintedGoParser: VintedGoParserService,
     private mondialRelayParser: MondialRelayParserService,
     private chronopostParser: ChronopostParserService,
+    private colissimoParser: ColissimoParserService,
+    private dhlParser: DHLParserService,
+    private upsParser: UPSParserService,
+    private fedexParser: FedExParserService,
+    private trackingExtractor: TrackingNumberExtractorService,
   ) {}
 
   /**
-   * Parse email using carrier-specific parsers
-   * Falls back to generic parsing for unknown carriers
+   * Parse email using intelligent multi-layered approach:
+   * 1. Detect carrier from email metadata
+   * 2. Route to specialized parser if available
+   * 3. Use intelligent tracking number extraction as fallback
+   * 4. Extract metadata with advanced patterns
    */
   async parseEmail(email: {
     subject: string;
@@ -42,38 +55,104 @@ export class EmailParsingService {
     body: string;
     receivedAt?: Date;
   }): Promise<ParsedTrackingInfo> {
-    // Detect carrier from sender/subject
-    const carrierType = this.carrierDetector.detectCarrier(email);
+    // Detect carrier from sender/subject/body
+    const carrierType = this.carrierDetector.detectCarrier({
+      from: email.from,
+      subject: email.subject,
+      body: email.body,
+    });
+    
     console.log(`[EmailParsingService] Detected carrier: ${carrierType}`);
-
-    // Route to carrier-specific parser
-    let result: ParsedTrackingInfo = {};
 
     const emailWithDate = {
       ...email,
       receivedAt: email.receivedAt || new Date(),
     };
 
-    switch (carrierType) {
-      case 'vinted_go':
-        result = this.vintedGoParser.parse(emailWithDate);
-        break;
+    // Route to carrier-specific parser
+    let result: ParsedTrackingInfo = await this.routeToCarrierParser(carrierType, emailWithDate);
 
-      case 'mondial_relay':
-        result = this.mondialRelayParser.parse(emailWithDate);
-        break;
+    // If no tracking number found, use intelligent extraction
+    if (!result.trackingNumber) {
+      const extractedNumber = this.trackingExtractor.extractBestTrackingNumber(
+        `${email.subject} ${email.body}`,
+      );
+      if (extractedNumber) {
+        result.trackingNumber = extractedNumber;
+        console.log(`[EmailParsingService] Extracted tracking with ML: ${extractedNumber}`);
+      }
+    }
 
-      case 'chronopost':
-        result = this.chronopostParser.parse(emailWithDate);
-        break;
-
-      case 'other':
-      default:
-        result = this.parseGeneric(email);
-        break;
+    // Ensure carrier is set
+    if (!result.carrier || result.carrier === 'other') {
+      result.carrier = this.mapCarrierTypeToCarrier(carrierType);
     }
 
     return result;
+  }
+
+  /**
+   * Route to appropriate carrier-specific parser
+   */
+  private async routeToCarrierParser(
+    carrierType: CarrierType,
+    email: { subject: string; from: string; body: string; receivedAt: Date },
+  ): Promise<ParsedTrackingInfo> {
+    switch (carrierType) {
+      case 'vinted_go':
+        return this.vintedGoParser.parse(email);
+
+      case 'mondial_relay':
+        return this.mondialRelayParser.parse(email);
+
+      case 'chronopost':
+        return this.chronopostParser.parse(email);
+
+      case 'colissimo':
+      case 'laposte':
+        return this.colissimoParser.parse(email);
+
+      case 'dhl':
+        return this.dhlParser.parse(email);
+
+      case 'ups':
+        return this.upsParser.parse(email);
+
+      case 'fedex':
+        return this.fedexParser.parse(email);
+
+      case 'dpd':
+      case 'colis_prive':
+      case 'gls':
+      case 'amazon_logistics':
+      case 'other':
+      default:
+        return this.parseGeneric(email);
+    }
+  }
+
+  /**
+   * Map CarrierType to carrier string for ParsedTrackingInfo
+   */
+  private mapCarrierTypeToCarrier(
+    carrierType: CarrierType,
+  ): 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics' {
+    const mapping: Record<CarrierType, ParsedTrackingInfo['carrier']> = {
+      vinted_go: 'vinted_go',
+      mondial_relay: 'mondial_relay',
+      chronopost: 'chronopost',
+      colissimo: 'colissimo',
+      laposte: 'laposte',
+      dhl: 'dhl',
+      ups: 'ups',
+      fedex: 'fedex',
+      dpd: 'dpd',
+      colis_prive: 'colis_prive',
+      gls: 'gls',
+      amazon_logistics: 'amazon_logistics',
+      other: 'other',
+    };
+    return mapping[carrierType] || 'other';
   }
 
   /**

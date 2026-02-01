@@ -8,6 +8,11 @@ import { CarrierDetectorService } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
 import { ChronopostParserService } from './carriers/chronopost-parser.service';
+import { ColissimoParserService } from './carriers/colissimo-parser.service';
+import { DHLParserService } from './carriers/dhl-parser.service';
+import { UPSParserService } from './carriers/ups-parser.service';
+import { FedExParserService } from './carriers/fedex-parser.service';
+import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -35,6 +40,11 @@ import { ParcelsModule } from '../parcels/parcels.module';
     VintedGoParserService,
     MondialRelayParserService,
     ChronopostParserService,
+    ColissimoParserService,
+    DHLParserService,
+    UPSParserService,
+    FedExParserService,
+    TrackingNumberExtractorService,
     {
       provide: RAW_EMAIL_REPOSITORY,
       useClass: FirestoreRawEmailRepository,
