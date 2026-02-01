@@ -60,12 +60,30 @@ export class VintedGoParserService {
       result.pickupDeadline = new Date(`${year}-${month}-${day}`) || null;
     }
 
-    // Extract pickup address
-    const addressMatch = email.body.match(/Adresse[\s\S]*?<b>\s*([^<]+)\s*<\/b>[\s\S]*?<b>\s*([^<]+)\s*<\/b>/);
-    if (addressMatch) {
-      const address = `${addressMatch[1]?.trim() || ''}, ${addressMatch[2]?.trim() || ''}`.replace(/,\s*$/, '');
-      result.pickupAddress = address || null;
+    // Extract pickup address - capture all text between "Adresse" and next section
+    let pickupAddress: string | null = null;
+    const addressSectionMatch = email.body.match(/Adresse[\s\S]*?<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (addressSectionMatch) {
+      // Extract all text, remove HTML tags, clean up whitespace
+      const rawAddress = addressSectionMatch[1]
+        .replace(/<br\s*\/?>/gi, ', ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/,\s*,/g, ',')
+        .replace(/,\s*$/g, '');
+      pickupAddress = rawAddress || null;
     }
+    
+    // Fallback: try to match bold elements
+    if (!pickupAddress) {
+      const addressMatch = email.body.match(/Adresse[\s\S]*?<b>\s*([^<]+)\s*<\/b>[\s\S]*?<b>\s*([^<]+)\s*<\/b>/);
+      if (addressMatch) {
+        pickupAddress = `${addressMatch[1]?.trim() || ''}, ${addressMatch[2]?.trim() || ''}`.replace(/,\s*$/, '') || null;
+      }
+    }
+    
+    result.pickupAddress = pickupAddress;
 
     // Extract recipient name from greeting (after "Bonjour")
     const recipientMatch = email.body.match(/Bonjour\s+([^,<]+)/i);

@@ -78,11 +78,30 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract pickup address and location
-    const addressMatch = email.body.match(/<strong>([^<]+)<\/strong>[\s\S]*?(\d+.*?(?:OULLINS|LYON|PARIS)[^<]*)/i);
-    if (addressMatch) {
-      result.pickupAddress = `${addressMatch[1]?.trim()}, ${addressMatch[2]?.trim()}` || null;
+    // Extract pickup address - comprehensive extraction
+    let pickupAddress: string | null = null;
+    
+    // Try to extract from table or structured content
+    const addressTableMatch = email.body.match(/adresse[\s\S]*?<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
+    if (addressTableMatch) {
+      pickupAddress = addressTableMatch[1]
+        .replace(/<br\s*\/?>/gi, ', ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/,\s*,/g, ',')
+        .replace(/,\s*$/g, '');
     }
+    
+    // Fallback: try strong tags pattern
+    if (!pickupAddress) {
+      const addressMatch = email.body.match(/<strong>([^<]+)<\/strong>[\s\S]*?(\d+.*?(?:OULLINS|LYON|PARIS|MARSEILLE|\d{5})[^<]*)/i);
+      if (addressMatch) {
+        pickupAddress = `${addressMatch[1]?.trim()}, ${addressMatch[2]?.trim()}`;
+      }
+    }
+    
+    result.pickupAddress = pickupAddress || null;
 
     // Extract pickup deadline
     const deadlinePatterns = [

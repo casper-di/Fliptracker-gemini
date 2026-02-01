@@ -72,20 +72,25 @@ export class ColissimoParserService {
       }
     }
 
-    // 4. Extraction de l'adresse du point retrait
+    // 4. Extraction de l'adresse du point retrait - version améliorée
+    let pickupAddress: string | null = null;
+    
+    // Try comprehensive patterns first (up to 200 chars to capture full address)
     const pickupAddressPatterns = [
-      /point[\s]*retrait[\s:]*(.{10,100}(?:\d{5}|PARIS|LYON|MARSEILLE))/gi,
-      /adresse[\s]*(?:du[\s]*)?point[\s:]*(.{10,100}(?:\d{5}|PARIS|LYON|MARSEILLE))/gi,
-      /retirez[\s]*votre[\s]*colis[\s]*[àa][\s:]*(.{10,100}(?:\d{5}))/gi,
+      /point[\s]*retrait[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
+      /adresse[\s]*(?:du[\s]*)?point[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
+      /retirez[\s]*votre[\s]*colis[\s]*[àa][\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
     ];
 
     for (const pattern of pickupAddressPatterns) {
       const match = bodyOriginal.match(pattern);
       if (match && match[1]) {
-        result.pickupAddress = match[1].trim().replace(/\s+/g, ' ');
+        pickupAddress = match[1].trim().replace(/\s+/g, ' ');
         break;
       }
     }
+    
+    result.pickupAddress = pickupAddress;
 
     // 5. Extraction de la date limite de retrait
     const deadlinePatterns = [
