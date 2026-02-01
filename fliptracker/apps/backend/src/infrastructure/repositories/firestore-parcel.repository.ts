@@ -139,6 +139,22 @@ export class FirestoreParcelRepository implements IParcelRepository {
       currency: data.currency,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
+      // Email parsing metadata
+      senderName: data.senderName || null,
+      senderEmail: data.senderEmail || null,
+      recipientName: data.recipientName || null,
+      recipientEmail: data.recipientEmail || null,
+      productName: data.productName || null,
+      productDescription: data.productDescription || null,
+      orderNumber: data.orderNumber || null,
+      pickupAddress: data.pickupAddress || null,
+      pickupDeadline: data.pickupDeadline?.toDate() || null,
+      destinationAddress: data.destinationAddress || null,
+      estimatedDelivery: data.estimatedDelivery?.toDate() || null,
+      qrCode: data.qrCode || null,
+      withdrawalCode: data.withdrawalCode || null,
+      marketplace: data.marketplace || null,
+      itemPrice: data.itemPrice || null,
     };
   }
 }
