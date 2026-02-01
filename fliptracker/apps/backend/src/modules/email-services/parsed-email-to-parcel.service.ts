@@ -41,10 +41,16 @@ export class ParsedEmailToParcelService {
       return existing;
     }
 
-    // Determine type (purchase vs sale) based on marketplace
-    // Marketplace emails (Amazon, eBay, etc) = purchases (incoming)
-    // If no marketplace detected = could be sale (outgoing)
-    const type: ParcelType = parsedEmail.marketplace ? 'purchase' : 'sale';
+    // Determine type (purchase vs sale)
+    // Priority 1: Use type from parser if explicitly detected
+    // Priority 2: If marketplace exists = purchase (incoming)
+    // Priority 3: Default to sale (outgoing)
+    let type: ParcelType = 'sale';
+    if (parsedEmail.type) {
+      type = parsedEmail.type; // Parser explicitly detected the type
+    } else if (parsedEmail.marketplace) {
+      type = 'purchase'; // Marketplace emails are usually purchases
+    }
 
     // Map carrier (some differences in naming)
     let carrier: Parcel['carrier'] = 'other';

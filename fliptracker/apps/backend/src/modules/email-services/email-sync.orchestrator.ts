@@ -200,6 +200,7 @@ export class EmailSyncOrchestrator {
               totalTrackingEmails++;
               parsedWithTracking++;
               console.log(`   ✅ Found tracking: ${parsed.trackingNumber} (${parsed.carrier || 'unknown carrier'})`);
+              if (parsed.type) console.log(`      📍 Type: ${parsed.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
               if (parsed.qrCode) console.log(`      📦 QR Code: ${parsed.qrCode}`);
               if (parsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${parsed.withdrawalCode}`);
               if (parsed.marketplace) console.log(`      🛒 Marketplace: ${parsed.marketplace}`);
@@ -223,6 +224,7 @@ export class EmailSyncOrchestrator {
                   userId,
                   trackingNumber: parsed.trackingNumber,
                   carrier: parsed.carrier,
+                  type: parsed.type, // NEW: save detected type
                   qrCode: parsed.qrCode ?? null,
                   withdrawalCode: parsed.withdrawalCode ?? null,
                   articleId: parsed.articleId ?? null,

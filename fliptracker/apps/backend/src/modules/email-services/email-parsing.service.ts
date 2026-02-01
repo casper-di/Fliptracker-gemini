@@ -12,6 +12,7 @@ import { TrackingNumberExtractorService } from './tracking-number-extractor.serv
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
   carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics';
+  type?: 'purchase' | 'sale'; // purchase = incoming (you receive), sale = outgoing (you send)
   qrCode?: string | null;
   withdrawalCode?: string | null;
   articleId?: string | null;

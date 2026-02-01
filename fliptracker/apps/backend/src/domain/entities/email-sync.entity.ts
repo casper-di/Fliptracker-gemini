@@ -32,6 +32,7 @@ export interface ParsedEmail {
   
   // Shipment details
   marketplace?: string | null; // 'vinted', 'amazon', 'ebay', etc
+  type?: 'purchase' | 'sale'; // purchase = incoming (you receive), sale = outgoing (you send)
   articleId?: string | null;
   productName?: string | null; // e.g., "Nike Air Force 1 - Black"
   productDescription?: string | null; // e.g., "Size 40, excellent condition"

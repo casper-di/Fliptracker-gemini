@@ -12,6 +12,7 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const [showAllPickups, setShowAllPickups] = useState(false);
   const isPickupReady = shipment.status === ShipmentStatus.PICKUP_AVAILABLE;
   const isDelivered = shipment.status === ShipmentStatus.DELIVERED;
+  const isSale = shipment.direction === 'OUTBOUND'; // SALE = you are sending
   
   // Use metadata from backend
   const displayAddress = (shipment as any).pickupAddress || shipment.pickupInfo?.address || shipment.destinationAddress;
@@ -169,18 +170,35 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
           </section>
         )}
 
-        <section className="bg-slate-900 dark:bg-slate-900 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl relative">
-          <div className="p-10 text-center bg-slate-800/50">
-             <div className="bg-white p-6 rounded-[32px] inline-block mb-6">
+        {!isSale && (
+          <section className="bg-slate-900 dark:bg-slate-900 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl relative">
+            <div className="p-10 text-center bg-slate-800/50">
+              <div className="bg-white p-6 rounded-[32px] inline-block mb-6">
                 <img src={qrUrl} alt="QR Code" className="w-44 h-44" />
-             </div>
-             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Code de retrait</p>
-             <h4 className="text-4xl font-mono font-black text-white tracking-widest">*{pickupCodeDisplay}</h4>
-          </div>
-          <div className="p-6 text-center border-t border-white/5 bg-slate-900/80">
-             <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Scanner au comptoir {shipment.carrier}</p>
-          </div>
-        </section>
+              </div>
+              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Code de retrait</p>
+              <h4 className="text-4xl font-mono font-black text-white tracking-widest">*{pickupCodeDisplay}</h4>
+            </div>
+            <div className="p-6 text-center border-t border-white/5 bg-slate-900/80">
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Scanner au comptoir {shipment.carrier}</p>
+            </div>
+          </section>
+        )}
+
+        {isSale && (
+          <section className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-700/30 rounded-[40px] p-8 text-center">
+            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-800/30 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <i className="fas fa-box-open text-2xl"></i>
+            </div>
+            <h3 className="text-lg font-black text-amber-900 dark:text-amber-200 mb-2">Colis à expédier</h3>
+            <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-4">
+              Imprimez le bordereau d'envoi depuis votre email et déposez le colis.
+            </p>
+            <p className="text-xs font-mono text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-900/30 px-4 py-2 rounded-xl inline-block">
+              N° {shipment.trackingNumber}
+            </p>
+          </section>
+        )}
       </div>
     </div>
   );

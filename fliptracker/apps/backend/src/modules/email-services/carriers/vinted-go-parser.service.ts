@@ -7,6 +7,7 @@ export interface ParsedTrackingInfo {
   withdrawalCode?: string | null;
   articleId?: string | null;
   marketplace?: string | null;
+  type?: 'purchase' | 'sale'; // NEW: distinguish incoming vs outgoing
   // New fields
   productName?: string | null;
   productDescription?: string | null;
@@ -25,6 +26,10 @@ export class VintedGoParserService {
       marketplace: 'vinted',
       carrier: 'vinted_go',
     };
+
+    // Detect if it's a SALE (outgoing shipment) or PURCHASE (incoming pickup)
+    const isSale = this.detectSaleEmail(email);
+    result.type = isSale ? 'sale' : 'purchase';
 
     // Extract tracking number from subject: "Il est temps de récupérer ton colis ! #1761843602574816"
     const subjectMatch = email.subject.match(/#(\d{16,20})/);
@@ -93,6 +98,7 @@ export class VintedGoParserService {
 
     console.log(`[VintedGoParser] Parsed:`, {
       trackingNumber: result.trackingNumber,
+      type: result.type,
       withdrawalCode: result.withdrawalCode,
       productName: result.productName,
       recipientName: result.recipientName,
@@ -100,5 +106,59 @@ export class VintedGoParserService {
     });
 
     return result;
+  }
+
+  /**
+   * Detect if email is for a SALE (outgoing shipment with label) or PURCHASE (incoming pickup)
+   */
+  private detectSaleEmail(email: { subject: string; body: string }): boolean {
+    const bodyLower = email.body.toLowerCase();
+    const subjectLower = email.subject.toLowerCase();
+    
+    // Keywords indicating SALE (you are sending)
+    const saleKeywords = [
+      'bordereau',
+      'étiquette',
+      'shipping label',
+      'expédier',
+      'envoyer',
+      'déposer votre colis',
+      'dépose ton colis',
+      'imprimer',
+      'print',
+      'télécharger le bordereau',
+      'download label',
+      'apporter le colis',
+    ];
+    
+    // Keywords indicating PURCHASE (you are receiving)
+    const purchaseKeywords = [
+      'récupérer ton colis',
+      'récupérer votre colis',
+      'pickup your parcel',
+      'retirer',
+      'code de retrait',
+      'withdrawal code',
+      'prêt à être récupéré',
+      'ready for pickup',
+      'à retirer avant le',
+    ];
+    
+    // Check for sale keywords first (more specific)
+    for (const keyword of saleKeywords) {
+      if (bodyLower.includes(keyword) || subjectLower.includes(keyword)) {
+        return true; // It's a SALE
+      }
+    }
+    
+    // Check for purchase keywords
+    for (const keyword of purchaseKeywords) {
+      if (bodyLower.includes(keyword) || subjectLower.includes(keyword)) {
+        return false; // It's a PURCHASE
+      }
+    }
+    
+    // Default: if withdrawal code exists, it's likely a purchase
+    return false;
   }
 }
