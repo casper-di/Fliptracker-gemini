@@ -76,16 +76,21 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
 
       <div className="px-6 space-y-6">
         <section className="text-center py-6">
-          <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border mb-6 text-[11px] font-black uppercase tracking-widest ${getStatusColor(shipment.status)}`}>
+          <div className={`inline-flex items-center gap-2 px-5 py-2 rounded-full border mb-4 text-[11px] font-black uppercase tracking-widest ${getStatusColor(shipment.status)}`}>
             {shipment.status.replace(/_/g, ' ')}
           </div>
-          <h2 className="text-3xl font-black text-slate-900 dark:text-white leading-tight mb-2">
+          <h2 className="text-xl font-black text-slate-900 dark:text-white leading-tight mb-2">
             {parcelTitle}
           </h2>
+          {(shipment as any).marketplace && (
+            <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2">
+              {(shipment as any).marketplace}
+            </p>
+          )}
           <p className="text-sm font-medium text-slate-500 dark:text-slate-500 mb-1">
             {isDelivered ? 'Colis livré' : isPickupReady ? 'Prêt au retrait' : 'En transit'}
           </p>
-          <p className="text-sm font-bold text-slate-400 dark:text-slate-600">
+          <p className="text-sm font-bold text-slate-400 dark:text-slate-600 mb-3">
             {shipment.carrier.replace('_', ' ').toUpperCase()}
             {shipment.estimatedDelivery && (
               <> • Estimé le <span className="text-slate-900 dark:text-slate-300">{new Date(shipment.estimatedDelivery).toLocaleDateString('fr-FR')}</span></>
@@ -94,6 +99,15 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
               <> • Retrait avant le <span className="text-slate-900 dark:text-slate-300">{new Date((shipment as any).pickupDeadline).toLocaleDateString('fr-FR')}</span></>
             )}
           </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200 dark:border-white/5">
+            <i className="fas fa-barcode text-slate-400 dark:text-slate-600 text-xs"></i>
+            <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{shipment.trackingNumber}</span>
+          </div>
+          {((shipment as any).itemPrice || shipment.price) && (
+            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-3">
+              {((shipment as any).itemPrice || shipment.price)?.toFixed(2)} {shipment.currency || '€'}
+            </p>
+          )}
         </section>
 
         {displayAddress && (
@@ -122,6 +136,11 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                 {(shipment as any).orderNumber && (
                   <p className="text-xs font-mono text-slate-400 dark:text-slate-600 mt-1">
                     Commande: {(shipment as any).orderNumber}
+                  </p>
+                )}
+                {(shipment as any).senderEmail && (
+                  <p className="text-xs text-slate-400 dark:text-slate-600 mt-1">
+                    📧 {(shipment as any).senderEmail}
                   </p>
                 )}
               </div>
