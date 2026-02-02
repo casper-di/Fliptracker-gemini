@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
 import { EmailParsingService } from './email-parsing.service';
+import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
@@ -14,6 +15,7 @@ import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
+import { NLPModule } from '../nlp/nlp.module';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -30,10 +32,11 @@ import { UsersModule } from '../users/users.module';
 import { ParcelsModule } from '../parcels/parcels.module';
 
 @Module({
-  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule],
+  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, NLPModule],
   providers: [
     EmailFetchService,
     EmailParsingService,
+    HybridEmailParsingService,
     EmailTrackingDetectorService,
     ParsedEmailToParcelService,
     EmailSyncOrchestrator,
