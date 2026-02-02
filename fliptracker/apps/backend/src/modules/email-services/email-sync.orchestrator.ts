@@ -3,8 +3,8 @@ import { EmailFetchService } from './email-fetch.service';
 import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
-import { UnparsedEmailsService } from './unparsed-emails.service';
-import { ParcelsService } from '../parcels/parcels.service';
+import { DeepSeekService } from './deepseek.service';
+import { ParsedTrackingInfo } from './email-parsing.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -27,8 +27,7 @@ export class EmailSyncOrchestrator {
     private hybridParsingService: HybridEmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
     private parsedEmailToParcelService: ParsedEmailToParcelService,
-    private unparsedEmailsService: UnparsedEmailsService,
-    private parcelsService: ParcelsService,
+    private deepSeekService: DeepSeekService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
     @Inject(RAW_EMAIL_REPOSITORY)
@@ -176,6 +175,10 @@ export class EmailSyncOrchestrator {
           let skippedNonTracking = 0;
           let parsedWithTracking = 0;
           let parsedNoTracking = 0;
+          const deepSeekCandidates: Array<{
+            rawEmailData: RawEmail & { fetched: typeof fetchedEmails[0] };
+            parsed: ParsedTrackingInfo & { isTrackingEmail: boolean; needsDeepSeek: boolean };
+          }> = [];
 
           for (const rawEmailData of savedRawEmails) {
             try {
@@ -196,51 +199,14 @@ export class EmailSyncOrchestrator {
                 receivedAt: rawEmailData.receivedAt,
               });
 
-              // SMART LOGIC: Si c'est un tracking email mais incomplet -> log pour DeepSeek
-              if (parsed.isTrackingEmail && parsed.needsDeepSeek) {
-                console.log(`   ⚠️  Incomplete tracking email detected - logging for DeepSeek processing`);
-                
-                // Vérifier si le tracking existe déjà dans la DB (si trouvé)
-                if (parsed.trackingNumber) {
-                  const existingParcel = await this.parcelsService.findByTrackingNumber(
-                    userId,
-                    parsed.trackingNumber,
-                  );
-
-                  if (!existingParcel) {
-                    // Tracking n'existe pas -> logger pour DeepSeek
-                    await this.unparsedEmailsService.logUnparsedEmail({
-                      userId,
-                      messageId: rawEmailData.messageId,
-                      provider: connectedEmail.provider,
-                      subject: rawEmailData.subject,
-                      from: rawEmailData.from,
-                      body: rawEmailData.fetched.body,
-                      receivedAt: rawEmailData.receivedAt,
-                      trackingNumber: parsed.trackingNumber,
-                      carrier: parsed.carrier || null,
-                      completenessScore: this.calculateCompleteness(parsed),
-                      isTrackingEmail: true,
-                    });
-                    console.log(`   📝 Email logged for future DeepSeek processing`);
-                  }
-                } else {
-                  // Pas de tracking trouvé mais c'est un email de tracking -> logger aussi
-                  await this.unparsedEmailsService.logUnparsedEmail({
-                    userId,
-                    messageId: rawEmailData.messageId,
-                    provider: connectedEmail.provider,
-                    subject: rawEmailData.subject,
-                    from: rawEmailData.from,
-                    body: rawEmailData.fetched.body,
-                    receivedAt: rawEmailData.receivedAt,
-                    completenessScore: 0,
-                    isTrackingEmail: true,
-                  });
-                  console.log(`   📝 Tracking email without number - logged for DeepSeek`);
-                }
-                
+              // If not a tracking email, skip
+              if (!parsed.isTrackingEmail) {
                 parsedNoTracking++;
+                continue;
+              }
+
+              if (parsed.needsDeepSeek) {
+                deepSeekCandidates.push({ rawEmailData, parsed });
                 continue;
               }
 
@@ -257,63 +223,59 @@ export class EmailSyncOrchestrator {
               if (parsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${parsed.withdrawalCode}`);
               if (parsed.marketplace) console.log(`      🛒 Marketplace: ${parsed.marketplace}`);
 
-              // STEP 4: CHECK IF TRACKING ALREADY EXISTS (skip if duplicate)
-              let parsedEmail = await this.parsedEmailRepository.findByTrackingNumber(
-                userId,
-                parsed.trackingNumber,
-              );
-
-              if (parsedEmail) {
-                console.log(
-                  `[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, skipping duplicate...`,
-                );
-                // Skip processing - parcel already exists
-                continue;
-              } else {
-                // Create new - convert undefined to null for Firestore
-                parsedEmail = await this.parsedEmailRepository.create({
-                  rawEmailId: rawEmailData.id,
-                  userId,
-                  trackingNumber: parsed.trackingNumber,
-                  carrier: parsed.carrier,
-                  type: parsed.type, // NEW: save detected type
-                  qrCode: parsed.qrCode ?? null,
-                  withdrawalCode: parsed.withdrawalCode ?? null,
-                  articleId: parsed.articleId ?? null,
-                  marketplace: parsed.marketplace ?? null,
-                  status: 'pending_shipment_lookup',
-                  // Metadata fields
-                  provider: rawEmailData.provider ?? null,
-                  senderEmail: rawEmailData.from ?? null,
-                  senderName: parsed.senderName ?? null,
-                  receivedAt: rawEmailData.receivedAt ?? null,
-                  productName: parsed.productName ?? null,
-                  productDescription: parsed.productDescription ?? null,
-                  recipientName: parsed.recipientName ?? null,
-                  pickupAddress: parsed.pickupAddress ?? null,
-                  pickupDeadline: parsed.pickupDeadline ?? null,
-                  orderNumber: parsed.orderNumber ?? null,
-                  estimatedValue: parsed.estimatedValue ?? null,
-                  currency: parsed.currency ?? null,
-                });
+              const saved = await this.persistParsedEmail(userId, rawEmailData, parsed);
+              if (saved?.created) {
                 totalEmailsParsed++;
               }
-
-              // STEP 4.5: CREATE PARCEL FROM PARSED EMAIL
-              try {
-                const parcel = await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
-                if (parcel) {
-                  const direction = parcel.type === 'purchase' ? '📥 INCOMING' : '📤 OUTGOING';
-                  console.log(`      🎯 Created shipment: ${direction} - ${parcel.title}`);
-                }
-              } catch (parcelError) {
-                console.warn(
-                  `      ⚠️  Failed to create parcel for ${parsed.trackingNumber}:`,
-                  parcelError.message,
-                );
+              if (saved?.parsedEmail) {
+                await this.createParcelFromParsedEmail(saved.parsedEmail, parsed);
               }
             } catch (parseError) {
               console.warn('[EmailSyncOrchestrator] Failed to parse email:', parseError);
+            }
+          }
+
+          if (deepSeekCandidates.length > 0) {
+            console.log(`\n🤖 DeepSeek enhancement for ${deepSeekCandidates.length} email(s)...`);
+            try {
+              const enhancements = await this.deepSeekService.enhanceEmails(
+                deepSeekCandidates.map(candidate => ({
+                  id: candidate.rawEmailData.id,
+                  subject: candidate.rawEmailData.subject,
+                  from: candidate.rawEmailData.from,
+                  body: candidate.rawEmailData.rawBody,
+                  receivedAt: candidate.rawEmailData.receivedAt,
+                  partial: candidate.parsed,
+                })),
+              );
+
+              for (const candidate of deepSeekCandidates) {
+                const enhanced = enhancements[candidate.rawEmailData.id];
+                const merged = this.mergeParsedResults(candidate.parsed, enhanced);
+
+                if (!merged.trackingNumber) {
+                  parsedNoTracking++;
+                  continue;
+                }
+
+                totalTrackingEmails++;
+                parsedWithTracking++;
+                console.log(`   ✅ DeepSeek tracking: ${merged.trackingNumber} (${merged.carrier || 'unknown carrier'})`);
+                if (merged.type) console.log(`      📍 Type: ${merged.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
+                if (merged.qrCode) console.log(`      📦 QR Code: ${merged.qrCode}`);
+                if (merged.withdrawalCode) console.log(`      🔑 Withdrawal: ${merged.withdrawalCode}`);
+                if (merged.marketplace) console.log(`      🛒 Marketplace: ${merged.marketplace}`);
+
+                const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, merged);
+                if (saved?.created) {
+                  totalEmailsParsed++;
+                }
+                if (saved?.parsedEmail) {
+                  await this.createParcelFromParsedEmail(saved.parsedEmail, merged);
+                }
+              }
+            } catch (deepSeekError) {
+              console.warn('[EmailSyncOrchestrator] DeepSeek enhancement failed:', deepSeekError);
             }
           }
 
@@ -385,6 +347,84 @@ export class EmailSyncOrchestrator {
         error: error.message,
       });
     }
+  }
+
+  private async persistParsedEmail(
+    userId: string,
+    rawEmailData: RawEmail,
+    parsed: ParsedTrackingInfo,
+  ): Promise<{ parsedEmail: ParsedEmail; created: boolean } | null> {
+    if (!parsed.trackingNumber) return null;
+
+    const existing = await this.parsedEmailRepository.findByTrackingNumber(
+      userId,
+      parsed.trackingNumber,
+    );
+
+    if (existing) {
+      console.log(
+        `[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, skipping duplicate...`,
+      );
+      return null;
+    }
+
+    const parsedEmail = await this.parsedEmailRepository.create({
+      rawEmailId: rawEmailData.id,
+      userId,
+      trackingNumber: parsed.trackingNumber,
+      carrier: parsed.carrier,
+      type: parsed.type,
+      qrCode: parsed.qrCode ?? null,
+      withdrawalCode: parsed.withdrawalCode ?? null,
+      articleId: parsed.articleId ?? null,
+      marketplace: parsed.marketplace ?? null,
+      status: 'pending_shipment_lookup',
+      provider: rawEmailData.provider ?? null,
+      senderEmail: rawEmailData.from ?? null,
+      senderName: parsed.senderName ?? null,
+      receivedAt: rawEmailData.receivedAt ?? null,
+      productName: parsed.productName ?? null,
+      productDescription: parsed.productDescription ?? null,
+      recipientName: parsed.recipientName ?? null,
+      pickupAddress: parsed.pickupAddress ?? null,
+      pickupDeadline: parsed.pickupDeadline ?? null,
+      orderNumber: parsed.orderNumber ?? null,
+      estimatedValue: parsed.estimatedValue ?? null,
+      currency: parsed.currency ?? null,
+    });
+
+    return { parsedEmail, created: true };
+  }
+
+  private async createParcelFromParsedEmail(parsedEmail: ParsedEmail, parsed: ParsedTrackingInfo): Promise<void> {
+    try {
+      const parcel = await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
+      if (parcel) {
+        const direction = parcel.type === 'purchase' ? '📥 INCOMING' : '📤 OUTGOING';
+        console.log(`      🎯 Created shipment: ${direction} - ${parcel.title}`);
+      }
+    } catch (parcelError) {
+      console.warn(
+        `      ⚠️  Failed to create parcel for ${parsed.trackingNumber}:`,
+        parcelError.message,
+      );
+    }
+  }
+
+  private mergeParsedResults(
+    base: ParsedTrackingInfo,
+    enhanced?: ParsedTrackingInfo,
+  ): ParsedTrackingInfo {
+    if (!enhanced) return base;
+
+    const merged: ParsedTrackingInfo = { ...base };
+    for (const [key, value] of Object.entries(enhanced)) {
+      if (value !== null && value !== undefined) {
+        (merged as any)[key] = value;
+      }
+    }
+
+    return merged;
   }
 
   private async logEvent(

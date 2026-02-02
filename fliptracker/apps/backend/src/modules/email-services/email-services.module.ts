@@ -5,6 +5,7 @@ import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
+import { DeepSeekService } from './deepseek.service';
 import { CarrierDetectorService } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
@@ -15,19 +16,16 @@ import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
-import { UnparsedEmailsService } from './unparsed-emails.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
   EMAIL_SYNC_EVENT_REPOSITORY,
 } from '../../domain/repositories/email-sync.repository';
-import { UNPARSED_EMAIL_REPOSITORY } from '../../domain/repositories/unparsed-email.repository';
 import {
   FirestoreRawEmailRepository,
   FirestoreParsedEmailRepository,
   FirestoreEmailSyncEventRepository,
 } from '../../infrastructure/repositories/firestore-email-sync.repository';
-import { FirestoreUnparsedEmailRepository } from '../../infrastructure/repositories/firestore-unparsed-email.repository';
 import { ProvidersModule } from '../providers/providers.module';
 import { ConnectedEmailsModule } from '../connected-emails/connected-emails.module';
 import { UsersModule } from '../users/users.module';
@@ -42,6 +40,7 @@ import { AuthModule } from '../auth/auth.module';
     HybridEmailParsingService,
     EmailTrackingDetectorService,
     ParsedEmailToParcelService,
+    DeepSeekService,
     EmailSyncOrchestrator,
     CarrierDetectorService,
     ShipmentTypeDetectorService,
@@ -53,7 +52,6 @@ import { AuthModule } from '../auth/auth.module';
     UPSParserService,
     FedExParserService,
     TrackingNumberExtractorService,
-    UnparsedEmailsService,
     {
       provide: RAW_EMAIL_REPOSITORY,
       useClass: FirestoreRawEmailRepository,
@@ -65,10 +63,6 @@ import { AuthModule } from '../auth/auth.module';
     {
       provide: EMAIL_SYNC_EVENT_REPOSITORY,
       useClass: FirestoreEmailSyncEventRepository,
-    },
-    {
-      provide: UNPARSED_EMAIL_REPOSITORY,
-      useClass: FirestoreUnparsedEmailRepository,
     },
   ],
   exports: [
