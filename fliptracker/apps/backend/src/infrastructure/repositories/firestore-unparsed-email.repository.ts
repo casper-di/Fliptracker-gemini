@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FirebaseService } from '../../modules/auth/firebase.service';
 import { UnparsedEmail } from '../../domain/entities/unparsed-email.entity';
 import { IUnparsedEmailRepository } from '../../domain/repositories/unparsed-email.repository';
 
 @Injectable()
 export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepository {
-  private db = getFirestore();
   private collection = 'unparsedEmails';
 
+  constructor(private firebaseService: FirebaseService) {}
+
   async create(data: Omit<UnparsedEmail, 'id' | 'createdAt' | 'updatedAt'>): Promise<UnparsedEmail> {
-    const docRef = this.db.collection(this.collection).doc();
+    const docRef = this.firebaseService.getFirestore().collection(this.collection).doc();
     
     const now = new Date();
     const email: UnparsedEmail = {
@@ -32,7 +33,7 @@ export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepositor
   }
 
   async findPendingByUserId(userId: string, limit: number = 50): Promise<UnparsedEmail[]> {
-    const snapshot = await this.db
+    const snapshot = await this.firebaseService.getFirestore()
       .collection(this.collection)
       .where('userId', '==', userId)
       .where('status', '==', 'pending')
@@ -44,7 +45,7 @@ export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepositor
   }
 
   async findById(id: string): Promise<UnparsedEmail | null> {
-    const doc = await this.db.collection(this.collection).doc(id).get();
+    const doc = await this.firebaseService.getFirestore().collection(this.collection).doc(id).get();
     return doc.exists ? this.mapToEntity(doc.data()!) : null;
   }
 
@@ -53,7 +54,7 @@ export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepositor
     status: UnparsedEmail['status'],
     errorMessage?: string,
   ): Promise<UnparsedEmail> {
-    const docRef = this.db.collection(this.collection).doc(id);
+    const docRef = this.firebaseService.getFirestore().collection(this.collection).doc(id);
     const updates: any = {
       status,
       updatedAt: new Date().toISOString(),
@@ -73,7 +74,7 @@ export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepositor
   }
 
   async markProcessed(id: string): Promise<UnparsedEmail> {
-    const docRef = this.db.collection(this.collection).doc(id);
+    const docRef = this.firebaseService.getFirestore().collection(this.collection).doc(id);
     await docRef.update({
       status: 'processed',
       deepseekProcessedAt: new Date().toISOString(),
@@ -85,7 +86,7 @@ export class FirestoreUnparsedEmailRepository implements IUnparsedEmailRepositor
   }
 
   async delete(id: string): Promise<void> {
-    await this.db.collection(this.collection).doc(id).delete();
+    await this.firebaseService.getFirestore().collection(this.collection).doc(id).delete();
   }
 
   private mapToEntity(data: any): UnparsedEmail {

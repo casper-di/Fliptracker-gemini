@@ -32,9 +32,10 @@ import { ProvidersModule } from '../providers/providers.module';
 import { ConnectedEmailsModule } from '../connected-emails/connected-emails.module';
 import { UsersModule } from '../users/users.module';
 import { ParcelsModule } from '../parcels/parcels.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule],
+  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, AuthModule],
   providers: [
     EmailFetchService,
     EmailParsingService,
