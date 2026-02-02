@@ -35,7 +35,7 @@ import { ParcelsModule } from '../parcels/parcels.module';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, AuthModule],
+  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, forwardRef(() => AuthModule)],
   providers: [
     EmailFetchService,
     EmailParsingService,
