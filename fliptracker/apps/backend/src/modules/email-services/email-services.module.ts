@@ -15,24 +15,26 @@ import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
-import { NLPModule } from '../nlp/nlp.module';
+import { UnparsedEmailsService } from './unparsed-emails.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
   EMAIL_SYNC_EVENT_REPOSITORY,
 } from '../../domain/repositories/email-sync.repository';
+import { UNPARSED_EMAIL_REPOSITORY } from '../../domain/repositories/unparsed-email.repository';
 import {
   FirestoreRawEmailRepository,
   FirestoreParsedEmailRepository,
   FirestoreEmailSyncEventRepository,
 } from '../../infrastructure/repositories/firestore-email-sync.repository';
+import { FirestoreUnparsedEmailRepository } from '../../infrastructure/repositories/firestore-unparsed-email.repository';
 import { ProvidersModule } from '../providers/providers.module';
 import { ConnectedEmailsModule } from '../connected-emails/connected-emails.module';
 import { UsersModule } from '../users/users.module';
 import { ParcelsModule } from '../parcels/parcels.module';
 
 @Module({
-  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, NLPModule],
+  imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule],
   providers: [
     EmailFetchService,
     EmailParsingService,
@@ -50,6 +52,7 @@ import { ParcelsModule } from '../parcels/parcels.module';
     UPSParserService,
     FedExParserService,
     TrackingNumberExtractorService,
+    UnparsedEmailsService,
     {
       provide: RAW_EMAIL_REPOSITORY,
       useClass: FirestoreRawEmailRepository,
@@ -61,6 +64,10 @@ import { ParcelsModule } from '../parcels/parcels.module';
     {
       provide: EMAIL_SYNC_EVENT_REPOSITORY,
       useClass: FirestoreEmailSyncEventRepository,
+    },
+    {
+      provide: UNPARSED_EMAIL_REPOSITORY,
+      useClass: FirestoreUnparsedEmailRepository,
     },
   ],
   exports: [

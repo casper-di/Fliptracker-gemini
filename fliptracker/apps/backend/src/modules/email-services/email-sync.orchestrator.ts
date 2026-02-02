@@ -1,8 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
-import { EmailParsingService } from './email-parsing.service';
+import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
+import { UnparsedEmailsService } from './unparsed-emails.service';
+import { ParcelsService } from '../parcels/parcels.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -22,9 +24,11 @@ export class EmailSyncOrchestrator {
 
   constructor(
     private fetchService: EmailFetchService,
-    private parsingService: EmailParsingService,
+    private hybridParsingService: HybridEmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
     private parsedEmailToParcelService: ParsedEmailToParcelService,
+    private unparsedEmailsService: UnparsedEmailsService,
+    private parcelsService: ParcelsService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
     @Inject(RAW_EMAIL_REPOSITORY)
@@ -187,10 +191,58 @@ export class EmailSyncOrchestrator {
               }
 
               // Parse email - pass receivedAt for metadata extraction
-              const parsed = await this.parsingService.parseEmail({
+              const parsed = await this.hybridParsingService.parseEmail({
                 ...rawEmailData.fetched,
                 receivedAt: rawEmailData.receivedAt,
               });
+
+              // SMART LOGIC: Si c'est un tracking email mais incomplet -> log pour DeepSeek
+              if (parsed.isTrackingEmail && parsed.needsDeepSeek) {
+                console.log(`   ⚠️  Incomplete tracking email detected - logging for DeepSeek processing`);
+                
+                // Vérifier si le tracking existe déjà dans la DB (si trouvé)
+                if (parsed.trackingNumber) {
+                  const existingParcel = await this.parcelsService.findByTrackingNumber(
+                    userId,
+                    parsed.trackingNumber,
+                  );
+
+                  if (!existingParcel) {
+                    // Tracking n'existe pas -> logger pour DeepSeek
+                    await this.unparsedEmailsService.logUnparsedEmail({
+                      userId,
+                      messageId: rawEmailData.messageId,
+                      provider: connectedEmail.provider,
+                      subject: rawEmailData.subject,
+                      from: rawEmailData.from,
+                      body: rawEmailData.fetched.body,
+                      receivedAt: rawEmailData.receivedAt,
+                      trackingNumber: parsed.trackingNumber,
+                      carrier: parsed.carrier || null,
+                      completenessScore: this.calculateCompleteness(parsed),
+                      isTrackingEmail: true,
+                    });
+                    console.log(`   📝 Email logged for future DeepSeek processing`);
+                  }
+                } else {
+                  // Pas de tracking trouvé mais c'est un email de tracking -> logger aussi
+                  await this.unparsedEmailsService.logUnparsedEmail({
+                    userId,
+                    messageId: rawEmailData.messageId,
+                    provider: connectedEmail.provider,
+                    subject: rawEmailData.subject,
+                    from: rawEmailData.from,
+                    body: rawEmailData.fetched.body,
+                    receivedAt: rawEmailData.receivedAt,
+                    completenessScore: 0,
+                    isTrackingEmail: true,
+                  });
+                  console.log(`   📝 Tracking email without number - logged for DeepSeek`);
+                }
+                
+                parsedNoTracking++;
+                continue;
+              }
 
               if (!parsed.trackingNumber) {
                 parsedNoTracking++;
@@ -357,5 +409,19 @@ export class EmailSyncOrchestrator {
 
   private generateId(): string {
     return `sync_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  }
+
+  private calculateCompleteness(result: any): number {
+    let score = 0;
+    let maxScore = 10;
+    
+    if (result.trackingNumber) score += 3;
+    if (result.carrier) score += 2;
+    if (result.type) score += 1;
+    if (result.productName) score += 1;
+    if (result.pickupAddress) score += 2;
+    if (result.withdrawalCode || result.qrCode) score += 1;
+    
+    return Math.round((score / maxScore) * 100);
   }
 }
