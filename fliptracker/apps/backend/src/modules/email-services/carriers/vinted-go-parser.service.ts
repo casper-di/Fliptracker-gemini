@@ -22,6 +22,16 @@ export class VintedGoParserService {
   constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
 
   /**
+   * Validate if address is complete enough
+   */
+  private isAddressComplete(address: string | null): boolean {
+    if (!address || address.length < 20) return false;
+    if (!/\d{5}/.test(address)) return false; // No postal code
+    if (!/\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address)) return false;
+    return true;
+  }
+
+  /**
    * Parse Vinted Go emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
@@ -104,6 +114,14 @@ export class VintedGoParserService {
     }
     
     result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
+
+    // Validate address quality
+    if (result.pickupAddress) {
+      const isComplete = this.isAddressComplete(result.pickupAddress);
+      if (!isComplete) {
+        console.log(`[VintedGoParser] ⚠️  Incomplete address extracted (missing postal code or street): ${result.pickupAddress.substring(0, 50)}...`);
+      }
+    }
 
     // Extract recipient name from greeting (after "Bonjour")
     const recipientMatch = email.body.match(/Bonjour\s+([^,<]+)/i);

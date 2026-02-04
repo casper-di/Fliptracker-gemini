@@ -22,6 +22,16 @@ export class ChronopostParserService {
   constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
 
   /**
+   * Validate if address is complete enough
+   */
+  private isAddressComplete(address: string | null): boolean {
+    if (!address || address.length < 20) return false;
+    if (!/\d{5}/.test(address)) return false;
+    if (!/\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address)) return false;
+    return true;
+  }
+
+  /**
    * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
@@ -110,6 +120,14 @@ export class ChronopostParserService {
     }
     
     result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
+
+    // Validate address quality
+    if (result.pickupAddress) {
+      const isComplete = this.isAddressComplete(result.pickupAddress);
+      if (!isComplete) {
+        console.log(`[ChronopostParser] ⚠️  Incomplete address extracted: ${result.pickupAddress.substring(0, 50)}...`);
+      }
+    }
 
     // Extract pickup deadline
     const deadlinePatterns = [

@@ -48,6 +48,26 @@ export class HybridEmailParsingService {
   }
 
   /**
+   * Validate if extracted address is complete and usable
+   * A complete address should have:
+   * - Minimum 20 characters
+   * - French postal code (5 digits)
+   * - Street number or name indication
+   */
+  private isAddressComplete(address: string | null): boolean {
+    if (!address || address.length < 20) return false;
+    
+    // Must contain a 5-digit postal code (French format)
+    if (!/\d{5}/.test(address)) return false;
+    
+    // Should contain some street indication (number or "rue", "avenue", etc.)
+    const hasStreetInfo = /\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address);
+    if (!hasStreetInfo) return false;
+    
+    return true;
+  }
+
+  /**
    * Calculate how complete the extracted data is (0-100%)
    */
   private calculateCompleteness(result: ParsedTrackingInfo): number {
@@ -58,7 +78,16 @@ export class HybridEmailParsingService {
     if (result.carrier) score += 2;
     if (result.type) score += 1;
     if (result.productName) score += 1;
-    if (result.pickupAddress) score += 2; // Important for pickup
+    
+    // Smart address validation
+    if (result.pickupAddress) {
+      if (this.isAddressComplete(result.pickupAddress)) {
+        score += 2; // Full score for complete address
+      } else {
+        score += 0.5; // Partial score for incomplete address
+      }
+    }
+    
     if (result.withdrawalCode || result.qrCode) score += 1;
     
     return Math.round((score / maxScore) * 100);

@@ -206,6 +206,10 @@ export class EmailSyncOrchestrator {
               }
 
               if (parsed.needsDeepSeek) {
+                console.log(`   🤖 Flagging for DeepSeek enhancement: ${rawEmailData.subject.substring(0, 60)}...`);
+                if (!parsed.trackingNumber) console.log(`      ⚠️  Reason: No tracking number found`);
+                if (!parsed.pickupAddress || parsed.pickupAddress.length < 20) console.log(`      ⚠️  Reason: Incomplete or missing address`);
+                if (!parsed.marketplace) console.log(`      ⚠️  Reason: Marketplace not detected`);
                 deepSeekCandidates.push({ rawEmailData, parsed });
                 continue;
               }
