@@ -217,18 +217,22 @@ export class EmailSyncOrchestrator {
 
               totalTrackingEmails++;
               parsedWithTracking++;
-              console.log(`   ✅ Found tracking: ${parsed.trackingNumber} (${parsed.carrier || 'unknown carrier'})`);
-              if (parsed.type) console.log(`      📍 Type: ${parsed.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
-              if (parsed.qrCode) console.log(`      📦 QR Code: ${parsed.qrCode}`);
-              if (parsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${parsed.withdrawalCode}`);
-              if (parsed.marketplace) console.log(`      🛒 Marketplace: ${parsed.marketplace}`);
+              
+              // Clean undefined values before saving to Firestore
+              const cleanedParsed = this.removeUndefinedValues(parsed);
+              
+              console.log(`   ✅ Found tracking: ${cleanedParsed.trackingNumber} (${cleanedParsed.carrier || 'unknown carrier'})`);
+              if (cleanedParsed.type) console.log(`      📍 Type: ${cleanedParsed.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
+              if (cleanedParsed.qrCode) console.log(`      📦 QR Code: ${cleanedParsed.qrCode}`);
+              if (cleanedParsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${cleanedParsed.withdrawalCode}`);
+              if (cleanedParsed.marketplace) console.log(`      🛒 Marketplace: ${cleanedParsed.marketplace}`);
 
-              const saved = await this.persistParsedEmail(userId, rawEmailData, parsed);
+              const saved = await this.persistParsedEmail(userId, rawEmailData, cleanedParsed);
               if (saved?.created) {
                 totalEmailsParsed++;
               }
               if (saved?.parsedEmail) {
-                await this.createParcelFromParsedEmail(saved.parsedEmail, parsed);
+                await this.createParcelFromParsedEmail(saved.parsedEmail, cleanedParsed);
               }
             } catch (parseError) {
               console.warn('[EmailSyncOrchestrator] Failed to parse email:', parseError);
@@ -252,26 +256,28 @@ export class EmailSyncOrchestrator {
               for (const candidate of deepSeekCandidates) {
                 const enhanced = enhancements[candidate.rawEmailData.id];
                 const merged = this.mergeParsedResults(candidate.parsed, enhanced);
+                // Clean undefined values before saving to Firestore
+                const cleaned = this.removeUndefinedValues(merged);
 
-                if (!merged.trackingNumber) {
+                if (!cleaned.trackingNumber) {
                   parsedNoTracking++;
                   continue;
                 }
 
                 totalTrackingEmails++;
                 parsedWithTracking++;
-                console.log(`   ✅ DeepSeek tracking: ${merged.trackingNumber} (${merged.carrier || 'unknown carrier'})`);
-                if (merged.type) console.log(`      📍 Type: ${merged.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
-                if (merged.qrCode) console.log(`      📦 QR Code: ${merged.qrCode}`);
-                if (merged.withdrawalCode) console.log(`      🔑 Withdrawal: ${merged.withdrawalCode}`);
-                if (merged.marketplace) console.log(`      🛒 Marketplace: ${merged.marketplace}`);
+                console.log(`   ✅ DeepSeek tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
+                if (cleaned.type) console.log(`      📍 Type: ${cleaned.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
+                if (cleaned.qrCode) console.log(`      📦 QR Code: ${cleaned.qrCode}`);
+                if (cleaned.withdrawalCode) console.log(`      🔑 Withdrawal: ${cleaned.withdrawalCode}`);
+                if (cleaned.marketplace) console.log(`      🛒 Marketplace: ${cleaned.marketplace}`);
 
-                const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, merged);
+                const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, cleaned);
                 if (saved?.created) {
                   totalEmailsParsed++;
                 }
                 if (saved?.parsedEmail) {
-                  await this.createParcelFromParsedEmail(saved.parsedEmail, merged);
+                  await this.createParcelFromParsedEmail(saved.parsedEmail, cleaned);
                 }
               }
             } catch (deepSeekError) {
@@ -430,6 +436,16 @@ export class EmailSyncOrchestrator {
     }
 
     return merged;
+  }
+
+  private removeUndefinedValues(obj: any): any {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = value;
+      }
+    }
+    return cleaned;
   }
 
   private async logEvent(
