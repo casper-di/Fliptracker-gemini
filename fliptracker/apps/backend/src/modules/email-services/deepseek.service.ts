@@ -144,28 +144,36 @@ export class DeepSeekService {
       return [];
     } catch (error) {
       console.warn('[DeepSeekService] Failed to parse JSON response:', error);
+      console.warn('[DeepSeekService] Raw response (first 500 chars):', text.substring(0, 500));
+      console.warn('[DeepSeekService] Cleaned response (first 500 chars):', cleaned.substring(0, 500));
       return [];
     }
   }
 
   private cleanParsedResult(result: Record<string, any>): ParsedTrackingInfo & { emailId?: string } {
-    return {
-      trackingNumber: result.trackingNumber ?? undefined,
-      carrier: result.carrier ?? undefined,
-      type: result.type ?? undefined,
-      qrCode: result.qrCode ?? null,
-      withdrawalCode: result.withdrawalCode ?? null,
-      articleId: result.articleId ?? null,
-      marketplace: result.marketplace ?? null,
-      productName: result.productName ?? null,
-      productDescription: result.productDescription ?? null,
-      recipientName: result.recipientName ?? null,
-      senderName: result.senderName ?? null,
-      pickupAddress: result.pickupAddress ?? null,
-      pickupDeadline: result.pickupDeadline ? new Date(result.pickupDeadline) : null,
-      orderNumber: result.orderNumber ?? null,
-      estimatedValue: typeof result.estimatedValue === 'number' ? result.estimatedValue : null,
-      currency: result.currency ?? null,
-    };
+    // Build result object only with non-undefined values
+    const cleaned: any = {};
+
+    // Only add fields if they have actual values (not null or undefined)
+    if (result.trackingNumber) cleaned.trackingNumber = result.trackingNumber;
+    if (result.carrier) cleaned.carrier = result.carrier;
+    if (result.type) cleaned.type = result.type;
+    
+    // For nullable fields, explicitly set to null if missing
+    cleaned.qrCode = result.qrCode ?? null;
+    cleaned.withdrawalCode = result.withdrawalCode ?? null;
+    cleaned.articleId = result.articleId ?? null;
+    cleaned.marketplace = result.marketplace ?? null;
+    cleaned.productName = result.productName ?? null;
+    cleaned.productDescription = result.productDescription ?? null;
+    cleaned.recipientName = result.recipientName ?? null;
+    cleaned.senderName = result.senderName ?? null;
+    cleaned.pickupAddress = result.pickupAddress ?? null;
+    cleaned.pickupDeadline = result.pickupDeadline ? new Date(result.pickupDeadline) : null;
+    cleaned.orderNumber = result.orderNumber ?? null;
+    cleaned.estimatedValue = typeof result.estimatedValue === 'number' ? result.estimatedValue : null;
+    cleaned.currency = result.currency ?? null;
+
+    return cleaned;
   }
 }

@@ -368,17 +368,16 @@ export class EmailSyncOrchestrator {
       return null;
     }
 
-    const parsedEmail = await this.parsedEmailRepository.create({
+    // Build data object, explicitly ensuring no undefined values for Firestore
+    const data: any = {
       rawEmailId: rawEmailData.id,
       userId,
       trackingNumber: parsed.trackingNumber,
-      carrier: parsed.carrier,
-      type: parsed.type,
+      status: 'pending_shipment_lookup',
       qrCode: parsed.qrCode ?? null,
       withdrawalCode: parsed.withdrawalCode ?? null,
       articleId: parsed.articleId ?? null,
       marketplace: parsed.marketplace ?? null,
-      status: 'pending_shipment_lookup',
       provider: rawEmailData.provider ?? null,
       senderEmail: rawEmailData.from ?? null,
       senderName: parsed.senderName ?? null,
@@ -391,7 +390,13 @@ export class EmailSyncOrchestrator {
       orderNumber: parsed.orderNumber ?? null,
       estimatedValue: parsed.estimatedValue ?? null,
       currency: parsed.currency ?? null,
-    });
+    };
+
+    // Only add optional fields if they have values
+    if (parsed.carrier !== undefined) data.carrier = parsed.carrier;
+    if (parsed.type !== undefined) data.type = parsed.type;
+
+    const parsedEmail = await this.parsedEmailRepository.create(data);
 
     return { parsedEmail, created: true };
   }
