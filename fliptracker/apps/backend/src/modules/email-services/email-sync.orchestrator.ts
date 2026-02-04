@@ -412,7 +412,24 @@ export class EmailSyncOrchestrator {
 
       if (hasUpdates) {
         const updated = await this.parsedEmailRepository.update(existing.id, updates);
-        console.log(`[EmailSyncOrchestrator] ✅ Updated tracking ${parsed.trackingNumber} with new metadata`);
+        
+        // 🔥 FLAGRANT LOGS FOR DATABASE UPDATE
+        console.log('\n');
+        console.log('━'.repeat(80));
+        console.log('🔄 PARSED EMAIL UPDATED IN DATABASE');
+        console.log('━'.repeat(80));
+        console.log(`📋 Firestore Document ID: ${updated.id}`);
+        console.log(`🔢 Tracking Number: ${updated.trackingNumber}`);
+        console.log(`📝 Updated Fields: ${Object.keys(updates).join(', ')}`);
+        console.log(`🚚 Carrier: ${updated.carrier || 'NOT SET'}`);
+        console.log(`📦 Type: ${updated.type || 'NOT SET'}`);
+        console.log(`🏪 Marketplace: ${updated.marketplace || 'NOT SET'}`);
+        console.log(`📍 Pickup Address: ${updated.pickupAddress ? updated.pickupAddress.substring(0, 60) + '...' : 'NOT SET'}`);
+        console.log(`🔑 Withdrawal Code: ${updated.withdrawalCode || 'NOT SET'}`);
+        console.log(`📱 QR Code: ${updated.qrCode || 'NOT SET'}`);
+        console.log('━'.repeat(80));
+        console.log('\n');
+        
         return { parsedEmail: updated, created: false };
       } else {
         console.log(`[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, no new data to update`);
@@ -450,6 +467,29 @@ export class EmailSyncOrchestrator {
 
     const parsedEmail = await this.parsedEmailRepository.create(data);
 
+    // 🔥 FLAGRANT LOGS FOR DATABASE TRACKING
+    console.log('\n');
+    console.log('━'.repeat(80));
+    console.log('💾 NEW PARSED EMAIL SAVED TO DATABASE');
+    console.log('━'.repeat(80));
+    console.log(`📋 Firestore Document ID: ${parsedEmail.id}`);
+    console.log(`🔢 Tracking Number: ${parsedEmail.trackingNumber}`);
+    console.log(`🚚 Carrier: ${parsedEmail.carrier || 'NOT SET'}`);
+    console.log(`📦 Type: ${parsedEmail.type || 'NOT SET'}`);
+    console.log(`🏪 Marketplace: ${parsedEmail.marketplace || 'NOT SET'}`);
+    console.log(`📍 Pickup Address: ${parsedEmail.pickupAddress ? parsedEmail.pickupAddress.substring(0, 60) + '...' : 'NOT SET'}`);
+    console.log(`🔑 Withdrawal Code: ${parsedEmail.withdrawalCode || 'NOT SET'}`);
+    console.log(`📱 QR Code: ${parsedEmail.qrCode || 'NOT SET'}`);
+    console.log(`🛍️  Product: ${parsedEmail.productName || 'NOT SET'}`);
+    console.log(`👤 Recipient: ${parsedEmail.recipientName || 'NOT SET'}`);
+    console.log(`📅 Received At: ${parsedEmail.receivedAt ? parsedEmail.receivedAt.toISOString() : 'NOT SET'}`);
+    console.log(`📅 Pickup Deadline: ${parsedEmail.pickupDeadline ? parsedEmail.pickupDeadline.toISOString() : 'NOT SET'}`);
+    console.log(`📧 Raw Email ID: ${parsedEmail.rawEmailId}`);
+    console.log(`👥 User ID: ${parsedEmail.userId}`);
+    console.log(`📅 Created At: ${parsedEmail.createdAt ? parsedEmail.createdAt.toISOString() : new Date().toISOString()}`);
+    console.log('━'.repeat(80));
+    console.log('\n');
+
     return { parsedEmail, created: true };
   }
 
@@ -458,7 +498,22 @@ export class EmailSyncOrchestrator {
       const parcel = await this.parsedEmailToParcelService.createParcelFromParsedEmail(parsedEmail);
       if (parcel) {
         const direction = parcel.type === 'purchase' ? '📥 INCOMING' : '📤 OUTGOING';
-        console.log(`      🎯 Created shipment: ${direction} - ${parcel.title}`);
+        
+        // 🔥 FLAGRANT LOGS FOR PARCEL CREATION
+        console.log('\n');
+        console.log('┏' + '━'.repeat(78) + '┓');
+        console.log('┃ 📦 PARCEL/SHIPMENT CREATED IN DATABASE' + ' '.repeat(38) + '┃');
+        console.log('┗' + '━'.repeat(78) + '┛');
+        console.log(`🆔 Parcel Document ID: ${parcel.id}`);
+        console.log(`📋 Title: ${parcel.title}`);
+        console.log(`🔢 Tracking: ${parcel.trackingNumber}`);
+        console.log(`📦 Direction: ${direction}`);
+        console.log(`🚚 Carrier: ${parcel.carrier || 'NOT SET'}`);
+        console.log(`👤 User ID: ${parcel.userId}`);
+        console.log(`📅 Created At: ${parcel.createdAt ? parcel.createdAt.toISOString() : new Date().toISOString()}`);
+        console.log(`🔗 Linked ParsedEmail ID: ${parsedEmail.id}`);
+        console.log('━'.repeat(80));
+        console.log('\n');
       }
     } catch (parcelError) {
       console.warn(
