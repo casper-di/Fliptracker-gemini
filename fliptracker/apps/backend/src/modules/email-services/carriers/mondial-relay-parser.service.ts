@@ -80,30 +80,40 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract pickup address - comprehensive extraction
+    // Extract pickup address - comprehensive multi-pattern extraction
     let pickupAddress: string | null = null;
     
-    // Try to extract from table or structured content
-    const addressTableMatch = email.body.match(/adresse[\s\S]*?<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
+    // Pattern 1: Extract from table structure
+    const addressTableMatch = email.body.match(/(?:adresse|address)[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
     if (addressTableMatch) {
       pickupAddress = addressTableMatch[1]
         .replace(/<br\s*\/?>/gi, ', ')
-        .replace(/<[^>]*>/g, ' ')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .replace(/,\s*,/g, ',')
-        .replace(/,\s*$/g, '');
+        .replace(/^,\s*/, '')
+        .replace(/,\s*$/, '');
     }
     
-    // Fallback: try strong tags pattern
-    if (!pickupAddress) {
-      const addressMatch = email.body.match(/<strong>([^<]+)<\/strong>[\s\S]*?(\d+.*?(?:OULLINS|LYON|PARIS|MARSEILLE|\d{5})[^<]*)/i);
-      if (addressMatch) {
-        pickupAddress = `${addressMatch[1]?.trim()}, ${addressMatch[2]?.trim()}`;
+    // Pattern 2: Extract from <strong> tags (relay name + address)
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const strongMatch = email.body.match(/<strong>([^<]{5,80})<\/strong>[\s\S]{0,100}?(\d+[^<]{10,120}?(?:\d{5}|LYON|PARIS|MARSEILLE|LILLE|TOULOUSE|NICE|NANTES|BORDEAUX|STRASBOURG)[^<]{0,50})/i);
+      if (strongMatch) {
+        pickupAddress = `${strongMatch[1].trim()}, ${strongMatch[2].trim().replace(/\s+/g, ' ')}`;
       }
     }
     
-    result.pickupAddress = pickupAddress || null;
+    // Pattern 3: Extract full address with postal code
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const fullAddressMatch = email.body.match(/([A-Z][A-Z\s&\'-]+)[\s\S]{0,30}(\d+[^,<]{5,100}?\d{5}\s+[A-Z][A-Z\s-]+)/i);
+      if (fullAddressMatch) {
+        pickupAddress = `${fullAddressMatch[1].trim()}, ${fullAddressMatch[2].trim().replace(/\s+/g, ' ')}`;
+      }
+    }
+    
+    result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
 
     // Extract pickup deadline
     const deadlinePatterns = [

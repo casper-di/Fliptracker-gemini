@@ -67,30 +67,43 @@ export class VintedGoParserService {
       result.pickupDeadline = new Date(`${year}-${month}-${day}`) || null;
     }
 
-    // Extract pickup address - capture all text between "Adresse" and next section
+    // Extract pickup address - comprehensive multi-pattern approach
     let pickupAddress: string | null = null;
-    const addressSectionMatch = email.body.match(/Adresse[\s\S]*?<\/td>[\s\S]*?<td[^>]*>([\s\S]*?)<\/td>/i);
-    if (addressSectionMatch) {
-      // Extract all text, remove HTML tags, clean up whitespace
-      const rawAddress = addressSectionMatch[1]
+    
+    // Pattern 1: Extract from table cell after "Adresse"
+    const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
+    if (addressTableMatch) {
+      pickupAddress = addressTableMatch[1]
         .replace(/<br\s*\/?>/gi, ', ')
-        .replace(/<[^>]*>/g, ' ')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
         .replace(/,\s*,/g, ',')
-        .replace(/,\s*$/g, '');
-      pickupAddress = rawAddress || null;
+        .replace(/^,\s*/, '')
+        .replace(/,\s*$/, '');
     }
     
-    // Fallback: try to match bold elements
-    if (!pickupAddress) {
-      const addressMatch = email.body.match(/Adresse[\s\S]*?<b>\s*([^<]+)\s*<\/b>[\s\S]*?<b>\s*([^<]+)\s*<\/b>/);
-      if (addressMatch) {
-        pickupAddress = `${addressMatch[1]?.trim() || ''}, ${addressMatch[2]?.trim() || ''}`.replace(/,\s*$/, '') || null;
+    // Pattern 2: Extract from multiple <b> tags (name, street, city)
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const boldMatches = email.body.match(/Adresse[\s\S]{0,200}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>/i);
+      if (boldMatches) {
+        pickupAddress = [boldMatches[1], boldMatches[2], boldMatches[3]]
+          .filter(Boolean)
+          .map(s => s.trim())
+          .join(', ');
       }
     }
     
-    result.pickupAddress = pickupAddress;
+    // Pattern 3: Extract full address block (name + street + postal + city)
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const fullAddressMatch = email.body.match(/([A-Z][A-Z\s&-]+)[\s\S]{0,20}(\d+[^,<]*?)[\s\S]{0,20}(\d{5}\s+[A-Z][A-Z\s-]+)/i);
+      if (fullAddressMatch) {
+        pickupAddress = `${fullAddressMatch[1].trim()}, ${fullAddressMatch[2].trim()}, ${fullAddressMatch[3].trim()}`;
+      }
+    }
+    
+    result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
 
     // Extract recipient name from greeting (after "Bonjour")
     const recipientMatch = email.body.match(/Bonjour\s+([^,<]+)/i);

@@ -25,8 +25,18 @@ export class ChronopostParserService {
    * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
+    // Detect marketplace from email content
+    let marketplace: string | null = null;
+    if (/vinted/i.test(email.subject) || /vinted/i.test(email.body)) {
+      marketplace = 'vinted';
+    } else if (/leboncoin/i.test(email.subject) || /leboncoin/i.test(email.body)) {
+      marketplace = 'leboncoin';
+    } else if (/vestiaire collective/i.test(email.subject) || /vestiaire collective/i.test(email.body)) {
+      marketplace = 'vestiaire_collective';
+    }
+    
     const result: ParsedTrackingInfo = {
-      marketplace: null,
+      marketplace,
       carrier: 'chronopost',
       type: this.shipmentTypeDetector.detectType(email),
     };
@@ -66,11 +76,40 @@ export class ChronopostParserService {
       result.recipientName = recipientMatch[1]?.trim() || null;
     }
 
-    // Extract pickup address
-    const addressMatch = email.body.match(/Votre relais Pickup[\s\S]*?<strong>([^<]+)<\/strong>[\s\S]*?(\d+.*?[A-Z\s]+)/i);
-    if (addressMatch) {
-      result.pickupAddress = `${addressMatch[1]?.trim()}, ${addressMatch[2]?.trim()}` || null;
+    // Extract pickup address - comprehensive patterns
+    let pickupAddress: string | null = null;
+    
+    // Pattern 1: "Votre relais Pickup" section with strong tag
+    const pickupMatch = email.body.match(/Votre relais Pickup[\s\S]{0,200}<strong>([^<]{5,80})<\/strong>[\s\S]{0,100}?(\d+[^<]{10,150}?(?:\d{5}|[A-Z]{2,20}))/i);
+    if (pickupMatch) {
+      pickupAddress = `${pickupMatch[1].trim()}, ${pickupMatch[2].trim().replace(/\s+/g, ' ')}`;
     }
+    
+    // Pattern 2: Extract from table structure
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const tableMatch = email.body.match(/(?:adresse|address)[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
+      if (tableMatch) {
+        pickupAddress = tableMatch[1]
+          .replace(/<br\s*\/?>/gi, ', ')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/,\s*,/g, ',')
+          .replace(/^,\s*/, '')
+          .replace(/,\s*$/, '');
+      }
+    }
+    
+    // Pattern 3: General address with postal code
+    if (!pickupAddress || pickupAddress.length < 10) {
+      const generalMatch = email.body.match(/([A-Z][A-Z\s&\'-]+)[\s\S]{0,30}(\d+[^<]{5,100}?\d{5}\s+[A-Z][A-Z\s-]+)/i);
+      if (generalMatch) {
+        pickupAddress = `${generalMatch[1].trim()}, ${generalMatch[2].trim().replace(/\s+/g, ' ')}`;
+      }
+    }
+    
+    result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
 
     // Extract pickup deadline
     const deadlinePatterns = [

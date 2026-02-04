@@ -107,8 +107,11 @@ export class DeepSeekService {
       'Each result must include: emailId, trackingNumber, carrier, type, qrCode, withdrawalCode, articleId, marketplace, productName, productDescription, recipientName, senderName, pickupAddress, pickupDeadline, orderNumber, estimatedValue, currency.',
       'Use null if unknown. carrier must be one of: ' + allowedCarriers.join(', ') + '.',
       'type must be purchase or sale when possible.',
+      'marketplace should be detected from email content (vinted, leboncoin, vestiaire_collective, ebay, amazon, etc). Look for mentions in subject, sender, or body.',
       'pickupDeadline must be ISO 8601 date string or null.',
       'estimatedValue must be a number (no currency symbol).',
+      'pickupAddress must be the COMPLETE address including: relay/shop name, street number, street name, postal code, city.',
+      'Extract full addresses, not just partial info.',
       'Input JSON:',
       JSON.stringify(payload),
     ].join('\n');

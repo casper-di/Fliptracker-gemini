@@ -368,13 +368,55 @@ export class EmailSyncOrchestrator {
     );
 
     if (existing) {
-      console.log(
-        `[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, skipping duplicate...`,
-      );
-      return null;
+      // SMART UPDATE: Merge new data with existing, keeping non-null values
+      const updates: Partial<ParsedEmail> = {};
+      let hasUpdates = false;
+
+      // Update fields if new value is non-null and old value is null/missing
+      if (parsed.qrCode && !existing.qrCode) {
+        updates.qrCode = parsed.qrCode;
+        hasUpdates = true;
+        console.log(`      🔄 Updating QR code for ${parsed.trackingNumber}: ${parsed.qrCode}`);
+      }
+      if (parsed.withdrawalCode && !existing.withdrawalCode) {
+        updates.withdrawalCode = parsed.withdrawalCode;
+        hasUpdates = true;
+        console.log(`      🔄 Updating withdrawal code for ${parsed.trackingNumber}: ${parsed.withdrawalCode}`);
+      }
+      if (parsed.marketplace && !existing.marketplace) {
+        updates.marketplace = parsed.marketplace;
+        hasUpdates = true;
+        console.log(`      🔄 Updating marketplace for ${parsed.trackingNumber}: ${parsed.marketplace}`);
+      }
+      if (parsed.pickupAddress && !existing.pickupAddress) {
+        updates.pickupAddress = parsed.pickupAddress;
+        hasUpdates = true;
+        console.log(`      🔄 Updating pickup address for ${parsed.trackingNumber}`);
+      }
+      if (parsed.productName && !existing.productName) {
+        updates.productName = parsed.productName;
+        hasUpdates = true;
+      }
+      if (parsed.pickupDeadline && !existing.pickupDeadline) {
+        updates.pickupDeadline = parsed.pickupDeadline;
+        hasUpdates = true;
+      }
+      if (parsed.type && !existing.type) {
+        updates.type = parsed.type;
+        hasUpdates = true;
+      }
+
+      if (hasUpdates) {
+        const updated = await this.parsedEmailRepository.update(existing.id, updates);
+        console.log(`[EmailSyncOrchestrator] ✅ Updated tracking ${parsed.trackingNumber} with new metadata`);
+        return { parsedEmail: updated, created: false };
+      } else {
+        console.log(`[EmailSyncOrchestrator] ⚠️  Tracking already exists: ${parsed.trackingNumber}, no new data to update`);
+        return null;
+      }
     }
 
-    // Build data object, explicitly ensuring no undefined values for Firestore
+    // Build data object for new entry, explicitly ensuring no undefined values for Firestore
     const data: any = {
       rawEmailId: rawEmailData.id,
       userId,
