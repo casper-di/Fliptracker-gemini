@@ -306,34 +306,34 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
               )}
               
               <div>
-                <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2">Contenu HTML Brut</p>
-                <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-xs font-mono text-slate-700 dark:text-slate-300 overflow-x-auto max-h-96 overflow-y-auto">
-                  <pre className="whitespace-pre-wrap break-words">
-                    {(() => {
-                      const content = rawEmailData.body || rawEmailData.bodyHtml;
-                      if (!content) return 'Aucun contenu disponible';
-                      if (typeof content === 'string') return content;
-                      return JSON.stringify(content, null, 2);
-                    })()}
-                  </pre>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2">📧 Aperçu Email</p>
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                  <iframe
+                    srcDoc={rawEmailData.bodyHtml || rawEmailData.body || '<p>Aucun contenu disponible</p>'}
+                    className="w-full min-h-[500px] border-0"
+                    sandbox="allow-same-origin"
+                    title="Email Preview"
+                  />
                 </div>
-                <p className="text-[9px] text-slate-400 mt-1">Type: {typeof (rawEmailData.body || rawEmailData.bodyHtml)}</p>
               </div>
 
               {(rawEmailData.bodyHtml || rawEmailData.body) && (
                 <details className="group">
-                  <summary className="cursor-pointer text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2 list-none flex items-center gap-2">
-                    <i className="fas fa-eye text-xs group-open:rotate-90 transition-transform"></i>
-                    Aperçu HTML Rendu
+                  <summary className="cursor-pointer text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-2 list-none flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <i className="fas fa-code text-xs group-open:rotate-90 transition-transform"></i>
+                    Afficher le code HTML brut
                   </summary>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-white/10 mt-2 max-h-96 overflow-y-auto">
-                    <iframe
-                      srcDoc={rawEmailData.bodyHtml || rawEmailData.body}
-                      className="w-full min-h-[400px] border-0"
-                      sandbox="allow-same-origin"
-                      title="Email Preview"
-                    />
+                  <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-xs font-mono text-slate-700 dark:text-slate-300 overflow-x-auto max-h-96 overflow-y-auto mt-2">
+                    <pre className="whitespace-pre-wrap break-words">
+                      {(() => {
+                        const content = rawEmailData.body || rawEmailData.bodyHtml;
+                        if (!content) return 'Aucun contenu disponible';
+                        if (typeof content === 'string') return content;
+                        return JSON.stringify(content, null, 2);
+                      })()}
+                    </pre>
                   </div>
+                  <p className="text-[9px] text-slate-400 mt-1">Type: {typeof (rawEmailData.body || rawEmailData.bodyHtml)}</p>
                 </details>
               )}
             </div>

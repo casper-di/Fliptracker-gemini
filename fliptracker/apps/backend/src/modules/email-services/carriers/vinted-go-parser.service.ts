@@ -157,36 +157,44 @@ export class VintedGoParserService {
     // Extract pickup address - comprehensive multi-pattern approach
     let pickupAddress: string | null = null;
     
-    // Pattern 1: Extract from table cell after "Adresse"
-    const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
-    if (addressTableMatch) {
-      pickupAddress = addressTableMatch[1]
-        .replace(/<br\s*\/?>/gi, ', ')
-        .replace(/<[^>]*>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/,\s*,/g, ',')
-        .replace(/^,\s*/, '')
-        .replace(/,\s*$/, '');
+    // Pattern 1: Vinted Go structure with "Adresse" header followed by multiple <b> tags
+    // Example: Consigne Vinted Go → Mg Laverie → 50 Boulevard → Oullins
+    const vintedGoAddressMatch = email.body.match(/Adresse<\/div>[\s\S]{0,400}?<b>([^<]+)<\/b>[\s\S]{0,100}?<b>([^<]+)<\/b>[\s\S]{0,150}?<b>[\s\S]*?>([^<]+)<\/a>[\s\S]{0,50}<b>[\s\S]*?>([^<]+)<\/a>/i);
+    if (vintedGoAddressMatch) {
+      const parts = [
+        vintedGoAddressMatch[1]?.trim(), // "Consigne Vinted Go"
+        vintedGoAddressMatch[2]?.trim(), // "Mg Laverie"
+        vintedGoAddressMatch[3]?.trim(), // "50 Boulevard Emile Zola"
+        vintedGoAddressMatch[4]?.trim(), // "Oullins"
+      ].filter(Boolean);
+      
+      if (parts.length >= 3) {
+        pickupAddress = parts.join('\n');
+        console.log(`[VintedGoParser] ✅ Address extracted (Pattern 1 - Vinted Go structure): ${pickupAddress}`);
+      }
     }
     
-    // Pattern 2: Extract from multiple <b> tags (name, street, city)
+    // Pattern 2: Extract from table cell after "Adresse"
+    if (!pickupAddress) {
+      const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
+      if (addressTableMatch) {
+        pickupAddress = addressTableMatch[1]
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]*>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    }
+    
+    // Pattern 3: Extract from multiple <b> tags (name, street, city)
     if (!pickupAddress || pickupAddress.length < 10) {
       const boldMatches = email.body.match(/Adresse[\s\S]{0,200}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>/i);
       if (boldMatches) {
         pickupAddress = [boldMatches[1], boldMatches[2], boldMatches[3]]
           .filter(Boolean)
           .map(s => s.trim())
-          .join(', ');
-      }
-    }
-    
-    // Pattern 3: Extract full address block (name + street + postal + city)
-    if (!pickupAddress || pickupAddress.length < 10) {
-      const fullAddressMatch = email.body.match(/([A-Z][A-Z\s&-]+)[\s\S]{0,20}(\d+[^,<]*?)[\s\S]{0,20}(\d{5}\s+[A-Z][A-Z\s-]+)/i);
-      if (fullAddressMatch) {
-        pickupAddress = `${fullAddressMatch[1].trim()}, ${fullAddressMatch[2].trim()}, ${fullAddressMatch[3].trim()}`;
+          .join('\n');
       }
     }
     
