@@ -112,6 +112,8 @@ export class DeepSeekService {
       'estimatedValue must be a number (no currency symbol).',
       'pickupAddress must be the COMPLETE address including: relay/shop name, street number, street name, postal code, city.',
       'Extract full addresses, not just partial info.',
+      'qrCode: Extract QR code IMAGE URL from HTML. Look for: <img src="..." alt="qr"> or src attribute containing "qr". Return the full URL or base64 data URI.',
+      'withdrawalCode: Extract withdrawal/pickup code (typically 4-10 alphanumeric characters).',
       'Input JSON:',
       JSON.stringify(payload),
     ].join('\n');

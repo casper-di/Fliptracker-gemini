@@ -31,73 +31,67 @@ export class ShipmentTypeDetectorService {
 
   /**
    * Check if email indicates a SALE (you are the seller/sender)
+   * Based on Fliptracker Mail Intelligence patterns for French market
    */
   private isSaleEmail(body: string, subject: string, from: string): boolean {
-    // SALE indicators: shipping labels, bordereaux, seller notifications
-    const saleKeywords = [
-      // French - Bordereaux & Labels
+    // SELLER indicators from prompt - strong signals
+    const strongSellerKeywords = [
+      // French - Seller specific (from prompt)
+      'vous avez expédié',
+      'vous avez expédi\u00e9',
       'bordereau',
-      'étiquette d\'expédition',
-      'étiquette de transport',
+      '\u00e9tiquette cr\u00e9\u00e9e',
+      'etiquette creee',
+      'votre colis a \u00e9t\u00e9 pris en charge',
+      'votre colis a ete pris en charge',
+      'remise au transporteur',
+      
+      // Label/shipment creation
+      '\u00e9tiquette d\'exp\u00e9dition',
+      'etiquette d\'expedition',
+      '\u00e9tiquette de transport',
       'bon de transport',
-      'imprimer l\'étiquette',
-      'télécharger le bordereau',
-      'télécharger l\'étiquette',
-      'votre étiquette',
-      'expédiez votre colis',
-      'expédier le colis',
-      'déposer votre colis',
-      'dépose ton colis',
-      'apporter le colis',
-      'déposer au point relais',
+      'imprimer l\'\u00e9tiquette',
+      'imprimer l\'etiquette',
+      't\u00e9l\u00e9charger le bordereau',
+      'telecharger le bordereau',
+      'votre \u00e9tiquette',
+      'votre etiquette',
+      'exp\u00e9diez votre colis',
+      'expediez votre colis',
+      'exp\u00e9dier le colis',
+      'd\u00e9poser votre colis',
+      'deposer votre colis',
+      'd\u00e9pose ton colis',
+      'd\u00e9poser au point relais',
       
-      // English - Shipping Labels
-      'shipping label',
-      'print label',
-      'download label',
-      'print shipping label',
-      'your shipping label',
-      'ship your order',
-      'ship the item',
-      'drop off package',
-      'drop off your package',
-      
-      // Seller platforms (Shopify, WooCommerce, etc)
-      'you sold',
-      'you have sold',
-      'order to ship',
-      'ready to ship',
-      'ship by',
-      'fulfill order',
-      'fulfillment',
-      'vous avez vendu',
-      'commande à expédier',
-      'prêt à expédier',
-      'article vendu',
-      
-      // Vinted/Leboncoin Seller
-      'ton article a été acheté',
+      // Marketplace sales
+      'ton article a \u00e9t\u00e9 achet\u00e9',
       'ton article est vendu',
       'your item has been sold',
-      'your item sold',
       'prepare your shipment',
-      'prépare ton envoi',
+      'pr\u00e9pare ton envoi',
+      'prepare ton envoi',
       
-      // Tracking creation (seller side)
-      'create shipping label',
-      'créer une étiquette',
-      'générer le bordereau',
-      'generate label',
+      // Seller platforms
+      'vous avez vendu',
+      'commande \u00e0 exp\u00e9dier',
+      'commande a expedier',
+      'pr\u00eat \u00e0 exp\u00e9dier',
+      'pret a expedier',
+      'article vendu',
       
-      // Amazon Seller, eBay Seller
-      'seller central',
-      'manage your shipment',
-      'ship this order',
-      'gérer votre expédition',
+      // English equivalents
+      'shipping label',
+      'print label',
+      'ship your order',
+      'drop off package',
+      'you sold',
+      'order to ship',
     ];
 
-    // Check body and subject
-    for (const keyword of saleKeywords) {
+    // Check body and subject for strong signals
+    for (const keyword of strongSellerKeywords) {
       if (body.includes(keyword) || subject.includes(keyword)) {
         return true;
       }
@@ -126,27 +120,45 @@ export class ShipmentTypeDetectorService {
 
   /**
    * Check if email indicates a PURCHASE (you are the buyer/recipient)
+   * Based on Fliptracker Mail Intelligence patterns for French market
    */
   private isPurchaseEmail(body: string, subject: string, from: string): boolean {
-    // PURCHASE indicators: delivery notifications, pickup codes, tracking updates
-    const purchaseKeywords = [
-      // French - Delivery & Pickup
+    // BUYER indicators from prompt - strong signals
+    const strongBuyerKeywords = [
+      // French - Buyer specific (from prompt)
+      'votre commande',
+      'vous allez être livré',
+      'vous allez etre livre',
+      'livraison en cours',
+      'expédié par',
+      'expedie par',
+      
+      // Delivery & Pickup
       'récupérer ton colis',
+      'recuperer ton colis',
       'récupérer votre colis',
+      'recuperer votre colis',
       'retirer votre colis',
       'retirer ton colis',
       'prêt à être récupéré',
+      'pret a etre recupere',
       'disponible au retrait',
       'colis disponible',
       'à retirer avant le',
+      'a retirer avant le',
       'code de retrait',
       'code de récupération',
+      'code de recuperation',
       'ton colis arrive',
       'votre colis arrive',
       'livraison prévue',
+      'livraison prevue',
       'en cours de livraison',
       'colis en transit',
       'colis livré',
+      'colis livre',
+      'il est temps de récupérer',
+      'il est temps de recuperer',
       
       // English - Delivery & Pickup
       'pickup your parcel',
@@ -178,18 +190,23 @@ export class ShipmentTypeDetectorService {
       'your item',
       'votre article',
       'article acheté',
+      'article achete',
       'item purchased',
+      'you purchased',
+      'vous avez acheté',
+      'vous avez achete',
       
-      // QR codes for pickup
+      // QR codes for pickup (buyer feature)
       'qr code',
       'scanner le qr',
       'scan qr',
       'présenter le code',
+      'presenter le code',
       'show this code',
     ];
 
-    // Check body and subject
-    for (const keyword of purchaseKeywords) {
+    // Check body and subject for strong signals
+    for (const keyword of strongBuyerKeywords) {
       if (body.includes(keyword) || subject.includes(keyword)) {
         return true;
       }

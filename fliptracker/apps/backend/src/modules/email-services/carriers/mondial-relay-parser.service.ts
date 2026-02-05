@@ -20,13 +20,41 @@ export interface ParsedTrackingInfo {
 @Injectable()
 export class MondialRelayParserService {
   /**
-   * Validate if address is complete enough
+   * Validate if address is complete enough and NOT a legal/corporate address
    */
   private isAddressComplete(address: string | null): boolean {
     if (!address || address.length < 20) return false;
     if (!/\d{5}/.test(address)) return false;
     if (!/\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address)) return false;
+    
+    // Filter out legal/corporate addresses
+    if (/RCS|SIRET|SIREN|capital de|SAS|SARL|SA\s/i.test(address)) return false;
+    
     return true;
+  }
+
+  /**
+   * Validate Mondial Relay tracking format
+   */
+  private isValidTrackingNumber(tracking: string | null): boolean {
+    if (!tracking) return false;
+    // Mondial Relay: starts with letters, followed by digits (e.g., VD3000015539, J0213781630)
+    return /^[A-Z]{1,3}\d{8,12}$/i.test(tracking) || /^\d{8,12}$/.test(tracking);
+  }
+
+  /**
+   * Extract QR code image URL from email HTML
+   */
+  private extractQRCodeUrl(body: string): string | null {
+    const qrImgPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:qr|QR|code|barcode)[^"']*)["'][^>]*>/i;
+    const match = body.match(qrImgPattern);
+    if (match && match[1]) return match[1].trim();
+    
+    const contextPattern = /(?:QR|code|barcode)[\s\S]{0,200}<img[^>]*(?:src|data-src)=["']([^"']+)["']/i;
+    const contextMatch = body.match(contextPattern);
+    if (contextMatch && contextMatch[1]) return contextMatch[1].trim();
+    
+    return null;
   }
 
   /**
@@ -38,19 +66,55 @@ export class MondialRelayParserService {
       carrier: 'mondial_relay',
     };
 
-    // Pattern 1: Reference like "VD3000015539" or "VINTED <number>"
+    // Extract QR code image URL
+    const qrPatterns = [
+      /src=["']([^"']*qr[^"']*)["']/i,
+      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
+      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
+      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
+    ];
+
+    for (const pattern of qrPatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        result.qrCode = match[1];
+        console.log(`[MondialRelayParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
+        break;
+      }
+    }
+
+    // Fallback: search for any image URL in QR code context
+    if (!result.qrCode) {
+      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
+      if (contextMatch && contextMatch[1]) {
+        result.qrCode = contextMatch[1];
+        console.log(`[MondialRelayParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
+      }
+    }
+
+    // Pattern 1: Reference like "VD3000015539", "J0213781630" or "VINTED <number>"
     const refPatterns = [
-      /VD(\d{10,})/i,
-      /VINTED\s+(\d{8,})/i,
-      /Référence.*?<b>([A-Z0-9]{10,})/i,
+      /(?:VD|J)([A-Z0-9]{8,12})/i,
+      /VINTED\s+([A-Z0-9]{8,})/i,
+      /(?:Référence|Reference|Tracking|Suivi)[\s:]*<?b?>?([A-Z0-9]{8,12})/i,
+      /([A-Z]{1,3}\d{8,12})/,  // Generic letter+digits pattern
     ];
 
     for (const pattern of refPatterns) {
       const match = email.body.match(pattern);
       if (match) {
-        result.trackingNumber = match[1] || match[0];
-        break;
+        const candidate = match[1] || match[0];
+        if (this.isValidTrackingNumber(candidate)) {
+          result.trackingNumber = candidate;
+          break;
+        }
       }
+    }
+    
+    // Extract QR code URL
+    const qrCodeUrl = this.extractQRCodeUrl(email.body);
+    if (qrCodeUrl) {
+      result.qrCode = qrCodeUrl;
     }
 
     // Extract withdrawal code - typically 6 digits

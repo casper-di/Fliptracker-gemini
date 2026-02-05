@@ -22,13 +22,47 @@ export class VintedGoParserService {
   constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
 
   /**
-   * Validate if address is complete enough
+   * Validate if address is complete enough and NOT a legal/corporate address
    */
   private isAddressComplete(address: string | null): boolean {
     if (!address || address.length < 20) return false;
     if (!/\d{5}/.test(address)) return false; // No postal code
     if (!/\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address)) return false;
+    
+    // Filter out legal/corporate addresses (footer noise)
+    if (/RCS|SIRET|SIREN|capital de|SAS|SARL|SA\s/i.test(address)) return false;
+    
     return true;
+  }
+
+  /**
+   * Validate Vinted Go tracking number format (16-20 digits)
+   */
+  private isValidTrackingNumber(tracking: string | null): boolean {
+    if (!tracking) return false;
+    // Vinted Go: 16-20 digit number
+    return /^\d{16,20}$/.test(tracking);
+  }
+
+  /**
+   * Extract QR code image URL from email HTML
+   */
+  private extractQRCodeUrl(body: string): string | null {
+    // Pattern 1: img tag with qr/QR in src or alt
+    const qrImgPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:qr|QR|code|barcode)[^"']*)["'][^>]*>/i;
+    const match = body.match(qrImgPattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    
+    // Pattern 2: any image near "QR" or "code" text
+    const contextPattern = /(?:QR|code|barcode)[\s\S]{0,200}<img[^>]*(?:src|data-src)=["']([^"']+)["']/i;
+    const contextMatch = body.match(contextPattern);
+    if (contextMatch && contextMatch[1]) {
+      return contextMatch[1].trim();
+    }
+    
+    return null;
   }
 
   /**
@@ -45,8 +79,22 @@ export class VintedGoParserService {
 
     // Extract tracking number from subject: "Il est temps de récupérer ton colis ! #1761843602574816"
     const subjectMatch = email.subject.match(/#(\d{16,20})/);
-    if (subjectMatch) {
+    if (subjectMatch && this.isValidTrackingNumber(subjectMatch[1])) {
       result.trackingNumber = subjectMatch[1];
+    }
+    
+    // Fallback: extract from body if not in subject
+    if (!result.trackingNumber) {
+      const bodyMatch = email.body.match(/(?:numéro|numero|tracking|suivi)[\s:]*#?(\d{16,20})/i);
+      if (bodyMatch && this.isValidTrackingNumber(bodyMatch[1])) {
+        result.trackingNumber = bodyMatch[1];
+      }
+    }
+    
+    // Extract QR code URL
+    const qrCodeUrl = this.extractQRCodeUrl(email.body);
+    if (qrCodeUrl) {
+      result.qrCode = qrCodeUrl;
     }
 
     // Extract withdrawal code
@@ -61,6 +109,35 @@ export class VintedGoParserService {
       if (match) {
         result.withdrawalCode = match[1] || match[0].split(':')[1]?.trim().replace(/<[^>]*>/g, '').replace(/\*\*/g, '') || null;
         break;
+      }
+    }
+
+    // Extract QR code image URL from HTML
+    // Vinted Go emails have QR code images with patterns like:
+    // <img src="https://..." alt="QR Code" />
+    // <img src="data:image/png;base64,..." />
+    const qrPatterns = [
+      /src=["']([^"']*qr[^"']*)["']/i,
+      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
+      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
+      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
+    ];
+
+    for (const pattern of qrPatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        result.qrCode = match[1];
+        console.log(`[VintedGoParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
+        break;
+      }
+    }
+
+    // Fallback: search for any image URL in QR code context
+    if (!result.qrCode) {
+      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
+      if (contextMatch && contextMatch[1]) {
+        result.qrCode = contextMatch[1];
+        console.log(`[VintedGoParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
       }
     }
 

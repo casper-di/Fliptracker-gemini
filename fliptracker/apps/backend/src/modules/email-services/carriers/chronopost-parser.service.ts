@@ -22,13 +22,42 @@ export class ChronopostParserService {
   constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
 
   /**
-   * Validate if address is complete enough
+   * Validate if address is complete enough and NOT a legal/corporate address
    */
   private isAddressComplete(address: string | null): boolean {
     if (!address || address.length < 20) return false;
     if (!/\d{5}/.test(address)) return false;
     if (!/\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address)) return false;
+    
+    // Filter out legal/corporate addresses (Chronopost SAS footer)
+    if (/RCS|SIRET|SIREN|capital de|SAS|SARL|SA\s|Chronopost SAS/i.test(address)) return false;
+    
     return true;
+  }
+
+  /**
+   * Validate Chronopost tracking format (e.g., XW261547816TS, 3436603419)
+   */
+  private isValidTrackingNumber(tracking: string | null): boolean {
+    if (!tracking) return false;
+    // Format 1: Letters + digits + letters (e.g., XW261547816TS)
+    // Format 2: 10 digits (e.g., 3436603419)
+    return /^[A-Z]{2}\d{9,11}[A-Z]{2}$/i.test(tracking) || /^\d{10}$/.test(tracking);
+  }
+
+  /**
+   * Extract QR code image URL from email HTML
+   */
+  private extractQRCodeUrl(body: string): string | null {
+    const qrImgPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:qr|QR|code|barcode)[^"']*)["'][^>]*>/i;
+    const match = body.match(qrImgPattern);
+    if (match && match[1]) return match[1].trim();
+    
+    const contextPattern = /(?:QR|code|barcode)[\s\S]{0,200}<img[^>]*(?:src|data-src)=["']([^"']+)["']/i;
+    const contextMatch = body.match(contextPattern);
+    if (contextMatch && contextMatch[1]) return contextMatch[1].trim();
+    
+    return null;
   }
 
   /**
@@ -51,19 +80,56 @@ export class ChronopostParserService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    // Extract tracking number - Chronopost format: XW261547816TS
+    // Extract QR code image URL
+    const qrPatterns = [
+      /src=["']([^"']*qr[^"']*)["']/i,
+      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
+      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
+      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
+    ];
+
+    for (const pattern of qrPatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        result.qrCode = match[1];
+        console.log(`[ChronopostParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
+        break;
+      }
+    }
+
+    // Fallback: search for any image URL in QR code context
+    if (!result.qrCode) {
+      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
+      if (contextMatch && contextMatch[1]) {
+        result.qrCode = contextMatch[1];
+        console.log(`[ChronopostParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
+      }
+    }
+
+    // Extract tracking number - Chronopost format: XW261547816TS or 3436603419
     const trackingPatterns = [
-      /colis[^<]*<[^>]*>([A-Z]{2}\d{9}[A-Z]{2})/i,
+      /(?:colis|tracking|suivi)[^<]{0,50}<[^>]*>([A-Z]{2}\d{9,11}[A-Z]{2})/i,
       /Votre colis VINTED n.*?<a[^>]*>([A-Z0-9]{10,})/i,
-      /numéro.*?([A-Z]{2}\d{9}[A-Z]{2})/i,
+      /(?:numéro|numero|tracking|suivi)[\s:]*([A-Z]{2}\d{9,11}[A-Z]{2})/i,
+      /(\d{10})/, // 10-digit tracking numbers
+      /([A-Z]{2}\d{9,11}[A-Z]{2})/, // Generic format
     ];
 
     for (const pattern of trackingPatterns) {
       const match = email.body.match(pattern);
       if (match) {
-        result.trackingNumber = match[1];
-        break;
+        const candidate = match[1];
+        if (this.isValidTrackingNumber(candidate)) {
+          result.trackingNumber = candidate;
+          break;
+        }
       }
+    }
+    
+    // Extract QR code URL
+    const qrCodeUrl = this.extractQRCodeUrl(email.body);
+    if (qrCodeUrl) {
+      result.qrCode = qrCodeUrl;
     }
 
     // Extract withdrawal code - typically 6 digits
