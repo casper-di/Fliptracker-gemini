@@ -16,8 +16,9 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   
   // Use metadata from backend
   const displayAddress = (shipment as any).pickupAddress || shipment.pickupInfo?.address || shipment.destinationAddress;
+  const hasQrCode = !!(shipment as any).qrCode; // Only true if actual QR code exists
   const qrCodeData = (shipment as any).qrCode || shipment.trackingNumber;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeData)}`;
+  const qrUrl = hasQrCode ? (shipment as any).qrCode : `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeData)}`;
   const pickupCodeDisplay = (shipment as any).withdrawalCode || shipment.pickupInfo?.pickupCode || shipment.trackingNumber.slice(-4);
   const pendingPickups = allShipments.filter(s => s.status === ShipmentStatus.PICKUP_AVAILABLE);
   const parcelTitle = shipment.title || (shipment as any).productName || shipment.sender || 'Colis';
@@ -50,7 +51,9 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
            <h2 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em]">Mes Retraits</h2>
         </header>
         <div className="px-6 space-y-6">
-           {pendingPickups.map((p) => (
+           {pendingPickups.map((p) => {
+             const hasQr = !!(p as any).qrCode;
+             return (
              <div key={p.id} className="bg-slate-900 border border-white/5 rounded-[32px] overflow-hidden">
                 <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                    <div>
@@ -61,11 +64,19 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
                      <p className="text-lg font-mono font-black text-white">*{(p as any).withdrawalCode || p.pickupInfo?.pickupCode || p.trackingNumber.slice(-4)}</p>
                    </div>
                 </div>
-                <div className="p-8 flex justify-center bg-white">
-                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent((p as any).qrCode || p.trackingNumber)}`} alt="QR" className="w-40 h-40 mix-blend-multiply" />
-                </div>
+                {hasQr && (
+                  <div className="p-8 flex justify-center bg-white">
+                     <img src={(p as any).qrCode} alt="QR" className="w-40 h-40 mix-blend-multiply" />
+                  </div>
+                )}
+                {!hasQr && (
+                  <div className="p-6 text-center bg-slate-800/50">
+                    <p className="text-xs text-white/40 font-bold">Présentez le code de retrait au comptoir</p>
+                  </div>
+                )}
              </div>
-           ))}
+           )})
+           }
         </div>
       </div>
     );
@@ -170,7 +181,7 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
           </section>
         )}
 
-        {!isSale && (
+        {!isSale && hasQrCode && (
           <section className="bg-slate-900 dark:bg-slate-900 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl relative">
             <div className="p-10 text-center bg-slate-800/50">
               <div className="bg-white p-6 rounded-[32px] inline-block mb-6">
@@ -181,6 +192,21 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             </div>
             <div className="p-6 text-center border-t border-white/5 bg-slate-900/80">
               <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Scanner au comptoir {shipment.carrier}</p>
+            </div>
+          </section>
+        )}
+
+        {!isSale && !hasQrCode && (shipment as any).withdrawalCode && (
+          <section className="bg-slate-900 dark:bg-slate-900 border border-white/5 rounded-[40px] overflow-hidden shadow-2xl relative">
+            <div className="p-10 text-center bg-slate-800/50">
+              <div className="w-16 h-16 bg-blue-500/10 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i className="fas fa-key text-2xl"></i>
+              </div>
+              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Code de retrait</p>
+              <h4 className="text-4xl font-mono font-black text-white tracking-widest">*{pickupCodeDisplay}</h4>
+            </div>
+            <div className="p-6 text-center border-t border-white/5 bg-slate-900/80">
+              <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest">Présentez au comptoir {shipment.carrier}</p>
             </div>
           </section>
         )}
