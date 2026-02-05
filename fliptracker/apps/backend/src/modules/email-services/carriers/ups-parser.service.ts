@@ -65,6 +65,8 @@ export class UPSParserService {
 
     // 3. Extraction de l'expéditeur
     const senderPatterns = [
+      // Pattern pour emails HTML UPS avec span id="shipperAndArrival"
+      /<span\s+id\s*=\s*["']shipperAndArrival["'][^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/i,
       /from[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
       /shipper[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
       /sent[\s]*by[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
@@ -78,8 +80,10 @@ export class UPSParserService {
       }
     }
 
-    // 4. Extraction de l'adresse de livraison
+    // 4. Extraction de l'adresse de livraison/pickup
     const addressPatterns = [
+      // Pattern pour emails HTML UPS avec span id="deliveryLocation"
+      /<span\s+id\s*=\s*["']deliveryLocation["'][^>]*>((?:[^<]+|<br\s*\/?>)+)<\/span>/i,
       /delivery[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
       /ship[\s]*to[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
     ];
@@ -87,27 +91,58 @@ export class UPSParserService {
     for (const pattern of addressPatterns) {
       const match = bodyOriginal.match(pattern);
       if (match && match[1]) {
-        result.pickupAddress = match[1].trim().replace(/\s+/g, ' ');
+        // Remplacer les <br> par des retours à la ligne
+        const address = match[1].trim()
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/\s+/g, ' ')
+          .replace(/ \n /g, '\n')
+          .replace(/ \n/g, '\n')
+          .replace(/\n /g, '\n');
+        result.pickupAddress = address;
         break;
       }
     }
 
-    // 5. Extraction de la date de livraison estimée
+    // 5. Extraction de la date de livraison/pickup estimée
     const deliveryDatePatterns = [
-      /scheduled[\s]*delivery[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi, // Format: Monday, January 15, 2026
-      /delivery[\s]*(?:by|on)[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
-      /estimated[\s]*delivery[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+      // Pattern pour emails HTML UPS avec span id="deliveryDateTime" (format français)
+      {
+        pattern: /<span\s+id\s*=\s*["']deliveryDateTime["'][^>]*>(?:\w+\s+)?(\d{1,2}\/\d{1,2}\/\d{4})<br/i,
+        parser: (match: string) => {
+          // Format français: jj/MM/yyyy
+          const parts = match.split('/');
+          if (parts.length === 3) {
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          }
+          return null;
+        }
+      },
+      {
+        pattern: /scheduled[\s]*delivery[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
+        parser: (match: string) => new Date(match)
+      },
+      {
+        pattern: /delivery[\s]*(?:by|on)[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
+        parser: (match: string) => new Date(match)
+      },
+      {
+        pattern: /estimated[\s]*delivery[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+        parser: (match: string) => new Date(match)
+      },
     ];
 
-    for (const pattern of deliveryDatePatterns) {
+    for (const { pattern, parser } of deliveryDatePatterns) {
       const match = bodyOriginal.match(pattern);
       if (match && match[1]) {
         try {
-          result.pickupDeadline = new Date(match[1]);
+          const date = parser(match[1]);
+          if (date && !isNaN(date.getTime())) {
+            result.pickupDeadline = date;
+            break;
+          }
         } catch (e) {
           // Ignore invalid dates
         }
-        break;
       }
     }
 
