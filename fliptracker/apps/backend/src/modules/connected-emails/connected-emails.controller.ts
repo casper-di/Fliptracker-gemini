@@ -438,7 +438,7 @@ export class ConnectedEmailsController {
       // Get the raw email using the rawEmailId
       const rawEmail = await this.rawEmailRepository.findById(parsedEmail.rawEmailId);
       
-      if (!rawEmail || rawEmail.userId !== userId) {
+      if (!rawEmail || rawEmail.userId !== req.user.uid) {
         return { error: 'Raw email not found' };
       }
 
