@@ -424,9 +424,18 @@ export class EmailSyncOrchestrator {
         console.log(`🚚 Carrier: ${updated.carrier || 'NOT SET'}`);
         console.log(`📦 Type: ${updated.type || 'NOT SET'}`);
         console.log(`🏪 Marketplace: ${updated.marketplace || 'NOT SET'}`);
-        console.log(`📍 Pickup Address: ${updated.pickupAddress ? updated.pickupAddress.substring(0, 60) + '...' : 'NOT SET'}`);
-        console.log(`🔑 Withdrawal Code: ${updated.withdrawalCode || 'NOT SET'}`);
-        console.log(`📱 QR Code: ${updated.qrCode || 'NOT SET'}`);
+        
+        // Only show optional fields if they have values
+        if (updated.pickupAddress) {
+          console.log(`📍 Pickup Address: ${updated.pickupAddress.substring(0, 60)}...`);
+        }
+        if (updated.withdrawalCode) {
+          console.log(`🔑 Withdrawal Code: ${updated.withdrawalCode}`);
+        }
+        if (updated.qrCode) {
+          console.log(`📱 QR Code: ${updated.qrCode.substring(0, 80)}...`);
+        }
+        
         console.log('━'.repeat(80));
         console.log('\n');
         
@@ -477,13 +486,28 @@ export class EmailSyncOrchestrator {
     console.log(`🚚 Carrier: ${parsedEmail.carrier || 'NOT SET'}`);
     console.log(`📦 Type: ${parsedEmail.type || 'NOT SET'}`);
     console.log(`🏪 Marketplace: ${parsedEmail.marketplace || 'NOT SET'}`);
-    console.log(`📍 Pickup Address: ${parsedEmail.pickupAddress ? parsedEmail.pickupAddress.substring(0, 60) + '...' : 'NOT SET'}`);
-    console.log(`🔑 Withdrawal Code: ${parsedEmail.withdrawalCode || 'NOT SET'}`);
-    console.log(`📱 QR Code: ${parsedEmail.qrCode || 'NOT SET'}`);
-    console.log(`🛍️  Product: ${parsedEmail.productName || 'NOT SET'}`);
-    console.log(`👤 Recipient: ${parsedEmail.recipientName || 'NOT SET'}`);
+    
+    // Only show optional fields if they have values
+    if (parsedEmail.pickupAddress) {
+      console.log(`📍 Pickup Address: ${parsedEmail.pickupAddress.substring(0, 60)}...`);
+    }
+    if (parsedEmail.withdrawalCode) {
+      console.log(`🔑 Withdrawal Code: ${parsedEmail.withdrawalCode}`);
+    }
+    if (parsedEmail.qrCode) {
+      console.log(`📱 QR Code: ${parsedEmail.qrCode.substring(0, 80)}...`);
+    }
+    if (parsedEmail.productName) {
+      console.log(`🛍️  Product: ${parsedEmail.productName}`);
+    }
+    if (parsedEmail.recipientName) {
+      console.log(`👤 Recipient: ${parsedEmail.recipientName}`);
+    }
+    if (parsedEmail.pickupDeadline) {
+      console.log(`📅 Pickup Deadline: ${parsedEmail.pickupDeadline.toISOString()}`);
+    }
+    
     console.log(`📅 Received At: ${parsedEmail.receivedAt ? parsedEmail.receivedAt.toISOString() : 'NOT SET'}`);
-    console.log(`📅 Pickup Deadline: ${parsedEmail.pickupDeadline ? parsedEmail.pickupDeadline.toISOString() : 'NOT SET'}`);
     console.log(`📧 Raw Email ID: ${parsedEmail.rawEmailId}`);
     console.log(`👥 User ID: ${parsedEmail.userId}`);
     console.log(`📅 Created At: ${parsedEmail.createdAt ? parsedEmail.createdAt.toISOString() : new Date().toISOString()}`);
