@@ -413,4 +413,101 @@ export class ConnectedEmailsController {
       return { authUrl };
     }
   }
+
+  /**
+   * GET /api/emails/raw-emails/by-tracking/:trackingNumber
+   * Retrieve the raw email associated with a tracking number for debugging
+   */
+  @Get('raw-emails/by-tracking/:trackingNumber')
+  @UseGuards(AuthGuard)
+  async getRawEmailByTracking(
+    @Param('trackingNumber') trackingNumber: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    try {
+      // Find the parsed email by tracking number
+      const parsedEmail = await this.parsedEmailRepository.findByTrackingNumber(
+        req.user.uid,
+        trackingNumber,
+      );
+      
+      if (!parsedEmail) {
+        return { error: 'Parsed email not found for this tracking number' };
+      }
+
+      // Get the raw email using the rawEmailId
+      const rawEmail = await this.rawEmailRepository.findById(parsedEmail.rawEmailId);
+      
+      if (!rawEmail || rawEmail.userId !== userId) {
+        return { error: 'Raw email not found' };
+      }
+
+      console.log('[getRawEmailByTracking] RawEmail found:', {
+        id: rawEmail.id,
+        subject: rawEmail.subject,
+        from: rawEmail.from,
+        rawBodyType: typeof rawEmail.rawBody,
+        rawBodyLength: rawEmail.rawBody?.length || 0,
+        rawBodyPreview: typeof rawEmail.rawBody === 'string' 
+          ? rawEmail.rawBody.substring(0, 200) 
+          : JSON.stringify(rawEmail.rawBody).substring(0, 200),
+      });
+
+      return {
+        id: rawEmail.id,
+        subject: rawEmail.subject,
+        from: rawEmail.from,
+        receivedAt: rawEmail.receivedAt,
+        body: rawEmail.rawBody,
+        bodyHtml: rawEmail.rawBody, // Same content, can be differentiated later if needed
+        provider: rawEmail.provider,
+        trackingNumber: parsedEmail.trackingNumber,
+        carrier: parsedEmail.carrier,
+        marketplace: parsedEmail.marketplace,
+      };
+    } catch (error) {
+      console.error('[getRawEmailByTracking] Error:', error);
+      return { error: 'Failed to fetch raw email' };
+    }
+  }
+
+  /**
+   * GET /api/raw-emails/:parsedEmailId
+   * Retrieve the raw email associated with a parsed email for debugging
+   */
+  @Get('raw-emails/:parsedEmailId')
+  @UseGuards(AuthGuard)
+  async getRawEmail(
+    @Param('parsedEmailId') parsedEmailId: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    try {
+      // Get the parsed email to find the rawEmailId
+      const parsedEmail = await this.parsedEmailRepository.findById(parsedEmailId);
+      
+      if (!parsedEmail || parsedEmail.userId !== req.user.uid) {
+        return { error: 'Parsed email not found' };
+      }
+
+      // Get the raw email using the rawEmailId
+      const rawEmail = await this.rawEmailRepository.findById(parsedEmail.rawEmailId);
+      
+      if (!rawEmail || rawEmail.userId !== req.user.uid) {
+        return { error: 'Raw email not found' };
+      }
+
+      return {
+        id: rawEmail.id,
+        subject: rawEmail.subject,
+        from: rawEmail.from,
+        receivedAt: rawEmail.receivedAt,
+        body: rawEmail.rawBody,
+        bodyHtml: rawEmail.rawBody, // Same content, can be differentiated later if needed
+        provider: rawEmail.provider,
+      };
+    } catch (error) {
+      console.error('[getRawEmail] Error:', error);
+      return { error: 'Failed to fetch raw email' };
+    }
+  }
 }

@@ -3,6 +3,7 @@
  * Tokens are retrieved from backend session endpoint.
  */
 
+// Utiliser l'URL backend configurée (Render.com ou autre)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://fliptracker-gemini.onrender.com/api';
 
 interface HttpOptions extends RequestInit {

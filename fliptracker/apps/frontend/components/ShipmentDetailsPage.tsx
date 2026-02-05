@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Shipment, ShipmentDirection, ShipmentStatus } from '../types';
+import { get } from '../services/httpClient';
 
 interface ShipmentDetailsPageProps {
   shipment: Shipment;
@@ -10,6 +11,8 @@ interface ShipmentDetailsPageProps {
 
 export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipment, onBack, allShipments = [] }) => {
   const [showAllPickups, setShowAllPickups] = useState(false);
+  const [showRawEmail, setShowRawEmail] = useState(false);
+  const [rawEmailData, setRawEmailData] = useState<any>(null);
   const isPickupReady = shipment.status === ShipmentStatus.PICKUP_AVAILABLE;
   const isDelivered = shipment.status === ShipmentStatus.DELIVERED;
   const isSale = shipment.direction === 'OUTBOUND'; // SALE = you are sending
@@ -21,7 +24,51 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const qrUrl = hasQrCode ? (shipment as any).qrCode : `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeData)}`;
   const pickupCodeDisplay = (shipment as any).withdrawalCode || shipment.pickupInfo?.pickupCode || shipment.trackingNumber.slice(-4);
   const pendingPickups = allShipments.filter(s => s.status === ShipmentStatus.PICKUP_AVAILABLE);
-  const parcelTitle = shipment.title || (shipment as any).productName || shipment.sender || 'Colis';
+  const parcelTitle = (shipment as any).title || (shipment as any).productName || shipment.sender || 'Colis';
+
+  const fetchRawEmail = async () => {
+    if (!shipment.trackingNumber) return;
+    
+    console.log('[fetchRawEmail] Fetching for tracking:', shipment.trackingNumber);
+    
+    try {
+      const endpoint = `/emails/raw-emails/by-tracking/${shipment.trackingNumber}`;
+      console.log('[fetchRawEmail] Fetching endpoint:', endpoint);
+      
+      const response = await get(endpoint);
+      console.log('[fetchRawEmail] Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('[fetchRawEmail] Parsed data COMPLET:', JSON.stringify(data, null, 2));
+      console.log('[fetchRawEmail] Data keys:', Object.keys(data));
+      console.log('[fetchRawEmail] Body type:', typeof data.body);
+      
+      if (response.ok && !data.error) {
+        setRawEmailData(data);
+        setShowRawEmail(true);
+      } else {
+        console.warn('[fetchRawEmail] Error in response:', data.error || data.message);
+        // Fallback: show shipment metadata for debugging
+        setRawEmailData({
+          subject: `Debug Info - ${shipment.trackingNumber}`,
+          from: (shipment as any).senderEmail || 'Unknown',
+          body: JSON.stringify(shipment, null, 2),
+          receivedAt: (shipment as any).createdAt,
+        });
+        setShowRawEmail(true);
+      }
+    } catch (error) {
+      console.error('[fetchRawEmail] Failed to fetch raw email:', error);
+      // Fallback: show shipment metadata
+      setRawEmailData({
+        subject: `Debug Info - ${shipment.trackingNumber}`,
+        from: (shipment as any).senderEmail || 'Unknown',
+        body: JSON.stringify(shipment, null, 2),
+        receivedAt: (shipment as any).createdAt,
+      });
+      setShowRawEmail(true);
+    }
+  };
 
   const openGoogleMaps = () => {
     if (displayAddress) {
@@ -89,7 +136,7 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
           <i className="fas fa-chevron-left text-xs"></i>
         </button>
         <h1 className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.3em]">FlipTracker Detail</h1>
-        <button className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center active:scale-90 border border-slate-100 dark:border-white/10 shadow-sm">
+        <button onClick={fetchRawEmail} className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 flex items-center justify-center active:scale-90 border border-slate-100 dark:border-white/10 shadow-sm">
           <i className="fas fa-envelope text-xs"></i>
         </button>
       </header>
@@ -123,9 +170,9 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             <i className="fas fa-barcode text-slate-400 dark:text-slate-600 text-xs"></i>
             <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{shipment.trackingNumber}</span>
           </div>
-          {((shipment as any).itemPrice || shipment.price) && (
+          {((shipment as any).itemPrice || (shipment as any).price) && (
             <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-3">
-              {((shipment as any).itemPrice || shipment.price)?.toFixed(2)} {shipment.currency || '€'}
+              {((shipment as any).itemPrice || (shipment as any).price)?.toFixed(2)} {(shipment as any).currency || '€'}
             </p>
           )}
         </section>
@@ -226,6 +273,73 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
           </section>
         )}
       </div>
+
+      {/* Modal pour afficher l'email original */}
+      {showRawEmail && rawEmailData && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 animate-in fade-in duration-300" onClick={() => setShowRawEmail(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl border border-slate-200 dark:border-white/10" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-slate-200 dark:border-white/10 flex justify-between items-center bg-blue-50 dark:bg-blue-950/30">
+              <h2 className="text-lg font-black text-slate-900 dark:text-white">📧 Email Original</h2>
+              <button onClick={() => setShowRawEmail(false)} className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white flex items-center justify-center active:scale-90">
+                <i className="fas fa-times text-sm"></i>
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-100px)] space-y-4">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-1">Sujet</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{rawEmailData.subject}</p>
+              </div>
+              
+              <div>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-1">De</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{rawEmailData.from}</p>
+              </div>
+              
+              {rawEmailData.receivedAt && (
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-1">Date</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {new Date(rawEmailData.receivedAt).toLocaleString('fr-FR')}
+                  </p>
+                </div>
+              )}
+              
+              <div>
+                <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest mb-2">Contenu HTML Brut</p>
+                <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl p-4 text-xs font-mono text-slate-700 dark:text-slate-300 overflow-x-auto max-h-96 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap break-words">
+                    {(() => {
+                      const content = rawEmailData.body || rawEmailData.bodyHtml;
+                      if (!content) return 'Aucun contenu disponible';
+                      if (typeof content === 'string') return content;
+                      return JSON.stringify(content, null, 2);
+                    })()}
+                  </pre>
+                </div>
+                <p className="text-[9px] text-slate-400 mt-1">Type: {typeof (rawEmailData.body || rawEmailData.bodyHtml)}</p>
+              </div>
+
+              {(rawEmailData.bodyHtml || rawEmailData.body) && (
+                <details className="group">
+                  <summary className="cursor-pointer text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2 list-none flex items-center gap-2">
+                    <i className="fas fa-eye text-xs group-open:rotate-90 transition-transform"></i>
+                    Aperçu HTML Rendu
+                  </summary>
+                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-white/10 mt-2 max-h-96 overflow-y-auto">
+                    <iframe
+                      srcDoc={rawEmailData.bodyHtml || rawEmailData.body}
+                      className="w-full min-h-[400px] border-0"
+                      sandbox="allow-same-origin"
+                      title="Email Preview"
+                    />
+                  </div>
+                </details>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
