@@ -114,9 +114,11 @@ export class VintedGoParserService {
 
     // Extract QR code image URL from HTML
     // Vinted Go emails have QR code images with patterns like:
-    // <img src="https://..." alt="QR Code" />
+    // <img alt="QR code" src="http://p.vintedgo.com/public/v1/qr_codes/..." />
     // <img src="data:image/png;base64,..." />
     const qrPatterns = [
+      /<img[^>]*alt=["']QR code["'][^>]*src=["']([^"']+)["']/i,
+      /<img[^>]*src=["']([^"']*vintedgo\.com[^"']*qr_codes[^"']*)["']/i,
       /src=["']([^"']*qr[^"']*)["']/i,
       /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
       /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
@@ -142,39 +144,80 @@ export class VintedGoParserService {
     }
 
     // Extract product name from "Détails de la commande" section
-    const productMatch = email.body.match(/<b>([^<]+)<br[^>]*>\d+\.\d+\s*€/);
-    if (productMatch) {
-      result.productName = productMatch[1]?.trim().replace(/…/, '...') || null;
+    // Pattern: <b>Product Name<br>Price €</b>
+    const productPatterns = [
+      /<b>([^<]+)<br[^>]*>\d+\.\d+\s*€<\/b>/i,
+      /Détails de la commande[\s\S]{0,200}?<b>([^<]+)<br/i,
+    ];
+    
+    for (const pattern of productPatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        result.productName = match[1]?.trim().replace(/…/, '...') || null;
+        break;
+      }
     }
 
     // Extract pickup deadline
-    const deadlineMatch = email.body.match(/À retirer avant le[\s\S]*?<b>(\d{1,2}\/\d{1,2}\/\d{4})/);
-    if (deadlineMatch) {
-      const [day, month, year] = deadlineMatch[1].split('/');
-      result.pickupDeadline = new Date(`${year}-${month}-${day}`) || null;
+    // Pattern: "À retirer avant le <b>DD/MM/YYYY</b>"
+    const deadlinePatterns = [
+      /À retirer avant le[\s\S]*?<b>(\d{1,2}\/\d{1,2}\/\d{4})<\/b>/i,
+      /retirer avant le[\s\S]*?\*\*(\d{1,2}\/\d{1,2}\/\d{4})\*\*/i,
+    ];
+    
+    for (const pattern of deadlinePatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        try {
+          const [day, month, year] = match[1].split('/');
+          result.pickupDeadline = new Date(`${year}-${month}-${day}`);
+          break;
+        } catch (e) {
+          // Ignore invalid dates
+        }
+      }
     }
 
     // Extract pickup address - comprehensive multi-pattern approach
     let pickupAddress: string | null = null;
     
-    // Pattern 1: Vinted Go structure with "Adresse" header followed by multiple <b> tags
-    // Example: Consigne Vinted Go → Mg Laverie → 50 Boulevard → Oullins
-    const vintedGoAddressMatch = email.body.match(/Adresse<\/div>[\s\S]{0,400}?<b>([^<]+)<\/b>[\s\S]{0,100}?<b>([^<]+)<\/b>[\s\S]{0,150}?<b>[\s\S]*?>([^<]+)<\/a>[\s\S]{0,50}<b>[\s\S]*?>([^<]+)<\/a>/i);
-    if (vintedGoAddressMatch) {
+    // Pattern 1: Rerouting email structure ("Adresse" section with multiple divs)
+    // Example: Relais Vinted Go → Lapeyre → 119 Route de Brignais → Saint-Genis-Laval
+    const reroutingMatch = email.body.match(/Adresse<\/div>[\s\S]{0,500}?<b>Relais Vinted Go<\/b>[\s\S]{0,100}?<b>\s*([^<]+)\s*<\/b>[\s\S]{0,200}?<a[^>]*>([^<]+)<\/a>[\s\S]{0,100}?<a[^>]*>([^<]+)<\/a>/i);
+    if (reroutingMatch) {
       const parts = [
-        vintedGoAddressMatch[1]?.trim(), // "Consigne Vinted Go"
-        vintedGoAddressMatch[2]?.trim(), // "Mg Laverie"
-        vintedGoAddressMatch[3]?.trim(), // "50 Boulevard Emile Zola"
-        vintedGoAddressMatch[4]?.trim(), // "Oullins"
+        'Relais Vinted Go',
+        reroutingMatch[1]?.trim(), // Business name (e.g., "Lapeyre")
+        reroutingMatch[2]?.trim(), // Street (e.g., "119 Route de Brignais")
+        reroutingMatch[3]?.trim(), // City (e.g., "Saint-Genis-Laval")
       ].filter(Boolean);
       
       if (parts.length >= 3) {
         pickupAddress = parts.join('\n');
-        console.log(`[VintedGoParser] ✅ Address extracted (Pattern 1 - Vinted Go structure): ${pickupAddress}`);
+        console.log(`[VintedGoParser] ✅ Address extracted (Rerouting pattern): ${pickupAddress}`);
       }
     }
     
-    // Pattern 2: Extract from table cell after "Adresse"
+    // Pattern 2: Original Vinted Go structure with "Adresse" header followed by multiple <b> tags
+    // Example: Consigne Vinted Go → Mg Laverie → 50 Boulevard → Oullins
+    if (!pickupAddress) {
+      const vintedGoAddressMatch = email.body.match(/Adresse<\/div>[\s\S]{0,400}?<b>([^<]+)<\/b>[\s\S]{0,100}?<b>([^<]+)<\/b>[\s\S]{0,150}?<b>[\s\S]*?>([^<]+)<\/a>[\s\S]{0,50}<b>[\s\S]*?>([^<]+)<\/a>/i);
+      if (vintedGoAddressMatch) {
+        const parts = [
+          vintedGoAddressMatch[1]?.trim(), // "Consigne Vinted Go"
+          vintedGoAddressMatch[2]?.trim(), // "Mg Laverie"
+          vintedGoAddressMatch[3]?.trim(), // "50 Boulevard Emile Zola"
+          vintedGoAddressMatch[4]?.trim(), // "Oullins"
+        ].filter(Boolean);
+        
+        if (parts.length >= 3) {
+          pickupAddress = parts.join('\n');
+          console.log(`[VintedGoParser] ✅ Address extracted (Original Vinted Go structure): ${pickupAddress}`);
+        }
+      }
+    }
+    
+    // Pattern 3: Extract from table cell after "Adresse"
     if (!pickupAddress) {
       const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
       if (addressTableMatch) {
@@ -187,7 +230,7 @@ export class VintedGoParserService {
       }
     }
     
-    // Pattern 3: Extract from multiple <b> tags (name, street, city)
+    // Pattern 4: Extract from multiple <b> tags (name, street, city)
     if (!pickupAddress || pickupAddress.length < 10) {
       const boldMatches = email.body.match(/Adresse[\s\S]{0,200}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>/i);
       if (boldMatches) {
