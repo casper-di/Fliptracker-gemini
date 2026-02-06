@@ -155,13 +155,27 @@ export class ChronopostParserService {
     // Extract pickup address - comprehensive patterns
     let pickupAddress: string | null = null;
     
-    // Pattern 1: "Votre relais Pickup" section with strong tag
-    const pickupMatch = email.body.match(/Votre relais Pickup[\s\S]{0,200}<strong>([^<]{5,80})<\/strong>[\s\S]{0,100}?(\d+[^<]{10,150}?(?:\d{5}|[A-Z]{2,20}))/i);
-    if (pickupMatch) {
-      pickupAddress = `${pickupMatch[1].trim()}, ${pickupMatch[2].trim().replace(/\s+/g, ' ')}`;
+    // Pattern 1: Chronopost Pickup HTML structure with <BR> tags (e.g., "Relais Particulier chez Tallone<BR>17 Rue...")
+    const pickupBRMatch = email.body.match(/<td[^>]*>\s*([^<]+)<BR>\s*([^<]+)<BR>\s*([^<]+)<BR>/i);
+    if (pickupBRMatch) {
+      const line1 = pickupBRMatch[1].trim();
+      const line2 = pickupBRMatch[2].trim();
+      const line3 = pickupBRMatch[3].trim();
+      // Vérifier que c'est une vraie adresse (pas le footer)
+      if (line3.match(/\d{5}/) && !line1.includes('capital') && !line1.includes('RCS')) {
+        pickupAddress = `${line1}\n${line2}\n${line3}`;
+      }
     }
     
-    // Pattern 2: Extract from table structure
+    // Pattern 2: "Votre relais Pickup" section with strong tag
+    if (!pickupAddress) {
+      const pickupMatch = email.body.match(/Votre relais Pickup[\s\S]{0,200}<strong>([^<]{5,80})<\/strong>[\s\S]{0,100}?(\d+[^<]{10,150}?(?:\d{5}|[A-Z]{2,20}))/i);
+      if (pickupMatch) {
+        pickupAddress = `${pickupMatch[1].trim()}, ${pickupMatch[2].trim().replace(/\s+/g, ' ')}`;
+      }
+    }
+    
+    // Pattern 3: Extract from table structure
     if (!pickupAddress || pickupAddress.length < 10) {
       const tableMatch = email.body.match(/(?:adresse|address)[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
       if (tableMatch) {
@@ -177,14 +191,6 @@ export class ChronopostParserService {
       }
     }
     
-    // Pattern 3: General address with postal code
-    if (!pickupAddress || pickupAddress.length < 10) {
-      const generalMatch = email.body.match(/([A-Z][A-Z\s&\'-]+)[\s\S]{0,30}(\d+[^<]{5,100}?\d{5}\s+[A-Z][A-Z\s-]+)/i);
-      if (generalMatch) {
-        pickupAddress = `${generalMatch[1].trim()}, ${generalMatch[2].trim().replace(/\s+/g, ' ')}`;
-      }
-    }
-    
     result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
 
     // Validate address quality
@@ -196,21 +202,44 @@ export class ChronopostParserService {
     }
 
     // Extract pickup deadline
-    const deadlinePatterns = [
-      /jusqu'au\s+(\d{1,2})\s+(\w+)\s+(\d{4})/i,
-      /available[\s\S]*?(\d{1,2})\s+(\w+)\s+(\d{4})/i,
-    ];
+    const monthMap: Record<string, string> = {
+      'janvier': '01', 'février': '02', 'fevrier': '02', 'mars': '03',
+      'avril': '04', 'mai': '05', 'juin': '06', 'juillet': '07',
+      'août': '08', 'aout': '08', 'septembre': '09', 'octobre': '10',
+      'novembre': '11', 'décembre': '12', 'decembre': '12',
+    };
 
-    for (const pattern of deadlinePatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
+    // Pattern 1: "jusqu'au <strong>jour DD mois YYYY</strong>" (Chronopost Pickup format)
+    const deadlineStrongMatch = email.body.match(/jusqu[''']au\s*<strong>\s*\w+\s+(\d{1,2})\s+(\w+)\s+(\d{4})\s*<\/strong>/i);
+    if (deadlineStrongMatch) {
+      try {
+        const day = deadlineStrongMatch[1].padStart(2, '0');
+        const monthName = deadlineStrongMatch[2].toLowerCase();
+        const year = deadlineStrongMatch[3];
+        const month = monthMap[monthName];
+        if (month) {
+          result.pickupDeadline = new Date(`${year}-${month}-${day}`);
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+
+    // Pattern 2: Fallback without strong tag
+    if (!result.pickupDeadline) {
+      const deadlineMatch = email.body.match(/jusqu[''']au\s+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+      if (deadlineMatch) {
         try {
-          const [, day, month, year] = match;
-          result.pickupDeadline = new Date(`${year}-${month}-${day}`) || null;
+          const day = deadlineMatch[1].padStart(2, '0');
+          const monthName = deadlineMatch[2].toLowerCase();
+          const year = deadlineMatch[3];
+          const month = monthMap[monthName];
+          if (month) {
+            result.pickupDeadline = new Date(`${year}-${month}-${day}`);
+          }
         } catch (e) {
           // Ignore parsing errors
         }
-        break;
       }
     }
 
