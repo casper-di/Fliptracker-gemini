@@ -46,6 +46,16 @@ export class ShipmentTypeDetectorService {
       'votre colis a ete pris en charge',
       'remise au transporteur',
       
+      // Deposit confirmation (outgoing shipment)
+      'a bien \u00e9t\u00e9 d\u00e9pos\u00e9',
+      'a bien ete depose',
+      'confirmons le d\u00e9p\u00f4t',
+      'confirmons le depot',
+      'd\u00e9p\u00f4t de votre colis',
+      'depot de votre colis',
+      'colis d\u00e9pos\u00e9',
+      'colis depose',
+      
       // Label/shipment creation
       '\u00e9tiquette d\'exp\u00e9dition',
       'etiquette d\'expedition',
@@ -88,6 +98,8 @@ export class ShipmentTypeDetectorService {
       'drop off package',
       'you sold',
       'order to ship',
+      'package dropped off',
+      'shipment received',
     ];
 
     // Check body and subject for strong signals

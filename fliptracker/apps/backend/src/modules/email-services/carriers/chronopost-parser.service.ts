@@ -13,6 +13,7 @@ export interface ParsedTrackingInfo {
   productName?: string | null;
   productDescription?: string | null;
   recipientName?: string | null;
+  senderName?: string | null;
   pickupAddress?: string | null;
   pickupDeadline?: Date | null;
 }
@@ -46,21 +47,6 @@ export class ChronopostParserService {
   }
 
   /**
-   * Extract QR code image URL from email HTML
-   */
-  private extractQRCodeUrl(body: string): string | null {
-    const qrImgPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:qr|QR|code|barcode)[^"']*)["'][^>]*>/i;
-    const match = body.match(qrImgPattern);
-    if (match && match[1]) return match[1].trim();
-    
-    const contextPattern = /(?:QR|code|barcode)[\s\S]{0,200}<img[^>]*(?:src|data-src)=["']([^"']+)["']/i;
-    const contextMatch = body.match(contextPattern);
-    if (contextMatch && contextMatch[1]) return contextMatch[1].trim();
-    
-    return null;
-  }
-
-  /**
    * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
@@ -80,29 +66,41 @@ export class ChronopostParserService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    // Extract QR code image URL
-    const qrPatterns = [
-      /src=["']([^"']*qr[^"']*)["']/i,
-      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
-      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
-      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
-    ];
+    // Extract QR code URL (only for incoming/pickup emails - type='purchase')
+    // Outgoing/deposit emails don't have QR codes, avoid tracking pixels
+    if (result.type === 'purchase') {
+      const qrPatterns = [
+        /src=["']([^"']*qr[^"']*)["']/i,
+        /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
+        /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
+        /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
+      ];
 
-    for (const pattern of qrPatterns) {
-      const match = email.body.match(pattern);
-      if (match && match[1]) {
-        result.qrCode = match[1];
-        console.log(`[ChronopostParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
-        break;
+      for (const pattern of qrPatterns) {
+        const match = email.body.match(pattern);
+        if (match && match[1]) {
+          // Verify it's not a tracking pixel (width="1" height="1")
+          const imgTagPattern = new RegExp(`<img[^>]*src=["']${match[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>`, 'i');
+          const imgTagMatch = email.body.match(imgTagPattern);
+          if (imgTagMatch && !/width=["']1["']|height=["']1["']/.test(imgTagMatch[0])) {
+            result.qrCode = match[1];
+            console.log(`[ChronopostParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
+            break;
+          }
+        }
       }
-    }
 
-    // Fallback: search for any image URL in QR code context
-    if (!result.qrCode) {
-      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
-      if (contextMatch && contextMatch[1]) {
-        result.qrCode = contextMatch[1];
-        console.log(`[ChronopostParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
+      // Fallback: search for any image URL in QR code context (skip tracking pixels)
+      if (!result.qrCode) {
+        const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
+        if (contextMatch && contextMatch[1]) {
+          const imgTagPattern = new RegExp(`<img[^>]*src=["']${contextMatch[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>`, 'i');
+          const imgTagMatch = email.body.match(imgTagPattern);
+          if (imgTagMatch && !/width=["']1["']|height=["']1["']/.test(imgTagMatch[0])) {
+            result.qrCode = contextMatch[1];
+            console.log(`[ChronopostParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
+          }
+        }
       }
     }
 
@@ -125,14 +123,8 @@ export class ChronopostParserService {
         }
       }
     }
-    
-    // Extract QR code URL
-    const qrCodeUrl = this.extractQRCodeUrl(email.body);
-    if (qrCodeUrl) {
-      result.qrCode = qrCodeUrl;
-    }
 
-    // Extract withdrawal code - typically 6 digits
+    // Extract withdrawal code - typically 6 digits (only for pickup emails)
     const withdrawalPatterns = [
       /Code de retrait[\s\S]*?(\d{6})/i,
       /<span[^>]*>(\d{6})<\/span>/i,
@@ -146,10 +138,21 @@ export class ChronopostParserService {
       }
     }
 
-    // Extract recipient name from greeting
-    const recipientMatch = email.body.match(/Bonjour\s+([A-Z][A-Z\s]*)\s*!/i);
-    if (recipientMatch) {
-      result.recipientName = recipientMatch[1]?.trim() || null;
+    // Extract recipient/sender name from greeting
+    // For outgoing emails (type=sale): extract sender name
+    // For incoming emails (type=purchase): extract recipient name
+    const greetingMatch = email.body.match(/Bonjour\s+([A-Z][a-zA-Z\s'-]+)(?:\s*!|\s*<)/i);
+    if (greetingMatch && greetingMatch[1]) {
+      const name = greetingMatch[1].trim();
+      if (result.type === 'sale') {
+        // Outgoing email: the greeted person is the sender
+        result.senderName = name;
+        console.log(`[ChronopostParser] ✅ Extracted sender name (outgoing): ${name}`);
+      } else {
+        // Incoming email: the greeted person is the recipient
+        result.recipientName = name;
+        console.log(`[ChronopostParser] ✅ Extracted recipient name (incoming): ${name}`);
+      }
     }
 
     // Extract pickup address - comprehensive patterns
