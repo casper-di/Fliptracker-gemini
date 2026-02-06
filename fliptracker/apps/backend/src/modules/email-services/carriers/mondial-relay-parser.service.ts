@@ -58,7 +58,7 @@ export class MondialRelayParserService {
   }
 
   /**
-   * Parse Mondial Relay / Relais Colis emails
+   * Parse Mondial Relay emails (for Mondial Relay carrier only, not Relais Colis)
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
     const result: ParsedTrackingInfo = {

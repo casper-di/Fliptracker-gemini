@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CarrierDetectorService, CarrierType } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
+import { RelaisColisParserService } from './carriers/relais-colis-parser.service';
 import { ChronopostParserService } from './carriers/chronopost-parser.service';
 import { ColissimoParserService } from './carriers/colissimo-parser.service';
 import { DHLParserService } from './carriers/dhl-parser.service';
@@ -12,7 +13,7 @@ import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
-  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics';
+  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'relais_colis' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics';
   type?: 'purchase' | 'sale'; // purchase = incoming (you receive), sale = outgoing (you send)
   qrCode?: string | null;
   withdrawalCode?: string | null;
@@ -37,6 +38,7 @@ export class EmailParsingService {
     private shipmentTypeDetector: ShipmentTypeDetectorService,
     private vintedGoParser: VintedGoParserService,
     private mondialRelayParser: MondialRelayParserService,
+    private relaisColisParser: RelaisColisParserService,
     private chronopostParser: ChronopostParserService,
     private colissimoParser: ColissimoParserService,
     private dhlParser: DHLParserService,
@@ -108,6 +110,9 @@ export class EmailParsingService {
       case 'mondial_relay':
         return this.mondialRelayParser.parse(email);
 
+      case 'relais_colis':
+        return this.relaisColisParser.parse(email);
+
       case 'chronopost':
         return this.chronopostParser.parse(email);
 
@@ -139,10 +144,11 @@ export class EmailParsingService {
    */
   private mapCarrierTypeToCarrier(
     carrierType: CarrierType,
-  ): 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics' {
+  ): 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'other' | 'vinted_go' | 'mondial_relay' | 'relais_colis' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics' {
     const mapping: Record<CarrierType, ParsedTrackingInfo['carrier']> = {
       vinted_go: 'vinted_go',
       mondial_relay: 'mondial_relay',
+      relais_colis: 'relais_colis',
       chronopost: 'chronopost',
       colissimo: 'colissimo',
       laposte: 'laposte',

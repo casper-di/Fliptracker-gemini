@@ -9,6 +9,7 @@ import { DeepSeekService } from './deepseek.service';
 import { CarrierDetectorService } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
+import { RelaisColisParserService } from './carriers/relais-colis-parser.service';
 import { ChronopostParserService } from './carriers/chronopost-parser.service';
 import { ColissimoParserService } from './carriers/colissimo-parser.service';
 import { DHLParserService } from './carriers/dhl-parser.service';
@@ -46,6 +47,7 @@ import { AuthModule } from '../auth/auth.module';
     ShipmentTypeDetectorService,
     VintedGoParserService,
     MondialRelayParserService,
+    RelaisColisParserService,
     ChronopostParserService,
     ColissimoParserService,
     DHLParserService,

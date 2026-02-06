@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 export type CarrierType = 
   | 'vinted_go' 
-  | 'mondial_relay' 
+  | 'mondial_relay'
+  | 'relais_colis' 
   | 'chronopost' 
   | 'colissimo' 
   | 'laposte' 
@@ -32,10 +33,14 @@ export class CarrierDetectorService {
       return 'vinted_go';
     }
 
-    // Mondial Relay / Relais Colis
+    // Relais Colis (distinct from Mondial Relay)
+    if (this.matchesPatterns(from, ['relaiscolis.com', 'noreply@relaiscolis.com'])) {
+      return 'relais_colis';
+    }
+
+    // Mondial Relay
     if (this.matchesPatterns(combined, [
       'mondialrelay.fr', 
-      'relaiscolis.com', 
       'mondial relay', 
       'point relais mondial',
       'mondialrelay',
@@ -166,6 +171,7 @@ export class CarrierDetectorService {
     const names: Record<CarrierType, string> = {
       vinted_go: 'Vinted Go',
       mondial_relay: 'Mondial Relay',
+      relais_colis: 'Relais Colis',
       chronopost: 'Chronopost',
       colissimo: 'Colissimo',
       laposte: 'La Poste',
