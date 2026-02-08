@@ -39,15 +39,23 @@ export class ChronopostParserService {
    * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
+    console.log('[ChronopostParser] Starting parse for email with subject:', email.subject);
+    
     const result: ParsedTrackingInfo = {
       marketplace: this.marketplaceDetector.detectMarketplace(email),
       carrier: 'chronopost',
       type: this.shipmentTypeDetector.detectType(email),
     };
 
+    console.log('[ChronopostParser] Detected type:', result.type);
+
     // Extract QR code using robust extractor (only for incoming/pickup emails)
     if (result.type === 'purchase') {
+      console.log('[ChronopostParser] Type is purchase, extracting QR code...');
       result.qrCode = this.qrCodeExtractor.extractQRCode(email.body);
+      console.log('[ChronopostParser] QR code extraction result:', result.qrCode ? `Found: ${result.qrCode.substring(0, 100)}...` : 'null');
+    } else {
+      console.log('[ChronopostParser] Type is not purchase, skipping QR code extraction');
     }
 
     // Extract tracking number - Chronopost format: XW250342935TS or 3436603419

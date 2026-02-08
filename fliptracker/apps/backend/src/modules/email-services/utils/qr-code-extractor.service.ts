@@ -6,6 +6,9 @@ export class QRCodeExtractorService {
    * Extract QR code URL or base64 data from email HTML
    */
   extractQRCode(html: string): string | null {
+    console.log('[QRCodeExtractor] Starting extraction, HTML length:', html.length);
+    console.log('[QRCodeExtractor] HTML preview (first 500 chars):', html.substring(0, 500));
+    
     const strategies = [
       () => this.extractFromAltAttribute(html),
       () => this.extractFromContext(html),
@@ -14,13 +17,27 @@ export class QRCodeExtractorService {
       () => this.extractFromDataSrc(html),
     ];
 
-    for (const strategy of strategies) {
-      const qrCode = strategy();
-      if (qrCode && this.isValidQRCodeUrl(qrCode)) {
-        return qrCode;
+    for (let i = 0; i < strategies.length; i++) {
+      const strategyName = ['altAttribute', 'context', 'base64', 'srcset', 'dataSrc'][i];
+      console.log(`[QRCodeExtractor] Trying strategy ${i + 1}/${strategies.length}: ${strategyName}`);
+      
+      const qrCode = strategies[i]();
+      console.log(`[QRCodeExtractor] Strategy ${strategyName} result:`, qrCode ? `Found: ${qrCode.substring(0, 100)}...` : 'null');
+      
+      if (qrCode) {
+        const isValid = this.isValidQRCodeUrl(qrCode);
+        console.log(`[QRCodeExtractor] Validation result:`, isValid);
+        
+        if (isValid) {
+          console.log('[QRCodeExtractor] ✅ Valid QR code found:', qrCode);
+          return qrCode;
+        } else {
+          console.log('[QRCodeExtractor] ❌ Invalid QR code, continuing to next strategy');
+        }
       }
     }
 
+    console.log('[QRCodeExtractor] ⚠️ No valid QR code found');
     return null;
   }
 
@@ -29,13 +46,19 @@ export class QRCodeExtractorService {
    */
   private extractFromAltAttribute(html: string): string | null {
     const patterns = [
-      /<img[^>]*alt=["'](?:QR|qr|code|barcode)[^"']*["'][^>]*src=["']([^"']+)["']/i,
-      /<img[^>]*src=["']([^"']+)["'][^>]*alt=["'](?:QR|qr|code|barcode)[^"']*["']/i,
+      // Pattern 1: alt before src
+      /<img[^>]*alt=["'](?:QR|qr|code|barcode|Code|QR\s*code|QR\s*Code)[^"']*["'][^>]*src=["']([^"']+)["']/i,
+      // Pattern 2: src before alt (most common)
+      /<img[^>]*src=["']([^"']+)["'][^>]*alt=["'](?:QR|qr|code|barcode|Code|QR\s*code|QR\s*Code)[^"']*["']/i,
+      // Pattern 3: Very simple - any img with src and alt containing "QR" or "code"
+      /<img[^>]+src=["']([^"']+)["'][^>]+alt=["'][^"']*(?:QR|qr|code)[^"']*["']/i,
+      /<img[^>]+alt=["'][^"']*(?:QR|qr|code)[^"']*["'][^>]+src=["']([^"']+)["']/i,
     ];
 
     for (const pattern of patterns) {
       const match = html.match(pattern);
       if (match && match[1]) {
+        console.log('[QRCodeExtractor] extractFromAltAttribute matched:', match[1].substring(0, 100));
         return match[1].trim();
       }
     }
@@ -50,6 +73,7 @@ export class QRCodeExtractorService {
     const contextPattern = /(?:QR|qr|code|barcode)[\s\S]{0,200}?<img[^>]*(?:src|data-src)=["']([^"']+)["']/i;
     const match = html.match(contextPattern);
     if (match && match[1]) {
+      console.log('[QRCodeExtractor] extractFromContext (contextPattern) matched:', match[1].substring(0, 100));
       return match[1].trim();
     }
 
@@ -57,16 +81,19 @@ export class QRCodeExtractorService {
     const altFirstPattern = /<img[^>]*alt=["'](?:QR code|Pickup Pass|code qr)[^"']*["'][^>]*(?:src|data-src)=["']([^"']+)["']/i;
     const altMatch = html.match(altFirstPattern);
     if (altMatch && altMatch[1]) {
+      console.log('[QRCodeExtractor] extractFromContext (altFirstPattern) matched:', altMatch[1].substring(0, 100));
       return altMatch[1].trim();
     }
 
     // Try barcode API URLs (avisageng-colis-webexternal, etc.)
-    const barcodeApiPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:barcode|aztec|pickup-services)[^"']*)[^>]*alt=["'](?:QR code|Pickup Pass)[^"']*["']/i;
+    const barcodeApiPattern = /<img[^>]*(?:src|data-src)=["']([^"']*(?:barcode|aztec|pickup-services)[^"']*)[^>]*alt=["'](?:QR code|Pickup Pass|code|qr)[^"']*["']/i;
     const apiMatch = html.match(barcodeApiPattern);
     if (apiMatch && apiMatch[1]) {
+      console.log('[QRCodeExtractor] extractFromContext (barcodeApiPattern) matched:', apiMatch[1].substring(0, 100));
       return apiMatch[1].trim();
     }
 
+    console.log('[QRCodeExtractor] extractFromContext: no match');
     return null;
   }
 
@@ -115,17 +142,30 @@ export class QRCodeExtractorService {
    * Validate if extracted value looks like a valid QR code URL/data
    */
   private isValidQRCodeUrl(url: string): boolean {
-    if (!url || url.length < 10) return false;
+    if (!url || url.length < 10) {
+      console.log('[QRCodeExtractor] Validation failed: URL too short or empty');
+      return false;
+    }
 
     // Valid base64 data URI
-    if (/^data:image\/[^;]+;base64,/.test(url)) return true;
+    if (/^data:image\/[^;]+;base64,/.test(url)) {
+      console.log('[QRCodeExtractor] Validation passed: base64 data URI');
+      return true;
+    }
 
     // Valid HTTP(S) URL
-    if (/^https?:\/\/.+/.test(url)) return true;
+    if (/^https?:\/\/.+/.test(url)) {
+      console.log('[QRCodeExtractor] Validation passed: HTTP(S) URL');
+      return true;
+    }
 
     // Relative URL with image extension
-    if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(url)) return true;
+    if (/\.(png|jpg|jpeg|gif|webp|svg)$/i.test(url)) {
+      console.log('[QRCodeExtractor] Validation passed: image extension');
+      return true;
+    }
 
+    console.log('[QRCodeExtractor] Validation failed: no matching pattern for:', url.substring(0, 100));
     return false;
   }
 }
