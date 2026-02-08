@@ -18,7 +18,14 @@ export class DeepSeekService {
   private readonly defaultMaxChars = 12000;
   private readonly defaultModel = 'deepseek/deepseek-v3.2-speciale';
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    // Validate Puter.js configuration on startup
+    const puterToken = this.configService.get<string>('PUTER_API_KEY');
+    if (!puterToken) {
+      console.warn('⚠️  [DeepSeekService] PUTER_API_KEY not configured. DeepSeek AI enhancement will be disabled.');
+      console.warn('    To enable: Set PUTER_API_KEY environment variable with your Puter.js token.');
+    }
+  }
 
   async enhanceEmails(inputs: DeepSeekEmailInput[]): Promise<Record<string, ParsedTrackingInfo>> {
     if (inputs.length === 0) return {};
@@ -26,6 +33,12 @@ export class DeepSeekService {
     const enabled = this.configService.get<string>('DEEPSEEK_ENABLED') !== 'false';
     if (!enabled) {
       console.warn('[DeepSeekService] DEEPSEEK_ENABLED is false - skipping enhancement');
+      return {};
+    }
+
+    const puterToken = this.configService.get<string>('PUTER_API_KEY');
+    if (!puterToken) {
+      console.warn('[DeepSeekService] PUTER_API_KEY not configured - skipping enhancement');
       return {};
     }
 
@@ -121,12 +134,23 @@ export class DeepSeekService {
 
   private async callDeepSeek(prompt: string): Promise<string> {
     const model = this.configService.get<string>('DEEPSEEK_MODEL') || this.defaultModel;
+    const puterToken = this.configService.get<string>('PUTER_API_KEY');
+
+    // Set auth token before calling Puter.js
+    if (puterToken) {
+      (puter as any).setAuthToken?.(puterToken);
+    }
 
     try {
       const response: any = await puter.ai.chat(prompt, {
         model,
         stream: false,
       } as any);
+
+      // Check for authentication error
+      if (response?.code === 'token_missing' || response?.message?.includes('authentication token')) {
+        throw new Error('Puter.js authentication failed: ' + (response.message || 'Missing PUTER_API_KEY'));
+      }
 
       // Debug logging to see actual response structure
       console.log('[DeepSeekService] Response type:', typeof response);
