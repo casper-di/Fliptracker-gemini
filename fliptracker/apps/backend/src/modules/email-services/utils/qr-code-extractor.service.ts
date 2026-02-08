@@ -9,6 +9,22 @@ export class QRCodeExtractorService {
     console.log('[QRCodeExtractor] Starting extraction, HTML length:', html.length);
     console.log('[QRCodeExtractor] HTML preview (first 500 chars):', html.substring(0, 500));
     
+    // Check if there's an img tag with QR in the HTML
+    const hasImgTag = /<img/i.test(html);
+    const hasQRText = /qr|code|barcode/i.test(html);
+    const hasAvisageng = /avisageng-colis-webexternal|pickup-services/.test(html);
+    console.log('[QRCodeExtractor] HTML content check:', { hasImgTag, hasQRText, hasAvisageng });
+    
+    // If HTML contains "avisageng" or "pickup-services", search specifically for it
+    if (hasAvisageng) {
+      console.log('[QRCodeExtractor] Detected Chronopost Pickup email, using direct URL extraction');
+      const directUrlMatch = html.match(/https?:\/\/[^"'\s]*(?:avisageng-colis-webexternal|pickup-services)[^"'\s]*/i);
+      if (directUrlMatch) {
+        console.log('[QRCodeExtractor] ✅ Direct URL extraction successful:', directUrlMatch[0].substring(0, 100));
+        return directUrlMatch[0].trim();
+      }
+    }
+    
     const strategies = [
       () => this.extractFromAltAttribute(html),
       () => this.extractFromContext(html),
@@ -53,12 +69,14 @@ export class QRCodeExtractorService {
       // Pattern 3: Very simple - any img with src and alt containing "QR" or "code"
       /<img[^>]+src=["']([^"']+)["'][^>]+alt=["'][^"']*(?:QR|qr|code)[^"']*["']/i,
       /<img[^>]+alt=["'][^"']*(?:QR|qr|code)[^"']*["'][^>]+src=["']([^"']+)["']/i,
+      // Pattern 5: Even simpler - just look for src with pickup/barcode/aztec in URL
+      /<img[^>]*src=["']([^"']*(?:barcode|aztec|pickup|qr)[^"']*)["']/i,
     ];
 
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
+    for (let i = 0; i < patterns.length; i++) {
+      const match = html.match(patterns[i]);
       if (match && match[1]) {
-        console.log('[QRCodeExtractor] extractFromAltAttribute matched:', match[1].substring(0, 100));
+        console.log(`[QRCodeExtractor] extractFromAltAttribute pattern ${i + 1} matched:`, match[1].substring(0, 100));
         return match[1].trim();
       }
     }
