@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ParsedTrackingInfo } from './email-parsing.service';
-import puter from '@heyputer/puter.js';
+// @ts-ignore - init.cjs is the Node.js-specific entry point
+const { init } = require('@heyputer/puter.js/src/init.cjs');
 
 export interface DeepSeekEmailInput {
   id: string;
@@ -17,13 +18,22 @@ export class DeepSeekService {
   private readonly defaultBatchSize = 8;
   private readonly defaultMaxChars = 12000;
   private readonly defaultModel = 'deepseek/deepseek-v3.2-speciale';
+  private puter: any = null;
 
   constructor(private configService: ConfigService) {
-    // Validate Puter.js configuration on startup
-    const puterToken = this.configService.get<string>('PUTER_API_KEY');
+    // Initialize Puter.js with auth token for Node.js
+    const puterToken = this.configService.get<string>('PUTER_AUTH_TOKEN');
     if (!puterToken) {
-      console.warn('⚠️  [DeepSeekService] PUTER_API_KEY not configured. DeepSeek AI enhancement will be disabled.');
-      console.warn('    To enable: Set PUTER_API_KEY environment variable with your Puter.js token.');
+      console.warn('⚠️  [DeepSeekService] PUTER_AUTH_TOKEN not configured. DeepSeek AI enhancement will be disabled.');
+      console.warn('    To enable: Get your auth token from https://puter.com/app/dev-center');
+      console.warn('    Then set PUTER_AUTH_TOKEN environment variable.');
+    } else {
+      try {
+        this.puter = init(puterToken);
+        console.log('✅ [DeepSeekService] Puter.js initialized successfully');
+      } catch (error) {
+        console.error('❌ [DeepSeekService] Failed to initialize Puter.js:', error.message);
+      }
     }
   }
 
@@ -36,9 +46,8 @@ export class DeepSeekService {
       return {};
     }
 
-    const puterToken = this.configService.get<string>('PUTER_API_KEY');
-    if (!puterToken) {
-      console.warn('[DeepSeekService] PUTER_API_KEY not configured - skipping enhancement');
+    if (!this.puter) {
+      console.warn('[DeepSeekService] Puter.js not initialized - skipping enhancement');
       return {};
     }
 
@@ -134,22 +143,20 @@ export class DeepSeekService {
 
   private async callDeepSeek(prompt: string): Promise<string> {
     const model = this.configService.get<string>('DEEPSEEK_MODEL') || this.defaultModel;
-    const puterToken = this.configService.get<string>('PUTER_API_KEY');
 
-    // Set auth token before calling Puter.js
-    if (puterToken) {
-      (puter as any).setAuthToken?.(puterToken);
+    if (!this.puter) {
+      throw new Error('Puter.js not initialized - check PUTER_AUTH_TOKEN configuration');
     }
 
     try {
-      const response: any = await puter.ai.chat(prompt, {
+      const response: any = await this.puter.ai.chat(prompt, {
         model,
         stream: false,
       } as any);
 
       // Check for authentication error
       if (response?.code === 'token_missing' || response?.message?.includes('authentication token')) {
-        throw new Error('Puter.js authentication failed: ' + (response.message || 'Missing PUTER_API_KEY'));
+        throw new Error('Puter.js authentication failed: ' + (response.message || 'Missing or invalid PUTER_AUTH_TOKEN'));
       }
 
       // Debug logging to see actual response structure
