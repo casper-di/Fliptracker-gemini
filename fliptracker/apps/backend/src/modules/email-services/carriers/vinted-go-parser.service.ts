@@ -93,11 +93,20 @@ export class VintedGoParserService {
       result.trackingNumber = subjectMatch[1];
     }
     
-    // Fallback: extract from body if not in subject
+    // Fallback: extract from body (handle HTML tags between label and number)
     if (!result.trackingNumber) {
-      const bodyMatch = email.body.match(/(?:numéro|numero|tracking|suivi)[\s:]*#?(\d{16,20})/i);
+      // Pattern 1: With potential HTML tags between
+      const bodyMatch = email.body.match(/(?:numéro|numero|tracking|suivi)[^>]{0,100}>(\d{16,20})</i);
       if (bodyMatch && this.isValidTrackingNumber(bodyMatch[1])) {
         result.trackingNumber = bodyMatch[1];
+      }
+    }
+    
+    // Fallback 2: Simple pattern without HTML
+    if (!result.trackingNumber) {
+      const simpleMatch = email.body.match(/(?:numéro|numero|tracking|suivi)[\s:]*#?(\d{16,20})/i);
+      if (simpleMatch && this.isValidTrackingNumber(simpleMatch[1])) {
+        result.trackingNumber = simpleMatch[1];
       }
     }
     
@@ -130,6 +139,36 @@ export class VintedGoParserService {
     
     // Fallback patterns if extractor didn't find address
     if (!result.pickupAddress) {
+      // Pattern 1: Vinted Go specific - extract all content after "Adresse" block header
+      const vintedGoAddressMatch = email.body.match(/block-header[^>]*>Adresse<\/div>([\s\S]{0,800}?)(?:<div class="block-header"|Détails de la commande|Horaires d'ouverture)/i);
+      if (vintedGoAddressMatch) {
+        // Extract all text content, removing HTML tags but keeping structure
+        const addressHtml = vintedGoAddressMatch[1];
+        const addressParts: string[] = [];
+        
+        // Extract content from <b> tags and <a> tags
+        const contentMatches = addressHtml.matchAll(/<b[^>]*>(.*?)<\/b>/gi);
+        for (const match of contentMatches) {
+          // Remove inner HTML tags but keep text
+          const text = match[1]
+            .replace(/<a[^>]*>/gi, '')
+            .replace(/<\/a>/gi, '')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/&nbsp;/g, ' ')
+            .trim();
+          if (text && text.length > 0 && !text.includes('http')) {
+            addressParts.push(text);
+          }
+        }
+        
+        if (addressParts.length >= 3) {
+          result.pickupAddress = addressParts.join('\n');
+        }
+      }
+    }
+    
+    // Pattern 2: Table-based address
+    if (!result.pickupAddress) {
       const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
       if (addressTableMatch) {
         result.pickupAddress = addressTableMatch[1]
@@ -141,7 +180,7 @@ export class VintedGoParserService {
       }
     }
     
-    // Pattern 4: Extract from multiple <b> tags (name, street, city)
+    // Pattern 3: Extract from multiple <b> tags (name, street, city)
     if (!result.pickupAddress || result.pickupAddress.length < 10) {
       const boldMatches = email.body.match(/Adresse[\s\S]{0,200}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>/i);
       if (boldMatches) {

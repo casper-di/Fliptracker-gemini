@@ -30,6 +30,10 @@ export class WithdrawalCodeExtractorService {
     const patterns = [
       /code\s+(?:de\s+)?(?:retrait|pickup|withdrawal)[\s:]*<(?:strong|b)>([A-Z0-9]+)<\/(?:strong|b)>/i,
       /<(?:strong|b)>([A-Z0-9]{4,10})<\/(?:strong|b)>[\s]*(?:code|retrait|pickup)/i,
+      // Pattern for Vinted Go: "saisis le code suivant : <b>CODE</b>"
+      /(?:code suivant|saisis le code)[\s:]*<(?:strong|b)>([A-Z0-9]{4,10})<\/(?:strong|b)>/i,
+      // Pattern for any bold code after colon
+      /:\s*<(?:strong|b)>([A-Z0-9]{4,10})<\/(?:strong|b)>/i,
     ];
 
     for (const pattern of patterns) {
@@ -53,18 +57,19 @@ export class WithdrawalCodeExtractorService {
       'pickup code',
       'code suivant',
       'votre code',
+      'saisis le code',
     ];
 
     for (const keyword of contextKeywords) {
       const keywordPos = text.toLowerCase().indexOf(keyword.toLowerCase());
       if (keywordPos === -1) continue;
 
-      // Extract 50 chars after keyword
-      const context = text.slice(keywordPos, keywordPos + 50);
+      // Extract 100 chars after keyword to account for HTML tags
+      const context = text.slice(keywordPos, keywordPos + 100);
       
-      // Look for alphanumeric code (4-10 chars)
-      const codeMatch = context.match(/:\s*([A-Z0-9]{4,10})/i);
-      if (codeMatch) {
+      // Look for alphanumeric code (4-10 chars), skipping HTML tags
+      const codeMatch = context.match(/[:\s]*(?:<[^>]*>)*([A-Z0-9]{4,10})(?:<\/[^>]*>)*/i);
+      if (codeMatch && codeMatch[1]) {
         return codeMatch[1];
       }
     }
