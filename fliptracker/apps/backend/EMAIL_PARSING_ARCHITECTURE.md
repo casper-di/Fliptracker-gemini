@@ -84,8 +84,16 @@ Email reçu
 
 ```bash
 # .env
-DEEPSEEK_API_KEY=sk-ef9c0ebfeb1d48d89e15e11b77461f43
+# Pour activer l'enhancement AI via DeepSeek (optionnel)
+PUTER_AUTH_TOKEN=your-token-from-puter.com
+DEEPSEEK_ENABLED=true  # false pour désactiver
 ```
+
+**Obtenir un token Puter.js :**
+1. Va sur https://puter.com/app/dev-center
+2. Connecte-toi ou crée un compte gratuit
+3. Génère un Auth Token dans le dev center
+4. Copie le token dans PUTER_AUTH_TOKEN
 
 ## 📝 Flow actuel (temporaire)
 

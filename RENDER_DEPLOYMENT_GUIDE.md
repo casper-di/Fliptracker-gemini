@@ -108,6 +108,10 @@ GOOGLE_REDIRECT_URI      https://fliptracker-backend.onrender.com/api/auth/callb
 FIREBASE_PROJECT_ID      fliptracker-52632
 FIREBASE_CLIENT_EMAIL    your-firebase-client-email@...iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY     (voir instructions ci-dessous)
+
+# Optionnel - AI Enhancement via Puter.js
+PUTER_AUTH_TOKEN         (optionnel, voir section 4.3)
+DEEPSEEK_ENABLED         true
 ```
 
 ### 2.5 Créer le service
@@ -194,6 +198,27 @@ Cela affichera la clé dans le format correct pour Render.
 4. Trouvez votre OAuth 2.0 Client ID
 5. Copiez `Client ID` et `Client Secret`
 6. Mettez à jour le **GOOGLE_REDIRECT_URI** dans vos secrets Render
+
+### 4.3 Puter.js Auth Token (Optionnel)
+
+**PUTER_AUTH_TOKEN** active l'enhancement AI via DeepSeek pour améliorer le parsing des emails complexes.
+
+Si vous ne configurez pas cette variable, l'app fonctionnera normalement mais sans AI enhancement.
+
+**Pour obtenir un token :**
+
+1. Créez un compte sur [Puter.com](https://puter.com)
+2. Allez sur [Puter Dev Center](https://puter.com/app/dev-center)
+3. Générez un **Auth Token** dans le dev center
+4. Copiez le token
+5. Dans Render :
+   - Backend → Environment → Add Environment Variable
+   - Key: `PUTER_AUTH_TOKEN`
+   - Value: votre token
+   - Key: `DEEPSEEK_ENABLED`
+   - Value: `true`
+
+**Note :** Laissez vide pour désactiver l'AI enhancement (l'app utilisera uniquement le parsing regex).
 
 ---
 
