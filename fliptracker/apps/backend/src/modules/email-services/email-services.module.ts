@@ -17,6 +17,13 @@ import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
+import { StatusDetectorService } from './status-detector.service';
+import { AddressExtractorService } from './utils/address-extractor.service';
+import { TrackingValidatorService } from './utils/tracking-validator.service';
+import { DateParserService } from './utils/date-parser.service';
+import { QRCodeExtractorService } from './utils/qr-code-extractor.service';
+import { MarketplaceDetectorService } from './utils/marketplace-detector.service';
+import { WithdrawalCodeExtractorService } from './utils/withdrawal-code-extractor.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -45,9 +52,16 @@ import { AuthModule } from '../auth/auth.module';
     EmailSyncOrchestrator,
     CarrierDetectorService,
     ShipmentTypeDetectorService,
+    StatusDetectorService,
     VintedGoParserService,
     MondialRelayParserService,
     RelaisColisParserService,
+    AddressExtractorService,
+    TrackingValidatorService,
+    DateParserService,
+    QRCodeExtractorService,
+    MarketplaceDetectorService,
+    WithdrawalCodeExtractorService,
     ChronopostParserService,
     ColissimoParserService,
     DHLParserService,

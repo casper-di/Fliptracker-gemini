@@ -9,6 +9,19 @@ export class FirestoreConnectedEmailRepository implements IConnectedEmailReposit
 
   constructor(private firebaseService: FirebaseService) {}
 
+  async findAll(): Promise<ConnectedEmail[]> {
+    const snapshot = await this.firebaseService
+      .getFirestore()
+      .collection(this.collection)
+      .get();
+
+    if (snapshot.empty) {
+      return [];
+    }
+
+    return snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
+  }
+
   async findById(id: string): Promise<ConnectedEmail | null> {
     const doc = await this.firebaseService.getFirestore().collection(this.collection).doc(id).get();
     
@@ -44,6 +57,43 @@ export class FirestoreConnectedEmailRepository implements IConnectedEmailReposit
       .getFirestore()
       .collection(this.collection)
       .where('emailAddress', '==', emailAddress)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const doc = snapshot.docs[0];
+    return this.toEntity(doc.id, doc.data());
+  }
+
+  async findByEmailAddressAndProvider(
+    emailAddress: string,
+    provider: ConnectedEmail['provider'],
+  ): Promise<ConnectedEmail | null> {
+    const snapshot = await this.firebaseService
+      .getFirestore()
+      .collection(this.collection)
+      .where('emailAddress', '==', emailAddress)
+      .where('provider', '==', provider)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    const doc = snapshot.docs[0];
+    return this.toEntity(doc.id, doc.data());
+  }
+
+  async findByOutlookSubscriptionId(subscriptionId: string): Promise<ConnectedEmail | null> {
+    const snapshot = await this.firebaseService
+      .getFirestore()
+      .collection(this.collection)
+      .where('provider', '==', 'outlook')
+      .where('outlookSubscriptionId', '==', subscriptionId)
       .limit(1)
       .get();
 
@@ -116,6 +166,13 @@ export class FirestoreConnectedEmailRepository implements IConnectedEmailReposit
       status: data.status,
       lastSyncAt: data.lastSyncAt?.toDate() || null,
       createdAt: data.createdAt?.toDate() || new Date(),
+      initialSyncCompleted: data.initialSyncCompleted,
+      initialSyncCompletedAt: data.initialSyncCompletedAt?.toDate() || undefined,
+      gmailHistoryId: data.gmailHistoryId,
+      gmailWatchExpiration: data.gmailWatchExpiration?.toDate() || undefined,
+      outlookSubscriptionId: data.outlookSubscriptionId,
+      outlookSubscriptionExpiresAt: data.outlookSubscriptionExpiresAt?.toDate() || undefined,
+      outlookClientState: data.outlookClientState,
     };
   }
 }

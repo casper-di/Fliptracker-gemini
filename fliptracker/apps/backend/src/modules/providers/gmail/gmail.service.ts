@@ -101,6 +101,23 @@ export class GmailService {
     return emails;
   }
 
+  async startWatch(accessToken: string, topicName: string): Promise<{ historyId?: string; expiration?: string }> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
+
+    const response = await gmail.users.watch({
+      userId: 'me',
+      requestBody: {
+        topicName,
+      },
+    });
+
+    return {
+      historyId: response.data.historyId,
+      expiration: response.data.expiration,
+    };
+  }
+
   private async getEmailDetails(gmail: gmail_v1.Gmail, messageId: string): Promise<NormalizedEmail | null> {
     try {
       const response = await gmail.users.messages.get({

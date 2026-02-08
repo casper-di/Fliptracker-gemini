@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Query, UseGuards, Req, Res, SetMetadata, Inject } from '@nestjs/common';
 import { ForbiddenException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { Response } from 'express';
 import { ConnectedEmailsService } from './connected-emails.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
@@ -34,6 +35,20 @@ export class ConnectedEmailsController {
     @Inject(EMAIL_SYNC_EVENT_REPOSITORY)
     private emailSyncEventRepository: IEmailSyncEventRepository,
   ) {}
+
+  private getWebhookBaseUrl(): string | null {
+    return process.env.EMAIL_WEBHOOK_BASE_URL || null;
+  }
+
+  private getWebhookSecret(): string | null {
+    return process.env.EMAIL_WEBHOOK_SECRET || null;
+  }
+
+  private buildClientState(connectedEmailId: string, secret: string): string {
+    return createHash('sha256')
+      .update(`${secret}:${connectedEmailId}`)
+      .digest('hex');
+  }
 
   @Get()
   @UseGuards(AuthGuard)
@@ -339,6 +354,23 @@ export class ConnectedEmailsController {
           expiryDate,
         );
         console.log('[Gmail OAuth] Successfully saved connection with ID:', savedEmail.id);
+
+        const topicName = process.env.GMAIL_PUBSUB_TOPIC;
+
+        if (topicName) {
+          try {
+            const watch = await this.gmailService.startWatch(tokens.access_token, topicName);
+            const expiration = watch.expiration ? new Date(parseInt(watch.expiration, 10)) : undefined;
+            await this.connectedEmailsService.update(savedEmail.id, {
+              gmailHistoryId: watch.historyId,
+              gmailWatchExpiration: expiration,
+            });
+          } catch (watchError) {
+            console.warn('[Gmail OAuth] Failed to start watch:', watchError?.message || watchError);
+          }
+        } else {
+          console.warn('[Gmail OAuth] Pub/Sub topic missing, skipping watch setup');
+        }
       } else if (provider === 'outlook') {
         console.log('[Outlook OAuth] Exchanging code for tokens...');
         const tokens = await this.outlookService.exchangeCode(code);
@@ -356,6 +388,31 @@ export class ConnectedEmailsController {
           new Date(Date.now() + tokens.expiresIn * 1000),
         );
         console.log('[Outlook OAuth] Successfully saved connection with ID:', savedEmail.id);
+
+        const webhookBaseUrl = this.getWebhookBaseUrl();
+        const webhookSecret = this.getWebhookSecret();
+        if (webhookBaseUrl && webhookSecret) {
+          const clientState = this.buildClientState(savedEmail.id, webhookSecret);
+          const notificationUrl = `${webhookBaseUrl.replace(/\/$/, '')}/webhooks/outlook`;
+
+          try {
+            const subscription = await this.outlookService.createSubscription(
+              tokens.accessToken,
+              notificationUrl,
+              clientState,
+            );
+
+            await this.connectedEmailsService.update(savedEmail.id, {
+              outlookSubscriptionId: subscription.id,
+              outlookSubscriptionExpiresAt: new Date(subscription.expirationDateTime),
+              outlookClientState: clientState,
+            });
+          } catch (subscriptionError) {
+            console.warn('[Outlook OAuth] Failed to create subscription:', subscriptionError?.message || subscriptionError);
+          }
+        } else {
+          console.warn('[Outlook OAuth] Webhook base URL or secret missing, skipping subscription setup');
+        }
       }
 
       // Redirect to frontend with success

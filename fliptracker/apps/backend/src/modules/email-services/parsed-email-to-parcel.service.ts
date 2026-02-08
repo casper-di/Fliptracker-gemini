@@ -5,12 +5,14 @@ import {
   PARCEL_REPOSITORY,
   IParcelRepository,
 } from '../../domain/repositories/parcel.repository';
+import { StatusDetectorService } from './status-detector.service';
 
 @Injectable()
 export class ParsedEmailToParcelService {
   constructor(
     @Inject(PARCEL_REPOSITORY)
     private parcelRepository: IParcelRepository,
+    private statusDetector: StatusDetectorService,
   ) {}
 
   /**
@@ -66,12 +68,20 @@ export class ParsedEmailToParcelService {
     // Create parcel title from available info
     const title = this.generateTitle(parsedEmail);
 
+    // Detect status based on available metadata
+    let status: Parcel['status'] = 'pending';
+    
+    // If we have pickup info (address, deadline, withdrawal code), it's delivered/ready for pickup
+    if (parsedEmail.pickupAddress || parsedEmail.pickupDeadline || parsedEmail.withdrawalCode || parsedEmail.qrCode) {
+      status = 'delivered'; // Ready for pickup at point relais
+    }
+
     try {
       const parcel = await this.parcelRepository.create({
         userId: parsedEmail.userId,
         trackingNumber: parsedEmail.trackingNumber,
         carrier,
-        status: 'pending', // Initial status
+        status,
         type,
         sourceEmailId: parsedEmail.rawEmailId,
         provider: parsedEmail.provider ?? 'gmail',

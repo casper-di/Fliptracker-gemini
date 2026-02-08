@@ -13,6 +13,13 @@ export interface OutlookProfile {
   userPrincipalName: string;
 }
 
+export interface OutlookSubscription {
+  id: string;
+  expirationDateTime: string;
+  resource: string;
+  clientState?: string;
+}
+
 export interface NormalizedEmail {
   id: string;
   conversationId: string;
@@ -131,6 +138,42 @@ export class OutlookService {
       body: message.body?.content || '',
       snippet: message.bodyPreview || '',
     }));
+  }
+
+  async createSubscription(
+    accessToken: string,
+    notificationUrl: string,
+    clientState: string,
+  ): Promise<OutlookSubscription> {
+    const expirationDateTime = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+
+    const response = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        changeType: 'created',
+        notificationUrl,
+        resource: '/me/messages',
+        expirationDateTime,
+        clientState,
+        latestSupportedTlsVersion: 'v1_2',
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(`Outlook subscription failed: ${data?.error?.message || response.statusText}`);
+    }
+
+    return {
+      id: data.id,
+      expirationDateTime: data.expirationDateTime,
+      resource: data.resource,
+      clientState: data.clientState,
+    };
   }
 
   private getGraphClient(accessToken: string): Client {

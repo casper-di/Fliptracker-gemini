@@ -17,8 +17,27 @@ export class ConnectedEmailsService {
     return this.repository.findByUserId(userId);
   }
 
+  async findAll(): Promise<ConnectedEmail[]> {
+    return this.repository.findAll();
+  }
+
   async findById(id: string): Promise<ConnectedEmail | null> {
     return this.repository.findById(id);
+  }
+
+  async findByEmailAddress(emailAddress: string): Promise<ConnectedEmail | null> {
+    return this.repository.findByEmailAddress(emailAddress);
+  }
+
+  async findByEmailAddressAndProvider(
+    emailAddress: string,
+    provider: EmailProvider,
+  ): Promise<ConnectedEmail | null> {
+    return this.repository.findByEmailAddressAndProvider(emailAddress, provider);
+  }
+
+  async findByOutlookSubscriptionId(subscriptionId: string): Promise<ConnectedEmail | null> {
+    return this.repository.findByOutlookSubscriptionId(subscriptionId);
   }
 
   async connect(

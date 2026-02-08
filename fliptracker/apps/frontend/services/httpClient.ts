@@ -10,6 +10,33 @@ interface HttpOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) {
+      return null;
+    }
+
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + (4 - (normalized.length % 4 || 4)) % 4, '=');
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch (error) {
+    console.error('Failed to decode JWT payload:', error);
+    return null;
+  }
+};
+
+const isTokenExpiringSoon = (token: string, skewSeconds = 300): boolean => {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) {
+    return false;
+  }
+
+  const expiresAtMs = payload.exp * 1000;
+  return expiresAtMs <= Date.now() + skewSeconds * 1000;
+};
+
 /**
  * Retrieve ID token from backend session
  */
@@ -18,7 +45,14 @@ const getIdToken = async (): Promise<string | null> => {
     // Prefer token stored in localStorage (cross-origin safe)
     const storedToken = localStorage.getItem('auth_token');
     if (storedToken) {
-      return storedToken;
+      if (!isTokenExpiringSoon(storedToken)) {
+        return storedToken;
+      }
+
+      const refreshedToken = await refreshIdToken();
+      if (refreshedToken) {
+        return refreshedToken;
+      }
     }
 
     // Fallback to backend session cookie

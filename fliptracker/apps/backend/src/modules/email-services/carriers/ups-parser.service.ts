@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { TrackingValidatorService } from '../utils/tracking-validator.service';
+import { DateParserService } from '../utils/date-parser.service';
+import { AddressExtractorService } from '../utils/address-extractor.service';
 
 /**
  * Parser spécialisé pour UPS (United Parcel Service)
  */
 @Injectable()
 export class UPSParserService {
-  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+  constructor(
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private trackingValidator: TrackingValidatorService,
+    private dateParser: DateParserService,
+    private addressExtractor: AddressExtractorService,
+  ) {}
 
   /**
    * Parse un email UPS pour extraire les informations de livraison
@@ -38,9 +46,10 @@ export class UPSParserService {
         for (const match of matches) {
           const cleaned = match.replace(/tracking[\s#:]*/gi, '').trim();
           
-          // Valider le format UPS (doit commencer par 1Z)
-          if (cleaned.match(/^1Z[A-Z0-9]{16}$/)) {
-            result.trackingNumber = cleaned;
+          // Validate UPS format using utility (with checksum)
+          const validated = this.trackingValidator.validateTracking(cleaned, 'ups');
+          if (validated) {
+            result.trackingNumber = validated;
             break;
           }
         }
@@ -65,7 +74,6 @@ export class UPSParserService {
 
     // 3. Extraction de l'expéditeur
     const senderPatterns = [
-      // Pattern pour emails HTML UPS avec span id="shipperAndArrival"
       /<span\s+id\s*=\s*["']shipperAndArrival["'][^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/i,
       /from[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
       /shipper[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
@@ -80,71 +88,11 @@ export class UPSParserService {
       }
     }
 
-    // 4. Extraction de l'adresse de livraison/pickup
-    const addressPatterns = [
-      // Pattern pour emails HTML UPS avec span id="deliveryLocation"
-      /<span\s+id\s*=\s*["']deliveryLocation["'][^>]*>((?:[^<]+|<br\s*\/?>)+)<\/span>/i,
-      /delivery[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-      /ship[\s]*to[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-    ];
+    // 4. Extraction de l'adresse using comprehensive extractor
+    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
 
-    for (const pattern of addressPatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        // Remplacer les <br> par des retours à la ligne
-        const address = match[1].trim()
-          .replace(/<br\s*\/?>/gi, '\n')
-          .replace(/\s+/g, ' ')
-          .replace(/ \n /g, '\n')
-          .replace(/ \n/g, '\n')
-          .replace(/\n /g, '\n');
-        result.pickupAddress = address;
-        break;
-      }
-    }
-
-    // 5. Extraction de la date de livraison/pickup estimée
-    const deliveryDatePatterns = [
-      // Pattern pour emails HTML UPS avec span id="deliveryDateTime" (format français)
-      {
-        pattern: /<span\s+id\s*=\s*["']deliveryDateTime["'][^>]*>(?:\w+\s+)?(\d{1,2}\/\d{1,2}\/\d{4})<br/i,
-        parser: (match: string) => {
-          // Format français: jj/MM/yyyy
-          const parts = match.split('/');
-          if (parts.length === 3) {
-            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-          }
-          return null;
-        }
-      },
-      {
-        pattern: /scheduled[\s]*delivery[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
-        parser: (match: string) => new Date(match)
-      },
-      {
-        pattern: /delivery[\s]*(?:by|on)[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
-        parser: (match: string) => new Date(match)
-      },
-      {
-        pattern: /estimated[\s]*delivery[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-        parser: (match: string) => new Date(match)
-      },
-    ];
-
-    for (const { pattern, parser } of deliveryDatePatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        try {
-          const date = parser(match[1]);
-          if (date && !isNaN(date.getTime())) {
-            result.pickupDeadline = date;
-            break;
-          }
-        } catch (e) {
-          // Ignore invalid dates
-        }
-      }
-    }
+    // 5. Extraction de la date using smart parser
+    result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
 
     // 6. Détection du type de service UPS
     const body = email.body.toLowerCase();

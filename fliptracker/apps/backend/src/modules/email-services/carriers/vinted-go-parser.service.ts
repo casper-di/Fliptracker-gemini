@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { AddressExtractorService } from '../utils/address-extractor.service';
+import { WithdrawalCodeExtractorService } from '../utils/withdrawal-code-extractor.service';
+import { QRCodeExtractorService } from '../utils/qr-code-extractor.service';
+import { DateParserService } from '../utils/date-parser.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
@@ -16,6 +20,12 @@ export interface ParsedTrackingInfo {
   pickupAddress?: string | null;
   pickupDeadline?: Date | null;
 }
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private addressExtractor: AddressExtractorService,
+    private withdrawalCodeExtractor: WithdrawalCodeExtractorService,
+    private qrCodeExtractor: QRCodeExtractorService,
+    private dateParser: DateParserService,
+  
 
 @Injectable()
 export class VintedGoParserService {
@@ -91,57 +101,11 @@ export class VintedGoParserService {
       }
     }
     
-    // Extract QR code URL
-    const qrCodeUrl = this.extractQRCodeUrl(email.body);
-    if (qrCodeUrl) {
-      result.qrCode = qrCodeUrl;
-    }
+    // Extract QR code URL using robust extractor
+    result.qrCode = this.qrCodeExtractor.extractQRCode(email.body);
 
-    // Extract withdrawal code
-    const withdrawalPatterns = [
-      /code\s+suivant\s*:\s*<b>([A-Z0-9]+)<\/b>/gi,
-      /code\s+suivant\s*:\s*\*\*([A-Z0-9]+)\*\*/gi,
-      /code\s+suivant\s*:\s*([A-Z0-9]{4,10})/gi,
-    ];
-
-    for (const pattern of withdrawalPatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
-        result.withdrawalCode = match[1] || match[0].split(':')[1]?.trim().replace(/<[^>]*>/g, '').replace(/\*\*/g, '') || null;
-        break;
-      }
-    }
-
-    // Extract QR code image URL from HTML
-    // Vinted Go emails have QR code images with patterns like:
-    // <img alt="QR code" src="http://p.vintedgo.com/public/v1/qr_codes/..." />
-    // <img src="data:image/png;base64,..." />
-    const qrPatterns = [
-      /<img[^>]*alt=["']QR code["'][^>]*src=["']([^"']+)["']/i,
-      /<img[^>]*src=["']([^"']*vintedgo\.com[^"']*qr_codes[^"']*)["']/i,
-      /src=["']([^"']*qr[^"']*)["']/i,
-      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
-      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
-      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
-    ];
-
-    for (const pattern of qrPatterns) {
-      const match = email.body.match(pattern);
-      if (match && match[1]) {
-        result.qrCode = match[1];
-        console.log(`[VintedGoParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
-        break;
-      }
-    }
-
-    // Fallback: search for any image URL in QR code context
-    if (!result.qrCode) {
-      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
-      if (contextMatch && contextMatch[1]) {
-        result.qrCode = contextMatch[1];
-        console.log(`[VintedGoParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
-      }
-    }
+    // Extract withdrawal code using specialized extractor
+    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(email.body, email.body);
 
     // Extract product name from "Détails de la commande" section
     // Pattern: <b>Product Name<br>Price €</b>
@@ -158,66 +122,11 @@ export class VintedGoParserService {
       }
     }
 
-    // Extract pickup deadline
-    // Pattern: "À retirer avant le <b>DD/MM/YYYY</b>"
-    const deadlinePatterns = [
-      /À retirer avant le[\s\S]*?<b>(\d{1,2}\/\d{1,2}\/\d{4})<\/b>/i,
-      /retirer avant le[\s\S]*?\*\*(\d{1,2}\/\d{1,2}\/\d{4})\*\*/i,
-    ];
-    
-    for (const pattern of deadlinePatterns) {
-      const match = email.body.match(pattern);
-      if (match && match[1]) {
-        try {
-          const [day, month, year] = match[1].split('/');
-          result.pickupDeadline = new Date(`${year}-${month}-${day}`);
-          break;
-        } catch (e) {
-          // Ignore invalid dates
-        }
-      }
-    }
+    // Extract pickup deadline using smart date parser
+    result.pickupDeadline = this.dateParser.parseDate(email.body, email.receivedAt);
 
-    // Extract pickup address - comprehensive multi-pattern approach
-    let pickupAddress: string | null = null;
-    
-    // Pattern 1: Rerouting email structure ("Adresse" section with multiple divs)
-    // Example: Relais Vinted Go → Lapeyre → 119 Route de Brignais → Saint-Genis-Laval
-    const reroutingMatch = email.body.match(/Adresse<\/div>[\s\S]{0,500}?<b>Relais Vinted Go<\/b>[\s\S]{0,100}?<b>\s*([^<]+)\s*<\/b>[\s\S]{0,200}?<a[^>]*>([^<]+)<\/a>[\s\S]{0,100}?<a[^>]*>([^<]+)<\/a>/i);
-    if (reroutingMatch) {
-      const parts = [
-        'Relais Vinted Go',
-        reroutingMatch[1]?.trim(), // Business name (e.g., "Lapeyre")
-        reroutingMatch[2]?.trim(), // Street (e.g., "119 Route de Brignais")
-        reroutingMatch[3]?.trim(), // City (e.g., "Saint-Genis-Laval")
-      ].filter(Boolean);
-      
-      if (parts.length >= 3) {
-        pickupAddress = parts.join('\n');
-        console.log(`[VintedGoParser] ✅ Address extracted (Rerouting pattern): ${pickupAddress}`);
-      }
-    }
-    
-    // Pattern 2: Original Vinted Go structure with "Adresse" header followed by multiple <b> tags
-    // Example: Consigne Vinted Go → Mg Laverie → 50 Boulevard → Oullins
-    if (!pickupAddress) {
-      const vintedGoAddressMatch = email.body.match(/Adresse<\/div>[\s\S]{0,400}?<b>([^<]+)<\/b>[\s\S]{0,100}?<b>([^<]+)<\/b>[\s\S]{0,150}?<b>[\s\S]*?>([^<]+)<\/a>[\s\S]{0,50}<b>[\s\S]*?>([^<]+)<\/a>/i);
-      if (vintedGoAddressMatch) {
-        const parts = [
-          vintedGoAddressMatch[1]?.trim(), // "Consigne Vinted Go"
-          vintedGoAddressMatch[2]?.trim(), // "Mg Laverie"
-          vintedGoAddressMatch[3]?.trim(), // "50 Boulevard Emile Zola"
-          vintedGoAddressMatch[4]?.trim(), // "Oullins"
-        ].filter(Boolean);
-        
-        if (parts.length >= 3) {
-          pickupAddress = parts.join('\n');
-          console.log(`[VintedGoParser] ✅ Address extracted (Original Vinted Go structure): ${pickupAddress}`);
-        }
-      }
-    }
-    
-    // Pattern 3: Extract from table cell after "Adresse"
+    // Extract pickup address using comprehensive address extractor
+    result.pickupAddress = this.addressExtractor.extractAddress(email.body);
     if (!pickupAddress) {
       const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
       if (addressTableMatch) {

@@ -6,6 +6,7 @@ import {
   UseGuards,
   Req,
   Res,
+  Body,
   Query,
   HttpCode,
   HttpStatus,
@@ -237,8 +238,8 @@ export class AuthController {
 
   @Post('refresh')
   @SkipThrottle()
-  async refreshToken(@Req() req: any, @Res() res: Response) {
-    const refreshToken = req.cookies?.refresh_token;
+  async refreshToken(@Req() req: any, @Res() res: Response, @Body() body: any) {
+    const refreshToken = req.cookies?.refresh_token || body?.refreshToken;
     if (!refreshToken) {
       return res.status(401).json({ token: null });
     }
@@ -249,6 +250,11 @@ export class AuthController {
     }
 
     this.setSessionCookies(res, refreshed.idToken, refreshed.refreshToken);
+
+    if (body?.refreshToken) {
+      return res.json({ token: refreshed.idToken, refreshToken: refreshed.refreshToken });
+    }
+
     return res.json({ token: refreshed.idToken });
   }
 

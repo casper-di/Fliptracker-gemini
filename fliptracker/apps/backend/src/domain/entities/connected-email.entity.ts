@@ -16,4 +16,11 @@ export interface ConnectedEmail {
   // Email sync tracking
   initialSyncCompleted?: boolean;
   initialSyncCompletedAt?: Date;
+
+  // Webhook metadata
+  gmailHistoryId?: string;
+  gmailWatchExpiration?: Date;
+  outlookSubscriptionId?: string;
+  outlookSubscriptionExpiresAt?: Date;
+  outlookClientState?: string;
 }

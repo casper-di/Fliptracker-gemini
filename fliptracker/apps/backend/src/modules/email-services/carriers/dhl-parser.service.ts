@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { TrackingValidatorService } from '../utils/tracking-validator.service';
+import { DateParserService } from '../utils/date-parser.service';
+import { AddressExtractorService } from '../utils/address-extractor.service';
 
 /**
  * Parser spécialisé pour DHL Express et DHL Parcel
  */
 @Injectable()
 export class DHLParserService {
-  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+  constructor(
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private trackingValidator: TrackingValidatorService,
+    private dateParser: DateParserService,
+    private addressExtractor: AddressExtractorService,
+  ) {}
 
   /**
    * Parse un email DHL pour extraire les informations de livraison
@@ -38,11 +46,10 @@ export class DHLParserService {
       const matches = bodyOriginal.match(pattern);
       if (matches) {
         for (const match of matches) {
-          // Extraire juste le numéro
           const cleaned = match.replace(/(?:tracking|waybill|awb|shipment)[\s#:]*/gi, '').trim();
           
-          // Valider le format DHL
-          if (this.isDHLTrackingNumber(cleaned)) {
+          // Validate DHL format using utility
+          if (this.trackingValidator.validateTracking(cleaned, 'dhl')) {
             result.trackingNumber = cleaned;
             break;
           }
@@ -81,38 +88,11 @@ export class DHLParserService {
       }
     }
 
-    // 4. Extraction de l'adresse de livraison
-    const addressPatterns = [
-      /delivery[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-      /adresse[\s]*de[\s]*livraison[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-    ];
+    // 4. Extraction de l'adresse de livraison using comprehensive extractor
+    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
 
-    for (const pattern of addressPatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        result.pickupAddress = match[1].trim().replace(/\s+/g, ' ');
-        break;
-      }
-    }
-
-    // 5. Extraction de la date de livraison estimée
-    const deliveryDatePatterns = [
-      /estimated[\s]*delivery[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-      /delivery[\s]*by[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-      /livraison[\s]*pr[éeè]vue[\s]*le[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-    ];
-
-    for (const pattern of deliveryDatePatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        try {
-          result.pickupDeadline = this.parseDate(match[1]);
-        } catch (e) {
-          // Ignore invalid dates
-        }
-        break;
-      }
-    }
+    // 5. Extraction de la date de livraison estimée using smart parser
+    result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
 
     // 6. Détection du type de service DHL
     if (body.includes('dhl express')) {

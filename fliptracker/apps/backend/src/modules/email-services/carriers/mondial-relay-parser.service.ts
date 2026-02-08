@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { AddressExtractorService } from '../utils/address-extractor.service';
+import { WithdrawalCodeExtractorService } from '../utils/withdrawal-code-extractor.service';
+import { QRCodeExtractorService } from '../utils/qr-code-extractor.service';
+import { DateParserService } from '../utils/date-parser.service';
+import { TrackingValidatorService } from '../utils/tracking-validator.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
@@ -19,6 +24,14 @@ export interface ParsedTrackingInfo {
 
 @Injectable()
 export class MondialRelayParserService {
+  constructor(
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private addressExtractor: AddressExtractorService,
+    private withdrawalCodeExtractor: WithdrawalCodeExtractorService,
+    private qrCodeExtractor: QRCodeExtractorService,
+    private dateParser: DateParserService,
+    private trackingValidator: TrackingValidatorService,
+  ) {}
   /**
    * Validate if address is complete enough and NOT a legal/corporate address
    */
@@ -66,38 +79,15 @@ export class MondialRelayParserService {
       carrier: 'mondial_relay',
     };
 
-    // Extract QR code image URL
-    const qrPatterns = [
-      /src=["']([^"']*qr[^"']*)["']/i,
-      /alt=["'].*qr.*["'][^>]*src=["']([^"']+)["']/i,
-      /src=["'](https?:\/\/[^"']*\/qr[^"']*)["']/i,
-      /src=["'](data:image\/[^;]+;base64,[^"\']{50,})["']/i,
-    ];
+    // Extract QR code using robust extractor
+    result.qrCode = this.qrCodeExtractor.extractQRCode(email.body);
 
-    for (const pattern of qrPatterns) {
-      const match = email.body.match(pattern);
-      if (match && match[1]) {
-        result.qrCode = match[1];
-        console.log(`[MondialRelayParser] ✅ Found QR code: ${result.qrCode.substring(0, 100)}...`);
-        break;
-      }
-    }
-
-    // Fallback: search for any image URL in QR code context
-    if (!result.qrCode) {
-      const contextMatch = email.body.match(/qr[\s\S]{0,200}?<img[^>]*src=["']([^"']+)["']/i);
-      if (contextMatch && contextMatch[1]) {
-        result.qrCode = contextMatch[1];
-        console.log(`[MondialRelayParser] ✅ Found QR code (context): ${result.qrCode.substring(0, 100)}...`);
-      }
-    }
-
-    // Pattern 1: Reference like "VD3000015539", "J0213781630" or "VINTED <number>"
+    // Extract tracking number - pattern validation with utility
     const refPatterns = [
       /(?:VD|J)([A-Z0-9]{8,12})/i,
       /VINTED\s+([A-Z0-9]{8,})/i,
       /(?:Référence|Reference|Tracking|Suivi)[\s:]*<?b?>?([A-Z0-9]{8,12})/i,
-      /([A-Z]{1,3}\d{8,12})/,  // Generic letter+digits pattern
+      /([A-Z]{1,3}\d{8,12})/,
     ];
 
     for (const pattern of refPatterns) {
@@ -110,35 +100,9 @@ export class MondialRelayParserService {
         }
       }
     }
-    
-    // Extract QR code URL
-    const qrCodeUrl = this.extractQRCodeUrl(email.body);
-    if (qrCodeUrl) {
-      result.qrCode = qrCodeUrl;
-    }
 
-    // Extract withdrawal code - typically 6 digits
-    const withdrawalPatterns = [
-      /Code de retrait[\s\S]*?(\d{6})/i,
-      /code\s+de\s+retrait[\s:]*<[^>]*>[\s\S]*?(\d{6})/i,
-      /<span[^>]*>\s*(\d{6})\s*<\/span>/i,
-    ];
-
-    for (const pattern of withdrawalPatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
-        result.withdrawalCode = match[1];
-        break;
-      }
-    }
-
-    // Fallback: extract any 6-digit code
-    if (!result.withdrawalCode) {
-      const fallbackMatch = email.body.match(/(\d{6})/);
-      if (fallbackMatch) {
-        result.withdrawalCode = fallbackMatch[1];
-      }
-    }
+    // Extract withdrawal code using specialized extractor
+    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(email.body, email.body);
 
     // Extract recipient name (usually in greeting or pickup section)
     const recipientPatterns = [
@@ -154,70 +118,11 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract pickup address - comprehensive multi-pattern extraction
-    let pickupAddress: string | null = null;
-    
-    // Pattern 1: Extract from table structure
-    const addressTableMatch = email.body.match(/(?:adresse|address)[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
-    if (addressTableMatch) {
-      pickupAddress = addressTableMatch[1]
-        .replace(/<br\s*\/?>/gi, ', ')
-        .replace(/<[^>]*>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/,\s*,/g, ',')
-        .replace(/^,\s*/, '')
-        .replace(/,\s*$/, '');
-    }
-    
-    // Pattern 2: Extract from <strong> tags (relay name + address)
-    if (!pickupAddress || pickupAddress.length < 10) {
-      const strongMatch = email.body.match(/<strong>([^<]{5,80})<\/strong>[\s\S]{0,100}?(\d+[^<]{10,120}?(?:\d{5}|LYON|PARIS|MARSEILLE|LILLE|TOULOUSE|NICE|NANTES|BORDEAUX|STRASBOURG)[^<]{0,50})/i);
-      if (strongMatch) {
-        pickupAddress = `${strongMatch[1].trim()}, ${strongMatch[2].trim().replace(/\s+/g, ' ')}`;
-      }
-    }
-    
-    // Pattern 3: Extract full address with postal code
-    if (!pickupAddress || pickupAddress.length < 10) {
-      const fullAddressMatch = email.body.match(/([A-Z][A-Z\s&\'-]+)[\s\S]{0,30}(\d+[^,<]{5,100}?\d{5}\s+[A-Z][A-Z\s-]+)/i);
-      if (fullAddressMatch) {
-        pickupAddress = `${fullAddressMatch[1].trim()}, ${fullAddressMatch[2].trim().replace(/\s+/g, ' ')}`;
-      }
-    }
-    
-    result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
+    // Extract pickup address using comprehensive extractor
+    result.pickupAddress = this.addressExtractor.extractAddress(email.body);
 
-    // Validate address quality
-    if (result.pickupAddress) {
-      const isComplete = this.isAddressComplete(result.pickupAddress);
-      if (!isComplete) {
-        console.log(`[MondialRelayParser] ⚠️  Incomplete address extracted: ${result.pickupAddress.substring(0, 50)}...`);
-      }
-    }
-
-    // Extract pickup deadline
-    const deadlinePatterns = [
-      /jusqu'(?:au|à)\s+(?:vendredi\s+)?(\d{1,2})\s+(?:novembre|january|january|février|mars|avril|mai|juin|juillet|août|septembre|octobre|décembre)/i,
-      /available[\s\S]*?until[\s\S]*?(\d{1,2})\s+(\w+)\s+(\d{4})/i,
-    ];
-
-    for (const pattern of deadlinePatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
-        try {
-          // Try to parse the date
-          const dateStr = match[1];
-          if (dateStr) {
-            result.pickupDeadline = new Date(dateStr) || null;
-          }
-        } catch (e) {
-          // Ignore parsing errors
-        }
-        break;
-      }
-    }
+    // Extract pickup deadline using smart date parser
+    result.pickupDeadline = this.dateParser.parseDate(email.body, email.receivedAt);
 
     console.log(`[MondialRelayParser] Parsed:`, {
       trackingNumber: result.trackingNumber,

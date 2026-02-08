@@ -1,10 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { TrackingValidatorService } from '../utils/tracking-validator.service';
+import { DateParserService } from '../utils/date-parser.service';
+import { AddressExtractorService } from '../utils/address-extractor.service';
 
 /**
  * Parser spécialisé pour FedEx
  */
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private trackingValidator: TrackingValidatorService,
+    private dateParser: DateParserService,
+    private addressExtractor: AddressExtractorService,
+  
 @Injectable()
 export class FedExParserService {
   constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
@@ -34,14 +42,10 @@ export class FedExParserService {
     ];
 
     for (const pattern of trackingPatterns) {
-      const matches = bodyOriginal.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          const cleaned = match.replace(/tracking[\s#:]*/gi, '').trim();
-          
-          // Valider le format FedEx (12, 15, ou 22 chiffres)
-          if (cleaned.match(/^\d{12}$/) || cleaned.match(/^\d{15}$/) || cleaned.match(/^92\d{20}$/)) {
-            result.trackingNumber = cleaned;
+      const matcheate FedEx format using utility
+          const validated = this.trackingValidator.validateTracking(cleaned, 'fedex');
+          if (validated) {
+            result.trackingNumber = validated;
             break;
           }
         }
@@ -79,20 +83,11 @@ export class FedExParserService {
       }
     }
 
-    // 4. Extraction de l'adresse de livraison
-    const addressPatterns = [
-      /delivery[\s]*address[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-      /ship[\s]*to[\s:]*(.{10,150}(?:\d{5}|\d{4}))/gi,
-    ];
+    // 4. Extraction de l'adresse using comprehensive extractor
+    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
 
-    for (const pattern of addressPatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        result.pickupAddress = match[1].trim().replace(/\s+/g, ' ');
-        break;
-      }
-    }
-
+    // 5. Extraction de la date using smart parser
+    result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
     // 5. Extraction de la date de livraison estimée
     const deliveryDatePatterns = [
       /scheduled[\s]*delivery[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
