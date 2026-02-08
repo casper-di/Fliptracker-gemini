@@ -7,6 +7,11 @@ export class InMemoryConnectedEmailRepository implements IConnectedEmailReposito
   private emails: Map<string, ConnectedEmail> = new Map();
   private idCounter = 1;
 
+  async findAll(): Promise<ConnectedEmail[]> {
+    console.log('[InMemoryRepo] Finding all emails');
+    return Array.from(this.emails.values());
+  }
+
   async findById(id: string): Promise<ConnectedEmail | null> {
     console.log('[InMemoryRepo] Finding email by ID:', id);
     return this.emails.get(id) || null;
@@ -22,6 +27,27 @@ export class InMemoryConnectedEmailRepository implements IConnectedEmailReposito
   async findByEmailAddress(emailAddress: string): Promise<ConnectedEmail | null> {
     console.log('[InMemoryRepo] Finding email by address:', emailAddress);
     return Array.from(this.emails.values()).find(e => e.emailAddress === emailAddress) || null;
+  }
+
+  async findByEmailAddressAndProvider(
+    emailAddress: string,
+    provider: ConnectedEmail['provider']
+  ): Promise<ConnectedEmail | null> {
+    console.log('[InMemoryRepo] Finding email by address and provider:', emailAddress, provider);
+    return (
+      Array.from(this.emails.values()).find(
+        e => e.emailAddress === emailAddress && e.provider === provider
+      ) || null
+    );
+  }
+
+  async findByOutlookSubscriptionId(subscriptionId: string): Promise<ConnectedEmail | null> {
+    console.log('[InMemoryRepo] Finding email by Outlook subscription ID:', subscriptionId);
+    return (
+      Array.from(this.emails.values()).find(
+        e => e.outlookSubscriptionId === subscriptionId
+      ) || null
+    );
   }
 
   async create(email: Omit<ConnectedEmail, 'id' | 'createdAt'>): Promise<ConnectedEmail> {

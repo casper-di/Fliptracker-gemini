@@ -8,14 +8,14 @@ import { AddressExtractorService } from '../utils/address-extractor.service';
 /**
  * Parser spécialisé pour FedEx
  */
+@Injectable()
+export class FedExParserService {
+  constructor(
     private shipmentTypeDetector: ShipmentTypeDetectorService,
     private trackingValidator: TrackingValidatorService,
     private dateParser: DateParserService,
     private addressExtractor: AddressExtractorService,
-  
-@Injectable()
-export class FedExParserService {
-  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+  ) {}
 
   /**
    * Parse un email FedEx pour extraire les informations de livraison
@@ -42,7 +42,11 @@ export class FedExParserService {
     ];
 
     for (const pattern of trackingPatterns) {
-      const matcheate FedEx format using utility
+      const matches = bodyOriginal.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          // Clean up tracking number
+          const cleaned = match.replace(/[^0-9]/g, '');
           const validated = this.trackingValidator.validateTracking(cleaned, 'fedex');
           if (validated) {
             result.trackingNumber = validated;
@@ -83,29 +87,11 @@ export class FedExParserService {
       }
     }
 
-    // 4. Extraction de l'adresse using comprehensive extractor
+    // 4. Extraction de l'adresse
     result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
 
-    // 5. Extraction de la date using smart parser
+    // 5. Extraction de la date de livraison
     result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
-    // 5. Extraction de la date de livraison estimée
-    const deliveryDatePatterns = [
-      /scheduled[\s]*delivery[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
-      /delivery[\s]*(?:by|on)[\s:]*(\w+,?\s+\w+\s+\d{1,2},?\s+\d{4})/gi,
-      /estimated[\s]*delivery[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-    ];
-
-    for (const pattern of deliveryDatePatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        try {
-          result.pickupDeadline = new Date(match[1]);
-        } catch (e) {
-          // Ignore invalid dates
-        }
-        break;
-      }
-    }
 
     // 6. Détection du type de service FedEx
     const body = email.body.toLowerCase();

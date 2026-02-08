@@ -20,16 +20,16 @@ export interface ParsedTrackingInfo {
   pickupAddress?: string | null;
   pickupDeadline?: Date | null;
 }
+
+@Injectable()
+export class VintedGoParserService {
+  constructor(
     private shipmentTypeDetector: ShipmentTypeDetectorService,
     private addressExtractor: AddressExtractorService,
     private withdrawalCodeExtractor: WithdrawalCodeExtractorService,
     private qrCodeExtractor: QRCodeExtractorService,
     private dateParser: DateParserService,
-  
-
-@Injectable()
-export class VintedGoParserService {
-  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+  ) {}
 
   /**
    * Validate if address is complete enough and NOT a legal/corporate address
@@ -127,10 +127,12 @@ export class VintedGoParserService {
 
     // Extract pickup address using comprehensive address extractor
     result.pickupAddress = this.addressExtractor.extractAddress(email.body);
-    if (!pickupAddress) {
+    
+    // Fallback patterns if extractor didn't find address
+    if (!result.pickupAddress) {
       const addressTableMatch = email.body.match(/Adresse[\s\S]{0,100}<\/td>[\s\S]{0,50}<td[^>]*>([\s\S]{1,500}?)<\/td>/i);
       if (addressTableMatch) {
-        pickupAddress = addressTableMatch[1]
+        result.pickupAddress = addressTableMatch[1]
           .replace(/<br\s*\/?>/gi, '\n')
           .replace(/<[^>]*>/g, '')
           .replace(/&nbsp;/g, ' ')
@@ -140,17 +142,20 @@ export class VintedGoParserService {
     }
     
     // Pattern 4: Extract from multiple <b> tags (name, street, city)
-    if (!pickupAddress || pickupAddress.length < 10) {
+    if (!result.pickupAddress || result.pickupAddress.length < 10) {
       const boldMatches = email.body.match(/Adresse[\s\S]{0,200}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>[\s\S]{0,50}?<b>([^<]+)<\/b>/i);
       if (boldMatches) {
-        pickupAddress = [boldMatches[1], boldMatches[2], boldMatches[3]]
+        result.pickupAddress = [boldMatches[1], boldMatches[2], boldMatches[3]]
           .filter(Boolean)
           .map(s => s.trim())
           .join('\n');
       }
     }
     
-    result.pickupAddress = pickupAddress && pickupAddress.length > 5 ? pickupAddress : null;
+    // Validate address length
+    if (result.pickupAddress && result.pickupAddress.length <= 5) {
+      result.pickupAddress = null;
+    }
 
     // Validate address quality
     if (result.pickupAddress) {

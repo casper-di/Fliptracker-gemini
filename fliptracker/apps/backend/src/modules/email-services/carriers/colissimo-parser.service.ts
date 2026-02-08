@@ -37,7 +37,18 @@ export class ColissimoParserService {
     const body = email.body.toLowerCase();
     const bodyOriginal = email.body;
 
-    // 1const potential = match[match.length - 1];
+    // 1. Extraction du numéro de suivi avec validation
+    const trackingPatterns = [
+      /(?:tracking|suivi|colis)[\s:#]*([A-Z]{2}\d{9}[A-Z]{2})/gi,
+      /(?:n[°u]m[eé]ro|num[eé]ro)[\s:]*([A-Z]{2}\d{9}[A-Z]{2})/gi,
+      /([A-Z]{2}\d{9}[A-Z]{2})/g,
+      /\b([0-9]{13,18})\b/g, // Tracking alternatif numérique
+    ];
+
+    for (const pattern of trackingPatterns) {
+      const matches = bodyOriginal.match(pattern);
+      if (matches) {
+        const potential = matches[matches.length - 1];
         const validated = this.trackingValidator.validateTracking(potential, 'colissimo');
         if (validated) {
           result.trackingNumber = validated;
@@ -50,21 +61,7 @@ export class ColissimoParserService {
     result.marketplace = this.marketplaceDetector.detectMarketplace(email);
 
     // 3. Extraction du code de retrait (pour points de retrait Colissimo)
-    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(bodyOriginal, bodyOriginal);
-    // 3. Extraction du code de retrait (pour points de retrait Colissimo)
-    const withdrawalPatterns = [
-      /code[\s]*(?:de[\s]*)?retrait[\s:]*([A-Z0-9]{4,8})/gi,
-      /votre[\s]*code[\s:]*([A-Z0-9]{4,8})/gi,
-      /code[\s]*point[\s]*retrait[\s:]*([A-Z0-9]{4,8})/gi,
-    ];
-
-    for (const pattern of withdrawalPatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        result.withdrawalCode = match[1];
-        break;
-      }
-    }
+    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(bodyOriginal, email.subject);
 
     // 4. Extraction du nom du destinataire
     const recipientPatterns = [
@@ -81,13 +78,13 @@ export class ColissimoParserService {
       }
     }
 
-    // 5. Extraction de l'adresse du point retrait - version améliorée
-    let pickupAddress: string | null = null;
-    
+    // 5. Extraction de l'adresse du point retrait
     result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
 
     // 6. Extraction de la date limite de retrait
-    result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);/ Fallback: Format numérique classique
+    result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
+    
+    // Fallback: Format numérique classique
     if (!result.pickupDeadline) {
       const deadlinePatterns = [
         /avant[\s]*le[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,

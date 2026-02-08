@@ -113,8 +113,8 @@ export class GmailService {
     });
 
     return {
-      historyId: response.data.historyId,
-      expiration: response.data.expiration,
+      historyId: response.data.historyId ?? undefined,
+      expiration: response.data.expiration ?? undefined,
     };
   }
 
