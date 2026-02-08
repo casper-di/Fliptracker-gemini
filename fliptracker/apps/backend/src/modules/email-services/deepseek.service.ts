@@ -128,9 +128,31 @@ export class DeepSeekService {
         stream: false,
       } as any);
 
-      // response est un ChatResponse avec { message?: ChatMessage }
-      return response?.message?.content?.toString() || '';
+      // Debug logging to see actual response structure
+      console.log('[DeepSeekService] Response type:', typeof response);
+      console.log('[DeepSeekService] Response keys:', response ? Object.keys(response) : 'null');
+      console.log('[DeepSeekService] Full response:', JSON.stringify(response).substring(0, 500));
+      
+      // Try multiple paths to extract content
+      let content = '';
+      if (typeof response === 'string') {
+        content = response;
+      } else if (response?.message?.content) {
+        content = response.message.content.toString();
+      } else if (response?.content) {
+        content = response.content.toString();
+      } else if (response?.choices?.[0]?.message?.content) {
+        content = response.choices[0].message.content;
+      } else if (response?.text) {
+        content = response.text.toString();
+      }
+
+      console.log('[DeepSeekService] Extracted content length:', content.length);
+      console.log('[DeepSeekService] Content preview:', content.substring(0, 200));
+
+      return content || '';
     } catch (error) {
+      console.error('[DeepSeekService] Puter.js error:', error);
       throw new Error(`[DeepSeekService] Puter.js error: ${error.message}`);
     }
   }
