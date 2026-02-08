@@ -327,13 +327,16 @@ export class ConnectedEmailsController {
         console.log('[Gmail OAuth] Profile fetched:', { email: profile.emailAddress });
         
         console.log('[Gmail OAuth] Attempting to save connection for:', profile.emailAddress);
+        const expiryDate = tokens.expiry_date
+          ? new Date(tokens.expiry_date)
+          : new Date(Date.now() + 3600 * 1000);
         const savedEmail = await this.connectedEmailsService.connect(
           userId,
           'gmail',
           profile.emailAddress,
           tokens.access_token,
           tokens.refresh_token!,
-          new Date(Date.now() + (tokens.expiry_date || 3600000)),
+          expiryDate,
         );
         console.log('[Gmail OAuth] Successfully saved connection with ID:', savedEmail.id);
       } else if (provider === 'outlook') {

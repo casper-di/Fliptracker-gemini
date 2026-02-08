@@ -27,6 +27,55 @@ export class AuthController {
     private readonly parcelsService: ParcelsService,
   ) {}
 
+  private async refreshFirebaseIdToken(refreshToken: string): Promise<{ idToken: string; refreshToken: string } | null> {
+    const firebaseApiKey = process.env.FIREBASE_API_KEY;
+    if (!firebaseApiKey) {
+      console.error('FIREBASE_API_KEY not configured');
+      return null;
+    }
+
+    const response = await fetch(
+      `https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(firebaseApiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }).toString(),
+      },
+    );
+
+    const data = await response.json();
+    if (!response.ok || !data?.id_token) {
+      console.error('Failed to refresh Firebase token:', data?.error || data);
+      return null;
+    }
+
+    return {
+      idToken: data.id_token,
+      refreshToken: data.refresh_token || refreshToken,
+    };
+  }
+
+  private setSessionCookies(res: Response, idToken: string, refreshToken?: string) {
+    res.cookie('session', idToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    if (refreshToken) {
+      res.cookie('refresh_token', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+      });
+    }
+  }
+
   @Post('login/google')
   @HttpCode(HttpStatus.OK)
   async loginWithGoogle(@Req() req: any, @Res() res: Response) {
@@ -61,6 +110,7 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Res() res: Response) {
     res.clearCookie('session');
+    res.clearCookie('refresh_token');
     return res.send();
   }
 
@@ -145,13 +195,8 @@ export class AuthController {
       await this.usersService.findOrCreate(uid, email, 'google', email_verified, googleSub);
       console.log('User authenticated:', { uid, email, googleSub });
 
-      // Set session cookie (for same-origin deployments)
-      res.cookie('session', firebaseTokens.idToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        maxAge: 24 * 60 * 60 * 1000,
-      });
+      // Set session + refresh cookies (for same-origin deployments)
+      this.setSessionCookies(res, firebaseTokens.idToken, firebaseTokens.refreshToken);
 
       // Redirect to frontend with token in query param for cross-origin usage
       // Frontend will capture it and store in localStorage
@@ -167,16 +212,44 @@ export class AuthController {
 
   @Get('token')
   @SkipThrottle()
-  async getToken(@Req() req: any) {
-    // Get token from session cookie (set during login)
+  async getToken(@Req() req: any, @Res() res: Response) {
     const sessionToken = req.cookies?.session;
-    
-    if (!sessionToken) {
-      return { token: null };
+    if (sessionToken) {
+      const decoded = await this.firebaseService.verifyToken(sessionToken);
+      if (decoded) {
+        return res.json({ token: sessionToken });
+      }
     }
-    
-    // Return the session token so frontend can use it as Bearer token
-    return { token: sessionToken };
+
+    const refreshToken = req.cookies?.refresh_token;
+    if (!refreshToken) {
+      return res.json({ token: null });
+    }
+
+    const refreshed = await this.refreshFirebaseIdToken(refreshToken);
+    if (!refreshed) {
+      return res.status(401).json({ token: null });
+    }
+
+    this.setSessionCookies(res, refreshed.idToken, refreshed.refreshToken);
+    return res.json({ token: refreshed.idToken });
+  }
+
+  @Post('refresh')
+  @SkipThrottle()
+  async refreshToken(@Req() req: any, @Res() res: Response) {
+    const refreshToken = req.cookies?.refresh_token;
+    if (!refreshToken) {
+      return res.status(401).json({ token: null });
+    }
+
+    const refreshed = await this.refreshFirebaseIdToken(refreshToken);
+    if (!refreshed) {
+      return res.status(401).json({ token: null });
+    }
+
+    this.setSessionCookies(res, refreshed.idToken, refreshed.refreshToken);
+    return res.json({ token: refreshed.idToken });
   }
 
   @Get('me')

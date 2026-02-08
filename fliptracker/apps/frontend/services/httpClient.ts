@@ -42,6 +42,33 @@ const getIdToken = async (): Promise<string | null> => {
   }
 };
 
+/**
+ * Refresh ID token using backend refresh endpoint
+ */
+const refreshIdToken = async (): Promise<string | null> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      localStorage.removeItem('auth_token');
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.token) {
+      localStorage.setItem('auth_token', data.token);
+    }
+    return data.token || null;
+  } catch (error) {
+    console.error('Failed to refresh ID token:', error);
+    localStorage.removeItem('auth_token');
+    return null;
+  }
+};
+
 export const httpClient = async (endpoint: string, options: HttpOptions = {}): Promise<Response> => {
   const url = `${API_BASE_URL}${endpoint}`;
   const { skipAuth = false, ...fetchOptions } = options;
@@ -63,7 +90,7 @@ export const httpClient = async (endpoint: string, options: HttpOptions = {}): P
 
   // Handle 401: session expired, try to refresh and retry once
   if (response.status === 401 && !skipAuth) {
-    const refreshedToken = await getIdToken();
+    const refreshedToken = await refreshIdToken();
     if (refreshedToken) {
       headers.set('Authorization', `Bearer ${refreshedToken}`);
       return fetch(url, {

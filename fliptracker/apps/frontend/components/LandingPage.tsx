@@ -51,6 +51,36 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
           ))}
         </div>
 
+        <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 delay-300 fill-mode-both duration-700">
+          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Connexion rapide</p>
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={onLogin}
+              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+            >
+              <i className="fab fa-apple text-lg"></i>
+              Apple
+            </button>
+            <button
+              type="button"
+              onClick={onLogin}
+              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+            >
+              <i className="fab fa-google text-lg"></i>
+              Gmail
+            </button>
+            <button
+              type="button"
+              onClick={onLogin}
+              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+            >
+              <i className="fab fa-microsoft text-lg"></i>
+              Hotmail
+            </button>
+          </div>
+        </div>
+
         <div className="mt-auto pb-12 animate-in fade-in slide-in-from-bottom-4 delay-500 fill-mode-both">
           <button 
             onClick={onGetStarted}

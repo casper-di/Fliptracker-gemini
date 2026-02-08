@@ -45,25 +45,44 @@ export class FirestoreParcelRepository implements IParcelRepository {
     const sortOrder = filters?.sortOrder || 'desc';
     query = query.orderBy(sortBy, sortOrder);
 
+    const limit = filters?.limit || 20;
+    const offset = filters?.offset || 0;
+
+    if (filters?.search) {
+      const snapshot = await query.get();
+      const parcels = snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
+      const searchLower = filters.search.toLowerCase();
+      const filtered = parcels.filter(p => {
+        const fields = [
+          p.title,
+          p.productName,
+          p.trackingNumber,
+          p.carrier,
+          p.senderName,
+          p.senderEmail,
+          p.recipientName,
+          p.recipientEmail,
+          p.marketplace,
+          p.orderNumber,
+        ].filter(Boolean) as string[];
+        return fields.some(value => value.toLowerCase().includes(searchLower));
+      });
+
+      return {
+        data: filtered.slice(offset, offset + limit),
+        total: filtered.length,
+        limit,
+        offset,
+      };
+    }
+
     const countSnapshot = await query.count().get();
     const total = countSnapshot.data().count;
 
-    const limit = filters?.limit || 20;
-    const offset = filters?.offset || 0;
-    
     query = query.limit(limit).offset(offset);
 
     const snapshot = await query.get();
-    let parcels = snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
-
-    if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      parcels = parcels.filter(
-        p =>
-          p.title.toLowerCase().includes(searchLower) ||
-          p.trackingNumber.toLowerCase().includes(searchLower),
-      );
-    }
+    const parcels = snapshot.docs.map(doc => this.toEntity(doc.id, doc.data()));
 
     return {
       data: parcels,

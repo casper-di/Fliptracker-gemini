@@ -46,7 +46,14 @@ export class ColissimoParserService {
       }
     }
 
-    // 2. Extraction du code de retrait (pour points de retrait Colissimo)
+    // 2. Extraction du marketplace/expéditeur
+    // Pattern: "Votre Colissimo confié par {Marketplace}"
+    const marketplaceMatch = bodyOriginal.match(/Votre\s+Colissimo\s+confié\s+par\s+([A-Z][a-zA-Z0-9\s]{2,30})/i);
+    if (marketplaceMatch && marketplaceMatch[1]) {
+      result.marketplace = marketplaceMatch[1].trim();
+    }
+
+    // 3. Extraction du code de retrait (pour points de retrait Colissimo)
     const withdrawalPatterns = [
       /code[\s]*(?:de[\s]*)?retrait[\s:]*([A-Z0-9]{4,8})/gi,
       /votre[\s]*code[\s:]*([A-Z0-9]{4,8})/gi,
@@ -61,7 +68,7 @@ export class ColissimoParserService {
       }
     }
 
-    // 3. Extraction du nom du destinataire
+    // 4. Extraction du nom du destinataire
     const recipientPatterns = [
       /destinataire[\s:]*([A-Z][a-zÀ-ÿ]+\s+[A-Z][a-zÀ-ÿ]+)/gi,
       /livraison[\s]*pour[\s:]*([A-Z][a-zÀ-ÿ]+\s+[A-Z][a-zÀ-ÿ]+)/gi,
@@ -76,47 +83,102 @@ export class ColissimoParserService {
       }
     }
 
-    // 4. Extraction de l'adresse du point retrait - version améliorée
+    // 5. Extraction de l'adresse du point retrait - version améliorée
     let pickupAddress: string | null = null;
     
-    // Try comprehensive patterns first (up to 200 chars to capture full address)
-    const pickupAddressPatterns = [
-      /point[\s]*retrait[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
-      /adresse[\s]*(?:du[\s]*)?point[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
-      /retirez[\s]*votre[\s]*colis[\s]*[àa][\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
-    ];
+    // Pattern 1: HTML structure with ADRESSE : and BR tags
+    // Example: ADRESSE :</strong></p><p>STE FOY LES LYON BP</p><p>STE FOY LES LYON</p><p>15 BOULEVARD BARON DU MARAIS</p><p>69110 STE FOY LES LYON</p>
+    const htmlAddressMatch = bodyOriginal.match(/ADRESSE\s*:?<\/strong>.*?<\/p>([\s\S]{20,400}?\d{5}[\s<]*[A-Z][a-zÀ-ÿ\s]+)/i);
+    if (htmlAddressMatch) {
+      // Extract all <p> or text between BR tags
+      const addressSection = htmlAddressMatch[0];
+      const lines: string[] = [];
+      
+      // Extract paragraph content
+      const paragraphs = addressSection.match(/<p[^>]*>([^<]+)<\/p>/gi);
+      if (paragraphs) {
+        paragraphs.forEach(p => {
+          const content = p.replace(/<\/?p[^>]*>/gi, '').trim();
+          if (content && content !== 'ADRESSE' && !content.match(/^(\s*:|<)/) && content.length < 100) {
+            lines.push(content);
+          }
+        });
+      }
+      
+      if (lines.length > 0) {
+        pickupAddress = lines.join('\n');
+      }
+    }
+    
+    // Pattern 2: Try comprehensive patterns (fallback)
+    if (!pickupAddress) {
+      const pickupAddressPatterns = [
+        /point[\s]*retrait[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
+        /adresse[\s]*(?:du[\s]*)?point[\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
+        /retirez[\s]*votre[\s]*colis[\s]*[àa][\s:]*(.{10,200}?(?:\d{5}[\s]*[A-Z][a-zÀ-ÿ]+))/gi,
+      ];
 
-    for (const pattern of pickupAddressPatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        pickupAddress = match[1].trim().replace(/\s+/g, ' ');
-        break;
+      for (const pattern of pickupAddressPatterns) {
+        const match = bodyOriginal.match(pattern);
+        if (match && match[1]) {
+          pickupAddress = match[1].trim().replace(/\s+/g, ' ');
+          break;
+        }
       }
     }
     
     result.pickupAddress = pickupAddress;
 
-    // 5. Extraction de la date limite de retrait
-    const deadlinePatterns = [
-      /avant[\s]*le[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-      /jusque?[\s]*au[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-      /disponible[\s]*jusqu[\'']?au[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-      /limit[eé][\s]*(?:de[\s]*)?retrait[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
-    ];
+    // 6. Extraction de la date limite de retrait
+    // Format français long: "jusqu'au samedi 20 décembre 2025"
+    const frenchLongDateMatch = bodyOriginal.match(/jusqu[\']?au?\s+(?:\w+\s+)?(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre)\s+(\d{4})/i);
+    if (frenchLongDateMatch) {
+      const day = parseInt(frenchLongDateMatch[1], 10);
+      const monthName = frenchLongDateMatch[2].toLowerCase();
+      const year = parseInt(frenchLongDateMatch[3], 10);
+      
+      const monthMap: { [key: string]: number } = {
+        'janvier': 0, 'février': 1, 'fevrier': 1, 'mars': 2, 'avril': 3,
+        'mai': 4, 'juin': 5, 'juillet': 6, 'août': 7, 'aout': 7,
+        'septembre': 8, 'octobre': 9, 'novembre': 10, 'décembre': 11, 'decembre': 11
+      };
+      
+      const month = monthMap[monthName];
+      if (month !== undefined) {
+        result.pickupDeadline = new Date(year, month, day);
+      }
+    }
+    
+    // Fallback: Format numérique classique
+    if (!result.pickupDeadline) {
+      const deadlinePatterns = [
+        /avant[\s]*le[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+        /jusque?[\s]*au[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+        /disponible[\s]*jusqu[\']?au[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+        /limit[eé][\s]*(?:de[\s]*)?retrait[\s:]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/gi,
+      ];
 
-    for (const pattern of deadlinePatterns) {
-      const match = bodyOriginal.match(pattern);
-      if (match && match[1]) {
-        try {
-          result.pickupDeadline = this.parseDate(match[1]);
-        } catch (e) {
-          // Ignore invalid dates
+      for (const pattern of deadlinePatterns) {
+        const match = bodyOriginal.match(pattern);
+        if (match && match[1]) {
+          try {
+            result.pickupDeadline = this.parseDate(match[1]);
+          } catch (e) {
+            // Ignore invalid dates
+          }
+          break;
         }
-        break;
       }
     }
 
-    // 6. Extraction du nom de l'expéditeur
+    // 7. Extraction du QR code / barcode
+    // Pattern: URL du barcode Colissimo
+    const qrCodeMatch = bodyOriginal.match(/colissimo\.fr\/entreprise\/nad-bo\/cab\.htm\?parcel=([A-Z0-9]+)/i);
+    if (qrCodeMatch && qrCodeMatch[0]) {
+      result.qrCode = 'https://www.' + qrCodeMatch[0];
+    }
+
+    // 8. Extraction du nom de l'expéditeur
     const senderPatterns = [
       /exp[éeè]diteur[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{2,40})/gi,
       /envoy[éeè][\s]*par[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{2,40})/gi,
@@ -130,17 +192,22 @@ export class ColissimoParserService {
       }
     }
 
-    // 7. Détection du type de service
+    // 9. Détection du type de service
     if (body.includes('chronopost')) {
       result.carrier = 'chronopost';
     } else if (body.includes('lettre suivie')) {
       result.productName = 'Lettre Suivie';
     } else if (body.includes('colissimo international')) {
       result.productName = 'Colissimo International';
-    } else if (body.includes('point retrait')) {
+    } else if (body.includes('point retrait') || body.includes('point de retrait')) {
       result.productName = 'Colissimo Point Retrait';
     } else {
-      result.productName = 'Colissimo';
+      // Extract from marketplace if available
+      if (result.marketplace) {
+        result.productName = `Colissimo (${result.marketplace})`;
+      } else {
+        result.productName = 'Colissimo';
+      }
     }
 
     return result;

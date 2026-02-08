@@ -13,7 +13,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, un
     { id: 'incoming', icon: 'fa-arrow-down-long', label: 'Incoming' },
     { id: 'outgoing', icon: 'fa-arrow-up-long', label: 'Outgoing' },
     { id: 'notifications', icon: 'fa-bell', label: 'Alerts' },
-    { id: 'history', icon: 'fa-clock-rotate-left', label: 'History' },
     { id: 'settings', icon: 'fa-gear', label: 'Settings' },
   ];
 

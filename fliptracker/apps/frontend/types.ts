@@ -138,4 +138,4 @@ export interface SyncStatus {
   error: string | null;
 }
 
-export type TabType = 'incoming' | 'outgoing' | 'history' | 'notifications' | 'settings' | 'add' | 'email_sync';
+export type TabType = 'incoming' | 'outgoing' | 'notifications' | 'settings' | 'add' | 'email_sync';

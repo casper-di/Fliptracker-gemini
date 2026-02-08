@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Shipment, ShipmentStatus, ShipmentDirection, TabType, AppNotification, UserPreferences, SyncStatus, ConnectedEmail, EmailSummary } from './types';
 import { ShipmentCard } from './components/ShipmentCard';
 import { ShipmentDetailsPage } from './components/ShipmentDetailsPage';
@@ -11,10 +11,10 @@ import { EmailSyncPage } from './components/EmailSyncPage';
 import { LandingPage } from './components/LandingPage';
 import { AuthPage } from './components/AuthPage';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { LoadingSpinner, LoadingCard } from './components/LoadingSpinner';
-import { SyncIndicator } from './components/SyncIndicator';
+import { LoadingCard } from './components/LoadingSpinner';
 import { api } from './services/apiService';
 import { onAuthStateChange, signInWithGoogle, signOut, getCurrentSession } from './services/authService';
+import { appStore } from './services/appStore';
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   theme: 'light',
@@ -53,9 +53,14 @@ const INITIAL_EMAIL_SUMMARY: EmailSummary = {
   logs: [],
 };
 
+const PAGE_SIZE = 20;
+
 const App: React.FC = () => {
-  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>(appStore.shipments.get());
   const [isLoadingShipments, setIsLoadingShipments] = useState<boolean>(false);
+  const [isFetchingMore, setIsFetchingMore] = useState<boolean>(false);
+  const [totalShipments, setTotalShipments] = useState<number>(0);
+  const [hasMoreShipments, setHasMoreShipments] = useState<boolean>(true);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('incoming');
   const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
@@ -63,15 +68,23 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'urgent' | 'transit'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; tone: 'loading' | 'offline' | 'online' } | null>(null);
   
   // Auth States
   const [user, setUser] = useState<any>(null);
   const [appLoading, setAppLoading] = useState<boolean>(true);
 
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(INITIAL_SYNC_STATUS);
-  const [emailSummary, setEmailSummary] = useState<EmailSummary>(INITIAL_EMAIL_SUMMARY);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(appStore.syncStatus.get());
+  const [emailSummary, setEmailSummary] = useState<EmailSummary>(appStore.emailSummary.get());
   const previousConnectionCountRef = useRef<number>(0);
+  const needsEmailReloadRef = useRef<boolean>(false);
+  const initialLoadDoneRef = useRef<boolean>(false);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+  const onlineToastTimeoutRef = useRef<number | null>(null);
+  const lastRefreshRef = useRef<number>(0);
 
   // Capture token from OAuth callback (cross-origin safe)
   useEffect(() => {
@@ -119,6 +132,7 @@ const App: React.FC = () => {
         console.log(`[Email OAuth] Callback detected for ${emailProvider}, will switch to email_sync tab`);
         // Store in sessionStorage to switch tab after user loads
         sessionStorage.setItem('pendingEmailSyncTab', 'true');
+        needsEmailReloadRef.current = true;
         
         // Clean up OAuth params from URL
         url.searchParams.delete('success');
@@ -167,41 +181,128 @@ const App: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  // Load parcels and connections when user changes
   useEffect(() => {
-    if (user) {
-      const loadData = async () => {
-        setSyncStatus(prev => ({ ...prev, isLoading: true }));
-        setIsLoadingShipments(true);
-        try {
-          // Load connected emails + summary
-          const [connections, summary] = await Promise.all([
-            api.getEmails(),
-            api.getEmailSummary(),
-          ]);
-          setSyncStatus({ connections, isLoading: false, error: null });
-          setEmailSummary(summary);
+    const unsubscribeShipments = appStore.shipments.subscribe(setShipments);
+    const unsubscribeSync = appStore.syncStatus.subscribe(setSyncStatus);
+    const unsubscribeSummary = appStore.emailSummary.subscribe(setEmailSummary);
 
-          // Load parcels from backend
-          const response = await api.getParcels({ limit: 100, offset: 0 });
-          setShipments(response.data || []);
-        } catch (err) {
-          console.error('Failed to load data:', err);
-          setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Failed to load data' }));
-        } finally {
-          setIsLoadingShipments(false);
-        }
-      };
-      loadData();
+    return () => {
+      unsubscribeShipments();
+      unsubscribeSync();
+      unsubscribeSummary();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      initialLoadDoneRef.current = false;
+      appStore.shipments.set([]);
+      setTotalShipments(0);
+      setHasMoreShipments(true);
+      appStore.syncStatus.set(INITIAL_SYNC_STATUS);
+      appStore.emailSummary.set(INITIAL_EMAIL_SUMMARY);
+      setConnectionsLoaded(false);
+      setStatusMessage(null);
     }
   }, [user]);
 
+  const buildParcelFilters = useCallback((offset: number) => {
+    const normalizedQuery = searchQuery.trim();
+    const type = activeTab === 'incoming' ? 'purchase' : activeTab === 'outgoing' ? 'sale' : undefined;
+    return {
+      limit: PAGE_SIZE,
+      offset,
+      search: normalizedQuery.length > 0 ? normalizedQuery : undefined,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      type,
+    };
+  }, [activeTab, searchQuery]);
+
+  const loadConnectionsAndSummary = useCallback(async () => {
+    appStore.syncStatus.update(prev => ({ ...prev, isLoading: true }));
+    try {
+      const [connections, summary] = await Promise.all([
+        api.getEmails(),
+        api.getEmailSummary(),
+      ]);
+      appStore.syncStatus.set({ connections, isLoading: false, error: null });
+      appStore.emailSummary.set(summary);
+      setConnectionsLoaded(true);
+    } catch (err) {
+      console.error('Failed to load connections:', err);
+      appStore.syncStatus.update(prev => ({ ...prev, isLoading: false, error: 'Failed to load data' }));
+      setConnectionsLoaded(true);
+    }
+  }, []);
+
+  const loadShipments = useCallback(async ({ reset = false } = {}) => {
+    if (!user) return;
+    if (!navigator.onLine) return;
+    const offset = reset ? 0 : shipments.length;
+
+    const showBlockingLoader = reset && shipments.length === 0;
+
+    if (reset && showBlockingLoader) {
+      setIsLoadingShipments(true);
+    } else {
+      setIsFetchingMore(true);
+    }
+
+    try {
+      const response = await api.getParcels(buildParcelFilters(offset));
+      const incoming = response.data || [];
+      const total = typeof response.total === 'number' ? response.total : (reset ? incoming.length : totalShipments);
+      const currentShipments = appStore.shipments.get();
+      appStore.shipments.set(reset ? incoming : [...currentShipments, ...incoming]);
+      setTotalShipments(total);
+      setHasMoreShipments((offset + incoming.length) < total);
+      lastRefreshRef.current = Date.now();
+    } catch (error) {
+      console.error('Failed to load shipments:', error);
+    } finally {
+      if (reset && showBlockingLoader) {
+        setIsLoadingShipments(false);
+      } else {
+        setIsFetchingMore(false);
+      }
+    }
+  }, [buildParcelFilters, shipments.length, totalShipments, user]);
+
+  const refreshAllData = useCallback(async () => {
+    if (!navigator.onLine || !user) return;
+    setIsRefreshing(true);
+    if (shipments.length === 0) {
+      setStatusMessage({ text: 'Chargement...', tone: 'loading' });
+    }
+    await Promise.all([
+      loadConnectionsAndSummary(),
+      loadShipments({ reset: true }),
+    ]);
+    setIsRefreshing(false);
+    setStatusMessage((current) => (current?.tone === 'loading' ? null : current));
+  }, [loadConnectionsAndSummary, loadShipments, shipments.length, user]);
+
+  const refreshShipmentsSilently = useCallback(async () => {
+    if (!navigator.onLine || !user) return;
+    if (shipments.length === 0) return;
+    await loadShipments({ reset: true });
+  }, [loadShipments, shipments.length, user]);
+
+  // Load parcels and connections when user changes
+  useEffect(() => {
+    if (user && !initialLoadDoneRef.current) {
+      initialLoadDoneRef.current = true;
+      refreshAllData();
+    }
+  }, [user, refreshAllData]);
+
   // Reload connections when email_sync tab becomes active (after OAuth redirect)
   useEffect(() => {
-    if (user && activeTab === 'email_sync') {
+    if (user && activeTab === 'email_sync' && (!connectionsLoaded || needsEmailReloadRef.current)) {
       console.log('[Email Sync] Tab active and user loaded, reloading connections');
       const reloadConnections = async () => {
-        setSyncStatus(prev => ({ ...prev, isLoading: true }));
+        appStore.syncStatus.update(prev => ({ ...prev, isLoading: true }));
         try {
           const [connections, summary] = await Promise.all([
             api.getEmails(),
@@ -218,33 +319,60 @@ const App: React.FC = () => {
             // Launch sync in background
             api.syncEmails()
               .then(async () => {
-                const [updatedSummary, parcelsResponse] = await Promise.all([
-                  api.getEmailSummary(),
-                  api.getParcels({ limit: 100, offset: 0 })
-                ]);
-                setEmailSummary(updatedSummary);
-                setShipments(parcelsResponse.data || []);
-                setSyncStatus({ connections, isLoading: false, error: null });
+                const updatedSummary = await api.getEmailSummary();
+                appStore.emailSummary.set(updatedSummary);
+                await loadShipments({ reset: true });
+                appStore.syncStatus.set({ connections, isLoading: false, error: null });
               })
               .catch(err => {
                 console.error('Auto-sync failed:', err);
-                setSyncStatus({ connections, isLoading: false, error: null });
+                appStore.syncStatus.set({ connections, isLoading: false, error: null });
               });
           } else {
-            setSyncStatus({ connections, isLoading: false, error: null });
+            appStore.syncStatus.set({ connections, isLoading: false, error: null });
           }
           
           previousConnectionCountRef.current = currentCount;
-          setEmailSummary(summary);
+          needsEmailReloadRef.current = false;
+          appStore.emailSummary.set(summary);
         } catch (err) {
           console.error('Failed to reload email connections:', err);
-          setSyncStatus(prev => ({ ...prev, isLoading: false }));
+          appStore.syncStatus.update(prev => ({ ...prev, isLoading: false }));
         }
       };
       reloadConnections();
     }
-  }, [user, activeTab]);
+  }, [user, activeTab, connectionsLoaded, loadShipments]);
 
+  // Handle connectivity changes
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setStatusMessage({ text: 'Connexion rétablie', tone: 'online' });
+      if (onlineToastTimeoutRef.current) {
+        window.clearTimeout(onlineToastTimeoutRef.current);
+      }
+      onlineToastTimeoutRef.current = window.setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+      refreshShipmentsSilently();
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setStatusMessage({ text: 'Pas de connexion', tone: 'offline' });
+      if (onlineToastTimeoutRef.current) {
+        window.clearTimeout(onlineToastTimeoutRef.current);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [refreshShipmentsSilently]);
 
   // Save State
   useEffect(() => {
@@ -257,9 +385,7 @@ const App: React.FC = () => {
 
   const filteredShipments = useMemo(() => {
     let list = [...shipments];
-    if (activeTab === 'history') {
-      list = list.filter(s => [ShipmentStatus.DELIVERED, ShipmentStatus.CANCELLED, ShipmentStatus.RETURNED_TO_SENDER].includes(s.status));
-    } else if (activeTab === 'incoming') {
+    if (activeTab === 'incoming') {
       list = list.filter(s => s.direction === ShipmentDirection.INBOUND && ![ShipmentStatus.DELIVERED, ShipmentStatus.CANCELLED, ShipmentStatus.RETURNED_TO_SENDER].includes(s.status));
     } else if (activeTab === 'outgoing') {
       list = list.filter(s => s.direction === ShipmentDirection.OUTBOUND && ![ShipmentStatus.DELIVERED, ShipmentStatus.CANCELLED, ShipmentStatus.RETURNED_TO_SENDER].includes(s.status));
@@ -267,7 +393,21 @@ const App: React.FC = () => {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(s => s.sender.toLowerCase().includes(q) || s.trackingNumber.toLowerCase().includes(q) || s.carrier.toLowerCase().includes(q));
+      list = list.filter(s => {
+        const fields = [
+          s.sender,
+          s.recipient,
+          s.trackingNumber,
+          s.carrier,
+          (s as any).title,
+          (s as any).productName,
+          (s as any).marketplace,
+          (s as any).orderNumber,
+          (s as any).senderName,
+          (s as any).senderEmail,
+        ].filter(Boolean) as string[];
+        return fields.some(value => value.toLowerCase().includes(q));
+      });
     }
 
     if (filterType === 'urgent') {
@@ -279,8 +419,26 @@ const App: React.FC = () => {
     return list.sort((a, b) => (new Date(a.lastUpdated).getTime() > new Date(b.lastUpdated).getTime() ? -1 : 1));
   }, [shipments, activeTab, searchQuery, filterType]);
 
+  const isListTab = ['incoming', 'outgoing'].includes(activeTab);
+  const activeStatusMessage = statusMessage || (shipments.length === 0 && isLoadingShipments ? { text: 'Chargement...', tone: 'loading' as const } : null);
+  const statusToneClass = activeStatusMessage?.tone === 'offline'
+    ? 'bg-rose-600'
+    : activeStatusMessage?.tone === 'online'
+    ? 'bg-emerald-600'
+    : 'bg-blue-600';
+  const connectionLabel = !isOnline
+    ? 'Hors ligne'
+    : syncStatus.connections.length > 0
+    ? `${syncStatus.connections.length} comptes connectés`
+    : 'Aucun compte mail';
+  const connectionDotClass = !isOnline
+    ? 'bg-rose-500'
+    : syncStatus.connections.some(c => c.status === 'connected' || c.status === 'active')
+    ? 'bg-emerald-500'
+    : 'bg-slate-400';
+
   const handleSyncAction = async (action: string, payload?: any) => {
-    setSyncStatus(prev => ({ ...prev, isLoading: true }));
+    appStore.syncStatus.update(prev => ({ ...prev, isLoading: true }));
     try {
       if (action === 'connect_gmail') {
         const { authUrl } = await api.gmail.connectStart();
@@ -290,35 +448,36 @@ const App: React.FC = () => {
         window.location.href = authUrl; // Redirect to OAuth
       } else if (action === 'delete') {
         await api.deleteEmail(payload);
-        setSyncStatus(prev => ({
+        appStore.syncStatus.update(prev => ({
           ...prev,
           connections: prev.connections.filter(c => c.id !== payload),
-          isLoading: false
+          isLoading: false,
         }));
         const summary = await api.getEmailSummary();
-        setEmailSummary(summary);
+        appStore.emailSummary.set(summary);
       } else if (action === 'reconnect') {
         const updated = await api.reconnectEmail(payload);
-        setSyncStatus(prev => ({
+        appStore.syncStatus.update(prev => ({
           ...prev,
           connections: prev.connections.map(c => c.id === payload ? updated : c),
-          isLoading: false
+          isLoading: false,
         }));
         const summary = await api.getEmailSummary();
-        setEmailSummary(summary);
+        appStore.emailSummary.set(summary);
       } else if (action === 'manual_sync') {
+        setStatusMessage({ text: 'Synchronisation...', tone: 'loading' });
         await api.syncEmails();
         const summary = await api.getEmailSummary();
-        setEmailSummary(summary);
+        appStore.emailSummary.set(summary);
         
         // Reload shipments after sync to show new parcels
-        const response = await api.getParcels({ limit: 100, offset: 0 });
-        setShipments(response.data || []);
+        await loadShipments({ reset: true });
         
-        setSyncStatus(prev => ({ ...prev, isLoading: false }));
+        appStore.syncStatus.update(prev => ({ ...prev, isLoading: false }));
+        setStatusMessage(null);
       }
     } catch (err) {
-      setSyncStatus(prev => ({ ...prev, isLoading: false, error: 'Operation failed' }));
+      appStore.syncStatus.update(prev => ({ ...prev, isLoading: false, error: 'Operation failed' }));
     }
   };
 
@@ -363,16 +522,16 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className={isDarkMode ? 'dark' : ''}>      <SyncIndicator isLoading={syncStatus.isLoading} />      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden ring-1 ring-slate-200 dark:ring-white/10 theme-transition">
-        
+    <div className={isDarkMode ? 'dark' : ''}>
+      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden ring-1 ring-slate-200 dark:ring-white/10 theme-transition">
         {activeTab !== 'email_sync' && (
           <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-5 pt-8 pb-4 sticky top-0 z-40 border-b border-slate-100 dark:border-white/10 shadow-sm theme-transition">
             <div className="flex justify-between items-center mb-5">
               <div onClick={() => setActiveTab('incoming')} className="cursor-pointer">
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-none tracking-tight italic">FlipTracker</h1>
                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1.5 flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${syncStatus.connections.some(c => c.status === 'connected' || c.status === 'active') ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                  {syncStatus.connections.length > 0 ? `${syncStatus.connections.length} comptes connectés` : 'Aucun compte mail'}
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${connectionDotClass}`}></span>
+                  {connectionLabel}
                 </p>
               </div>
               <button 
@@ -383,8 +542,16 @@ const App: React.FC = () => {
               </button>
             </div>
             
-            {['incoming', 'outgoing', 'history'].includes(activeTab) && (
+            {['incoming', 'outgoing'].includes(activeTab) && (
               <>
+                {activeStatusMessage && (
+                  <div className={`mb-4 w-full ${statusToneClass} rounded-2xl`}> 
+                    <div className="text-white px-4 py-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                      <i className={`fas ${activeStatusMessage.tone === 'offline' ? 'fa-plug-circle-xmark' : activeStatusMessage.tone === 'online' ? 'fa-wifi' : 'fa-circle-notch'} ${activeStatusMessage.tone === 'loading' ? 'animate-spin' : ''}`}></i>
+                      <span className="truncate">{activeStatusMessage.text}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="relative mb-4">
                   <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600"></i>
                   <input 
@@ -411,8 +578,13 @@ const App: React.FC = () => {
           </header>
         )}
 
-        <main className={`flex-1 overflow-y-auto no-scrollbar relative ${activeTab === 'email_sync' ? '' : 'pb-32'}`}>
-          {user && syncStatus.connections.length === 0 && (activeTab === 'incoming' || activeTab === 'outgoing') && (
+        <main
+          ref={mainScrollRef}
+          className={`flex-1 overflow-y-auto no-scrollbar relative ${activeTab === 'email_sync' ? '' : 'pb-32'}`}
+        >
+
+
+          {user && connectionsLoaded && !syncStatus.isLoading && syncStatus.connections.length === 0 && (activeTab === 'incoming' || activeTab === 'outgoing') && (
             <div className="px-5 pt-6 animate-in slide-in-from-top-4 duration-500">
               <div className="bg-blue-600 dark:bg-blue-700 rounded-[28px] p-6 shadow-xl shadow-blue-500/20 relative overflow-hidden group">
                 <div className="flex items-start gap-5 relative z-10">
@@ -439,7 +611,7 @@ const App: React.FC = () => {
               try {
                 await api.createParcel(data);
                 // Reload shipments
-                loadShipments();
+                loadShipments({ reset: true });
                 setActiveTab('incoming');
               } catch (error) {
                 console.error('Failed to create shipment:', error);
@@ -473,24 +645,25 @@ const App: React.FC = () => {
           ) : (
             <div className="px-5 py-6">
               {isLoadingShipments ? (
-                // Show loading skeleton cards
-                <>
-                  <LoadingCard />
-                  <LoadingCard />
-                  <LoadingCard />
-                  <LoadingCard />
-                </>
-              ) : filteredShipments.length === 0 ? (
+                <div className="py-16"></div>
+              ) : filteredShipments.length === 0 && !isRefreshing && activeStatusMessage?.tone !== 'loading' ? (
                 <div className="text-center py-24 opacity-50">
                   <i className="fas fa-box-archive text-4xl mb-4 text-slate-300 dark:text-slate-700"></i>
                   <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Aucun colis trouvé</p>
                 </div>
               ) : (
-                filteredShipments.map(s => (
-                  <div key={s.id} className="animate-in fade-in slide-in-from-bottom-2">
-                    <ShipmentCard shipment={s} onClick={setSelectedShipment} />
-                  </div>
-                ))
+                <>
+                  {filteredShipments.map(s => (
+                    <div key={s.id} className="animate-in fade-in slide-in-from-bottom-2">
+                      <ShipmentCard shipment={s} onClick={setSelectedShipment} />
+                    </div>
+                  ))}
+                  {!hasMoreShipments && totalShipments > 0 && (
+                    <div className="pt-4 text-center text-[9px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-700">
+                      Fin de la liste
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
