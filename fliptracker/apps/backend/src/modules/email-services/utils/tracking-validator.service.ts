@@ -92,10 +92,13 @@ export class TrackingValidatorService {
   }
 
   /**
-   * Chronopost: 13 digits
+   * Chronopost: 13 digits, or 2 letters + 9-11 digits + 2 letters (e.g., XW250342935TS)
    */
   private validateChronopost(tracking: string): string | null {
     if (/^\d{13}$/.test(tracking)) return tracking;
+    if (/^[A-Z]{2}\d{9,11}[A-Z]{2}$/.test(tracking)) return tracking;
+    // Also accept 10-digit format sometimes used
+    if (/^\d{10}$/.test(tracking)) return tracking;
     return null;
   }
 

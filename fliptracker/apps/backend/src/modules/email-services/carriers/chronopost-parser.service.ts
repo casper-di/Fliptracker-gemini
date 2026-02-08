@@ -36,16 +36,6 @@ export class ChronopostParserService {
   ) {}
 
   /**
-   * Validate Chronopost tracking format (e.g., XW250342935TS, 3436603419)
-   */
-  private isValidTrackingNumber(tracking: string | null): boolean {
-    if (!tracking) return false;
-    // Format 1: Letters + digits + letters (e.g., XW250342935TS)
-    // Format 2: 10 digits (e.g., 3436603419)
-    return /^[A-Z]{2}\d{9,11}[A-Z]{2}$/i.test(tracking) || /^\d{10}$/.test(tracking);
-  }
-
-  /**
    * Parse Chronopost emails
    */
   parse(email: { subject: string; body: string; from: string; receivedAt: Date }): ParsedTrackingInfo {
@@ -62,19 +52,24 @@ export class ChronopostParserService {
 
     // Extract tracking number - Chronopost format: XW250342935TS or 3436603419
     const trackingPatterns = [
-      /Votre colis VINTED n°?\s*<a[^>]*>([A-Z0-9]{10,})<\/a>/i,
+      // Pattern 1: Vinted format with or without HTML
+      /Votre colis VINTED\s+n[°o]?\s*<?(?:a[^>]*>)?([A-Z]{2}\d{9,11}[A-Z]{2})/i,
+      // Pattern 2: Generic with HTML tags
       /(?:colis|tracking|suivi)[^<]{0,50}<[^>]*>([A-Z]{2}\d{9,11}[A-Z]{2})/i,
-      /(?:numéro|numero|tracking|suivi)[\s:°]*([A-Z]{2}\d{9,11}[A-Z]{2})/i,
-      /\b([A-Z]{2}\d{9,11}[A-Z]{2})\b/, // Generic format
-      /\b(\d{10})\b/, // 10-digit tracking numbers
+      // Pattern 3: Generic with text
+      /(?:numéro|numero|n°|tracking|suivi)[\s:°]*([A-Z]{2}\d{9,11}[A-Z]{2})/i,
+      // Pattern 4: Standalone alphanumeric (letters+digits+letters)
+      /\b([A-Z]{2}\d{9,11}[A-Z]{2})\b/,
+      // Pattern 5: 10-digit tracking numbers
+      /\b(\d{10})\b/,
     ];
 
     for (const pattern of trackingPatterns) {
       const match = email.body.match(pattern);
-      if (match) {
-        const candidate = match[1];
-        if (this.isValidTrackingNumber(candidate)) {
-          result.trackingNumber = candidate;
+      if (match && match[1]) {
+        const validated = this.trackingValidator.validateTracking(match[1], 'chronopost');
+        if (validated) {
+          result.trackingNumber = validated;
           break;
         }
       }
