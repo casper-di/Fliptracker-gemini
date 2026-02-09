@@ -1,11 +1,23 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ParsedEmail } from '../../domain/entities/email-sync.entity';
-import { Parcel, ParcelType } from '../../domain/entities/parcel.entity';
+import { Parcel, ParcelType, ParcelStatus, EmailType, StatusHistoryEntry } from '../../domain/entities/parcel.entity';
 import {
   PARCEL_REPOSITORY,
   IParcelRepository,
 } from '../../domain/repositories/parcel.repository';
 import { StatusDetectorService } from './status-detector.service';
+
+/**
+ * Status progression order — higher index = further along in lifecycle.
+ * A status can only advance forward, never regress (anti-regression rule).
+ */
+const STATUS_ORDER: ParcelStatus[] = [
+  'pending',
+  'in_transit',
+  'out_for_delivery',
+  'delivered',
+  'returned',  // terminal state, separate branch
+];
 
 @Injectable()
 export class ParsedEmailToParcelService {
@@ -15,9 +27,12 @@ export class ParsedEmailToParcelService {
     private statusDetector: StatusDetectorService,
   ) {}
 
+  // ─── public API ──────────────────────────────────────────────
+
   /**
-   * Convert ParsedEmail to Parcel and save it
-   * Determines if it's a purchase (incoming) or sale (outgoing) based on marketplace
+   * Convert ParsedEmail to Parcel.
+   * - If parcel doesn't exist → create
+   * - If parcel exists → update (merge new data, anti-regression on status)
    */
   async createParcelFromParsedEmail(parsedEmail: ParsedEmail): Promise<Parcel | null> {
     if (!parsedEmail.trackingNumber) {
@@ -25,11 +40,11 @@ export class ParsedEmailToParcelService {
       return null;
     }
 
-    console.log(`      📦 Creating parcel from ParsedEmail:`, {
+    console.log(`      📦 Processing ParsedEmail:`, {
       trackingNumber: parsedEmail.trackingNumber,
       carrier: parsedEmail.carrier,
       marketplace: parsedEmail.marketplace,
-      withdrawalCode: parsedEmail.withdrawalCode,
+      emailType: (parsedEmail as any).emailType ?? 'n/a',
     });
 
     // Check if parcel already exists
@@ -39,42 +54,30 @@ export class ParsedEmailToParcelService {
     );
 
     if (existing) {
-      console.log(`      ℹ️  Parcel already exists: ${existing.id}`);
-      return existing;
+      console.log(`      ℹ️  Parcel exists (${existing.id}), merging update…`);
+      return this.updateParcelFromEmail(existing, parsedEmail);
     }
 
-    // Determine type (purchase vs sale)
-    // Priority 1: Use type from parser if explicitly detected
-    // Priority 2: If marketplace exists = purchase (incoming)
-    // Priority 3: Default to sale (outgoing)
-    let type: ParcelType = 'sale';
-    if (parsedEmail.type) {
-      type = parsedEmail.type; // Parser explicitly detected the type
-    } else if (parsedEmail.marketplace) {
-      type = 'purchase'; // Marketplace emails are usually purchases
-    }
+    return this.createNewParcel(parsedEmail);
+  }
 
-    // Map carrier (some differences in naming)
-    let carrier: Parcel['carrier'] = 'other';
-    if (parsedEmail.carrier === 'dhl') carrier = 'dhl';
-    else if (parsedEmail.carrier === 'ups') carrier = 'ups';
-    else if (parsedEmail.carrier === 'fedex') carrier = 'fedex';
-    else if (parsedEmail.carrier === 'laposte' || parsedEmail.carrier === 'colissimo')
-      carrier = 'laposte';
-    else if (parsedEmail.carrier === 'chronopost') carrier = 'chronopost';
-    else if (parsedEmail.carrier === 'vinted_go') carrier = 'vinted_go';
-    else if (parsedEmail.carrier === 'mondial_relay') carrier = 'mondial_relay';
+  // ─── creation ────────────────────────────────────────────────
 
-    // Create parcel title from available info
+  private async createNewParcel(parsedEmail: ParsedEmail): Promise<Parcel | null> {
+    if (!parsedEmail.trackingNumber) return null;
+
+    const type = this.resolveType(parsedEmail);
+    const carrier = this.mapCarrier(parsedEmail.carrier);
     const title = this.generateTitle(parsedEmail);
+    const status = this.resolveInitialStatus(parsedEmail);
+    const emailType = (parsedEmail as any).emailType as EmailType | undefined;
 
-    // Detect status based on available metadata
-    let status: Parcel['status'] = 'pending';
-    
-    // If we have pickup info (address, deadline, withdrawal code), it's delivered/ready for pickup
-    if (parsedEmail.pickupAddress || parsedEmail.pickupDeadline || parsedEmail.withdrawalCode || parsedEmail.qrCode) {
-      status = 'delivered'; // Ready for pickup at point relais
-    }
+    const historyEntry: StatusHistoryEntry = {
+      status,
+      timestamp: new Date(),
+      emailType: emailType,
+      sourceEmailId: parsedEmail.rawEmailId,
+    };
 
     try {
       const parcel = await this.parcelRepository.create({
@@ -86,7 +89,13 @@ export class ParsedEmailToParcelService {
         sourceEmailId: parsedEmail.rawEmailId,
         provider: parsedEmail.provider ?? 'gmail',
         title,
-        // Map all metadata fields from ParsedEmail
+        // Email classification
+        lastEmailType: emailType ?? null,
+        sourceType: (parsedEmail as any).sourceType ?? null,
+        sourceName: (parsedEmail as any).sourceName ?? null,
+        labelUrl: (parsedEmail as any).labelUrl ?? null,
+        statusHistory: [historyEntry],
+        // Metadata
         productName: parsedEmail.productName ?? null,
         productDescription: parsedEmail.productDescription ?? null,
         recipientName: parsedEmail.recipientName ?? null,
@@ -99,12 +108,140 @@ export class ParsedEmailToParcelService {
         qrCode: parsedEmail.qrCode ?? null,
       });
 
-      console.log(`      ✅ Parcel created: ${parcel.id} - "${title}"`);
+      console.log(`      ✅ Parcel created: ${parcel.id} - "${title}" [${status}]`);
       return parcel;
     } catch (error) {
       console.error(`      ❌ Failed to create parcel:`, error.message);
       return null;
     }
+  }
+
+  // ─── update (merge + anti-regression) ────────────────────────
+
+  private async updateParcelFromEmail(existing: Parcel, parsedEmail: ParsedEmail): Promise<Parcel> {
+    const newStatus = this.resolveInitialStatus(parsedEmail);
+    const accepted = this.shouldAdvanceStatus(existing.status, newStatus);
+    const finalStatus = accepted ? newStatus : existing.status;
+    const emailType = (parsedEmail as any).emailType as EmailType | undefined;
+
+    if (!accepted) {
+      console.log(`      🛡️  Anti-regression: keeping "${existing.status}" (would regress to "${newStatus}")`);
+    }
+
+    // Build history entry
+    const historyEntry: StatusHistoryEntry = {
+      status: newStatus,
+      timestamp: new Date(),
+      emailType: emailType,
+      sourceEmailId: parsedEmail.rawEmailId,
+    };
+    const statusHistory = [...(existing.statusHistory ?? []), historyEntry];
+
+    // Merge: only overwrite null/empty fields — never erase existing data
+    const updates: Partial<Parcel> = {
+      status: finalStatus,
+      lastEmailType: emailType ?? existing.lastEmailType,
+      sourceType: (parsedEmail as any).sourceType ?? existing.sourceType,
+      sourceName: (parsedEmail as any).sourceName ?? existing.sourceName,
+      labelUrl: (parsedEmail as any).labelUrl ?? existing.labelUrl,
+      statusHistory,
+      // Metadata: fill blanks
+      productName: existing.productName ?? parsedEmail.productName ?? null,
+      productDescription: existing.productDescription ?? parsedEmail.productDescription ?? null,
+      recipientName: existing.recipientName ?? parsedEmail.recipientName ?? null,
+      senderName: existing.senderName ?? parsedEmail.senderName ?? null,
+      senderEmail: existing.senderEmail ?? parsedEmail.senderEmail ?? null,
+      pickupAddress: existing.pickupAddress ?? parsedEmail.pickupAddress ?? null,
+      pickupDeadline: existing.pickupDeadline ?? parsedEmail.pickupDeadline ?? null,
+      orderNumber: existing.orderNumber ?? parsedEmail.orderNumber ?? null,
+      withdrawalCode: existing.withdrawalCode ?? parsedEmail.withdrawalCode ?? null,
+      qrCode: existing.qrCode ?? parsedEmail.qrCode ?? null,
+    };
+
+    try {
+      const updated = await this.parcelRepository.update(existing.id, updates);
+      console.log(`      🔄 Parcel updated: ${existing.id} [${existing.status} → ${finalStatus}]`);
+      return updated ?? existing;
+    } catch (error) {
+      console.error(`      ❌ Failed to update parcel ${existing.id}:`, error.message);
+      return existing;
+    }
+  }
+
+  // ─── status helpers ──────────────────────────────────────────
+
+  /**
+   * Anti-regression: only allow status to advance forward in lifecycle.
+   * Exception: 'returned' can always be set (it's a terminal override from carrier).
+   */
+  private shouldAdvanceStatus(current: ParcelStatus, incoming: ParcelStatus): boolean {
+    if (incoming === 'returned') return true; // always accept return
+    if (current === 'returned') return false; // returned is terminal
+
+    const currentIdx = STATUS_ORDER.indexOf(current);
+    const incomingIdx = STATUS_ORDER.indexOf(incoming);
+
+    // Unknown statuses default to index -1 → always accept something known
+    return incomingIdx > currentIdx;
+  }
+
+  private resolveInitialStatus(parsedEmail: ParsedEmail): ParcelStatus {
+    // 1. Use emailType if available for accurate mapping
+    const emailType = (parsedEmail as any).emailType as EmailType | undefined;
+    if (emailType) {
+      const mapped = this.emailTypeToStatus(emailType);
+      if (mapped) return mapped;
+    }
+
+    // 2. If we have pickup info → delivered to pickup point
+    if (parsedEmail.pickupAddress || parsedEmail.pickupDeadline || parsedEmail.withdrawalCode || parsedEmail.qrCode) {
+      return 'delivered';
+    }
+
+    // 3. Fallback: pending
+    return 'pending';
+  }
+
+  private emailTypeToStatus(emailType: EmailType): ParcelStatus | null {
+    switch (emailType) {
+      case 'order_confirmed':
+      case 'label_created':
+        return 'pending';
+      case 'shipped':
+      case 'in_transit':
+        return 'in_transit';
+      case 'out_for_delivery':
+        return 'out_for_delivery';
+      case 'delivered':
+      case 'pickup_ready':
+        return 'delivered';
+      case 'returned':
+        return 'returned';
+      default:
+        return null;
+    }
+  }
+
+  private resolveType(parsedEmail: ParsedEmail): ParcelType {
+    if (parsedEmail.type) return parsedEmail.type;
+    if (parsedEmail.marketplace) return 'purchase';
+    return 'sale';
+  }
+
+  private mapCarrier(raw?: string | null): Parcel['carrier'] {
+    if (!raw) return 'other';
+    const map: Record<string, Parcel['carrier']> = {
+      dhl: 'dhl',
+      ups: 'ups',
+      fedex: 'fedex',
+      laposte: 'laposte',
+      colissimo: 'laposte',
+      chronopost: 'chronopost',
+      vinted_go: 'vinted_go',
+      mondial_relay: 'mondial_relay',
+      relais_colis: 'relais_colis',
+    };
+    return map[raw] ?? 'other';
   }
 
   /**

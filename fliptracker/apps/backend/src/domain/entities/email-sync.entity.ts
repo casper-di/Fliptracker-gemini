@@ -20,31 +20,38 @@ export interface ParsedEmail {
   
   // Tracking information
   trackingNumber?: string;
-  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics' | 'other';
+  carrier?: 'dhl' | 'ups' | 'fedex' | 'laposte' | 'colissimo' | 'vinted_go' | 'mondial_relay' | 'chronopost' | 'dpd' | 'colis_prive' | 'gls' | 'amazon_logistics' | 'relais_colis' | 'other';
   qrCode?: string | null;
   withdrawalCode?: string | null;
   
+  // Email classification (NEW)
+  emailType?: 'order_confirmed' | 'label_created' | 'shipped' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'pickup_ready' | 'returned' | 'info' | 'promo' | 'unknown';
+  sourceType?: 'platform' | 'carrier' | 'unknown';  // Who sent the email
+  sourceName?: string | null;                         // e.g. 'vinted', 'colissimo'
+  classificationConfidence?: number | null;            // 0-1
+  labelUrl?: string | null;                            // PDF/label download link
+  
   // Email metadata
-  provider?: string | null; // 'gmail', 'outlook', etc (from RawEmail provider)
-  senderEmail?: string | null; // Original sender email address
-  senderName?: string | null; // 'Vinted', 'Mondial Relay', 'Amazon', etc
-  receivedAt?: Date | null; // When email was received
+  provider?: string | null;
+  senderEmail?: string | null;
+  senderName?: string | null;
+  receivedAt?: Date | null;
   
   // Shipment details
-  marketplace?: string | null; // 'vinted', 'amazon', 'ebay', etc
-  type?: 'purchase' | 'sale'; // purchase = incoming (you receive), sale = outgoing (you send)
+  marketplace?: string | null;
+  type?: 'purchase' | 'sale';
   articleId?: string | null;
-  productName?: string | null; // e.g., "Nike Air Force 1 - Black"
-  productDescription?: string | null; // e.g., "Size 40, excellent condition"
+  productName?: string | null;
+  productDescription?: string | null;
   
   // Recipient/Delivery
-  recipientName?: string | null; // Who receives the parcel
-  pickupAddress?: string | null; // Parcel point address
-  pickupDeadline?: Date | null; // When to pick it up
+  recipientName?: string | null;
+  pickupAddress?: string | null;
+  pickupDeadline?: Date | null;
   
   // Order/Transaction
-  orderNumber?: string | null; // Internal reference
-  estimatedValue?: number | null; // Price if available
+  orderNumber?: string | null;
+  estimatedValue?: number | null;
   currency?: string | null;
   
   status: 'pending_shipment_lookup' | 'sent_to_carrier' | 'completed' | 'failed';

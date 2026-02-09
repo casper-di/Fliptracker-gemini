@@ -19,6 +19,12 @@ export interface ParsedTrackingInfo {
   withdrawalCode?: string | null;
   articleId?: string | null;
   marketplace?: string | null;
+  // Email classification (NEW)
+  emailType?: 'order_confirmed' | 'label_created' | 'shipped' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'pickup_ready' | 'returned' | 'info' | 'promo' | 'unknown';
+  sourceType?: 'platform' | 'carrier' | 'unknown';
+  sourceName?: string | null;
+  classificationConfidence?: number | null;
+  labelUrl?: string | null;
   // Metadata fields
   productName?: string | null;
   productDescription?: string | null;

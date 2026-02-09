@@ -1,6 +1,29 @@
-export type ParcelStatus = 'pending' | 'in_transit' | 'delivered' | 'returned' | 'unknown';
+export type ParcelStatus = 'pending' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'returned' | 'unknown';
 export type ParcelType = 'sale' | 'purchase';
-export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'vinted_go' | 'mondial_relay' | 'other';
+export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'vinted_go' | 'mondial_relay' | 'relais_colis' | 'other';
+
+// Email classification types
+export type EmailType = 
+  | 'order_confirmed'    // Commande confirmée
+  | 'label_created'      // Étiquette créée
+  | 'shipped'            // Expédié
+  | 'in_transit'         // En transit
+  | 'out_for_delivery'   // En cours de livraison
+  | 'delivered'          // Livré
+  | 'pickup_ready'       // Prêt au point relais
+  | 'returned'           // Retourné
+  | 'info'              // Info générale (non-actionable)
+  | 'promo'             // Promo/newsletter (à ignorer)
+  | 'unknown';           // Non classifié
+
+export type SourceType = 'platform' | 'carrier' | 'unknown';
+
+export interface StatusHistoryEntry {
+  status: ParcelStatus;
+  timestamp: Date;
+  emailType?: EmailType;
+  sourceEmailId?: string;
+}
 
 export interface Parcel {
   id: string;
@@ -15,22 +38,31 @@ export interface Parcel {
   price?: number;
   currency?: string;
   
+  // Email classification
+  lastEmailType?: EmailType | null;
+  sourceType?: SourceType | null;       // platform (Vinted) vs carrier (Colissimo)
+  sourceName?: string | null;           // 'vinted', 'colissimo', etc.
+  
   // Enhanced metadata from emails
-  productName?: string | null; // "Nike Air Force 1"
-  productDescription?: string | null; // Size, condition, etc
-  recipientName?: string | null; // Who receives it
-  recipientEmail?: string | null; // Recipient email
-  senderName?: string | null; // Who sent it
-  senderEmail?: string | null; // Original email sender
-  pickupAddress?: string | null; // Point relais address
-  destinationAddress?: string | null; // Delivery address
-  pickupDeadline?: Date | null; // Deadline to pickup
-  estimatedDelivery?: Date | null; // Estimated delivery date
-  orderNumber?: string | null; // Transaction reference
-  withdrawalCode?: string | null; // Code for point relais
-  qrCode?: string | null; // QR code for pickup
-  marketplace?: string | null; // Vinted, Leboncoin, etc
-  itemPrice?: number | null; // Item price from email
+  productName?: string | null;
+  productDescription?: string | null;
+  recipientName?: string | null;
+  recipientEmail?: string | null;
+  senderName?: string | null;
+  senderEmail?: string | null;
+  pickupAddress?: string | null;
+  destinationAddress?: string | null;
+  pickupDeadline?: Date | null;
+  estimatedDelivery?: Date | null;
+  orderNumber?: string | null;
+  withdrawalCode?: string | null;
+  qrCode?: string | null;
+  marketplace?: string | null;
+  itemPrice?: number | null;
+  labelUrl?: string | null;             // Lien vers le bordereau/étiquette PDF
+  
+  // Status tracking
+  statusHistory?: StatusHistoryEntry[];
   
   createdAt: Date;
   updatedAt: Date;

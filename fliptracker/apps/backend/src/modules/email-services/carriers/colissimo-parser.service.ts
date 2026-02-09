@@ -61,7 +61,7 @@ export class ColissimoParserService {
     result.marketplace = this.marketplaceDetector.detectMarketplace(email);
 
     // 3. Extraction du code de retrait (pour points de retrait Colissimo)
-    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(bodyOriginal, email.subject);
+    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(bodyOriginal, bodyOriginal);
 
     // 4. Extraction du nom du destinataire
     const recipientPatterns = [

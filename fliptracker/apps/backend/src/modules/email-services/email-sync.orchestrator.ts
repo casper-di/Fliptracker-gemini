@@ -2,11 +2,13 @@ import { Injectable, Inject } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
 import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
+import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { DeepSeekService } from './deepseek.service';
 import { ParsedTrackingInfo } from './email-parsing.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { UsersService } from '../users/users.service';
+import { LabelUrlExtractorService } from './utils/label-url-extractor.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -26,10 +28,12 @@ export class EmailSyncOrchestrator {
     private fetchService: EmailFetchService,
     private hybridParsingService: HybridEmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
+    private emailClassifier: EmailClassifierService,
     private parsedEmailToParcelService: ParsedEmailToParcelService,
     private deepSeekService: DeepSeekService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
+    private labelUrlExtractor: LabelUrlExtractorService,
     @Inject(RAW_EMAIL_REPOSITORY)
     private rawEmailRepository: IRawEmailRepository,
     @Inject(PARSED_EMAIL_REPOSITORY)
@@ -224,6 +228,35 @@ export class EmailSyncOrchestrator {
               
               // Clean undefined values before saving to Firestore
               const cleanedParsed = this.removeUndefinedValues(parsed);
+
+              // ── Classify email type + extract label URL ──
+              try {
+                const bodyText = (rawEmailData.rawBody || rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
+                const classification = await this.emailClassifier.classify({
+                  subject: rawEmailData.subject,
+                  from: rawEmailData.from,
+                  bodySnippet: bodyText,
+                });
+                cleanedParsed.emailType = classification.emailType;
+                cleanedParsed.sourceType = classification.sourceType;
+                cleanedParsed.sourceName = classification.sourceName;
+                cleanedParsed.classificationConfidence = classification.confidence;
+                console.log(`      🏷️  Classification: ${classification.emailType} (${classification.sourceType}/${classification.sourceName}) [${Math.round(classification.confidence * 100)}%]`);
+              } catch (classErr) {
+                console.warn(`      ⚠️  Classification failed:`, classErr.message);
+              }
+
+              try {
+                const labelUrl = this.labelUrlExtractor.extractLabelUrl(
+                  rawEmailData.rawBody || rawEmailData.fetched.body,
+                );
+                if (labelUrl) {
+                  cleanedParsed.labelUrl = labelUrl;
+                  console.log(`      🏷️  Label URL found: ${labelUrl.substring(0, 80)}…`);
+                }
+              } catch (labelErr) {
+                // non-critical
+              }
               
               console.log(`   ✅ Found tracking: ${cleanedParsed.trackingNumber} (${cleanedParsed.carrier || 'unknown carrier'})`);
               if (cleanedParsed.type) console.log(`      📍 Type: ${cleanedParsed.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
@@ -270,6 +303,28 @@ export class EmailSyncOrchestrator {
 
                 totalTrackingEmails++;
                 parsedWithTracking++;
+
+                // ── Classify DeepSeek-enhanced email + extract label URL ──
+                try {
+                  const dsBodyText = (candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
+                  const classification = await this.emailClassifier.classify({
+                    subject: candidate.rawEmailData.subject,
+                    from: candidate.rawEmailData.from,
+                    bodySnippet: dsBodyText,
+                  });
+                  cleaned.emailType = classification.emailType;
+                  cleaned.sourceType = classification.sourceType;
+                  cleaned.sourceName = classification.sourceName;
+                  cleaned.classificationConfidence = classification.confidence;
+                } catch {}
+
+                try {
+                  const labelUrl = this.labelUrlExtractor.extractLabelUrl(
+                    candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body,
+                  );
+                  if (labelUrl) cleaned.labelUrl = labelUrl;
+                } catch {}
+
                 console.log(`   ✅ DeepSeek tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
                 if (cleaned.type) console.log(`      📍 Type: ${cleaned.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
                 if (cleaned.qrCode) console.log(`      📦 QR Code: ${cleaned.qrCode}`);
@@ -468,6 +523,12 @@ export class EmailSyncOrchestrator {
       orderNumber: parsed.orderNumber ?? null,
       estimatedValue: parsed.estimatedValue ?? null,
       currency: parsed.currency ?? null,
+      // Classification fields
+      emailType: parsed.emailType ?? null,
+      sourceType: parsed.sourceType ?? null,
+      sourceName: parsed.sourceName ?? null,
+      classificationConfidence: parsed.classificationConfidence ?? null,
+      labelUrl: parsed.labelUrl ?? null,
     };
 
     // Only add optional fields if they have values

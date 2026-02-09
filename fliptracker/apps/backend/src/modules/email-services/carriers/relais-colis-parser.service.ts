@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ParsedTrackingInfo } from '../email-parsing.service';
 import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
+import { WithdrawalCodeExtractorService } from '../utils/withdrawal-code-extractor.service';
 
 /**
  * Parser spécialisé pour Relais Colis (différent de Mondial Relay)
@@ -8,7 +9,10 @@ import { ShipmentTypeDetectorService } from '../shipment-type-detector.service';
  */
 @Injectable()
 export class RelaisColisParserService {
-  constructor(private shipmentTypeDetector: ShipmentTypeDetectorService) {}
+  constructor(
+    private shipmentTypeDetector: ShipmentTypeDetectorService,
+    private withdrawalCodeExtractor: WithdrawalCodeExtractorService,
+  ) {}
 
   /**
    * Parse un email Relais Colis pour extraire les informations de retrait
@@ -127,8 +131,8 @@ export class RelaisColisParserService {
       }
     }
 
-    // Note: Relais Colis utilise QR Code, PAS de withdrawal code alphanumérique
-    result.withdrawalCode = null;
+    // Note: Relais Colis primarily uses QR Code, but some emails include a numeric withdrawal code
+    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(bodyOriginal, bodyOriginal);
 
     return result;
   }

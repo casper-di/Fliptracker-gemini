@@ -3,6 +3,7 @@ import { EmailFetchService } from './email-fetch.service';
 import { EmailParsingService } from './email-parsing.service';
 import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
+import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
 import { DeepSeekService } from './deepseek.service';
@@ -24,6 +25,7 @@ import { DateParserService } from './utils/date-parser.service';
 import { QRCodeExtractorService } from './utils/qr-code-extractor.service';
 import { MarketplaceDetectorService } from './utils/marketplace-detector.service';
 import { WithdrawalCodeExtractorService } from './utils/withdrawal-code-extractor.service';
+import { LabelUrlExtractorService } from './utils/label-url-extractor.service';
 import {
   RAW_EMAIL_REPOSITORY,
   PARSED_EMAIL_REPOSITORY,
@@ -47,6 +49,7 @@ import { AuthModule } from '../auth/auth.module';
     EmailParsingService,
     HybridEmailParsingService,
     EmailTrackingDetectorService,
+    EmailClassifierService,
     ParsedEmailToParcelService,
     DeepSeekService,
     EmailSyncOrchestrator,
@@ -62,6 +65,7 @@ import { AuthModule } from '../auth/auth.module';
     QRCodeExtractorService,
     MarketplaceDetectorService,
     WithdrawalCodeExtractorService,
+    LabelUrlExtractorService,
     ChronopostParserService,
     ColissimoParserService,
     DHLParserService,
