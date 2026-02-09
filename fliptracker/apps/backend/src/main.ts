@@ -8,15 +8,22 @@ async function bootstrap() {
   
   // Enable CORS FIRST, before any other middleware
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5001';
+  const frontendUrlsEnv = process.env.FRONTEND_URLS || '';
+  const frontendUrls = frontendUrlsEnv
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
   const nodeEnv = process.env.NODE_ENV || 'development';
   console.log(`Environment: ${nodeEnv}`);
-  console.log(`CORS enabled for origin: ${frontendUrl}`);
+  const corsOriginsLog = frontendUrls.length > 0 ? frontendUrls.join(', ') : frontendUrl;
+  console.log(`CORS enabled for origin(s): ${corsOriginsLog}`);
 
   app.enableCors({
     origin: function(origin, callback) {
       if (nodeEnv === 'production') {
-        // En production, accepter uniquement le frontend URL
-        if (origin === frontendUrl || !origin) {
+        // En production, accepter uniquement les frontend URL(s)
+        const allowedOrigins = frontendUrls.length > 0 ? frontendUrls : [frontendUrl];
+        if (!origin || allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
           callback(new Error('Not allowed by CORS'));
