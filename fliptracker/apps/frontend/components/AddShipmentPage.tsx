@@ -11,7 +11,6 @@ export const AddShipmentPage: React.FC<AddShipmentPageProps> = ({ onBack, onSubm
   const [carrier, setCarrier] = useState('');
   const [customName, setCustomName] = useState('');
   const [isScanning, setIsScanning] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -144,41 +143,28 @@ export const AddShipmentPage: React.FC<AddShipmentPageProps> = ({ onBack, onSubm
               />
             </div>
 
-            {/* ADVANCED TOGGLE */}
-            <button 
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full py-3 border-t border-slate-50 flex items-center justify-between group"
-            >
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Options avancées</span>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${showAdvanced ? 'bg-slate-100 text-slate-600' : 'text-slate-300'}`}>
-                <i className={`fas fa-chevron-${showAdvanced ? 'up' : 'down'} text-[8px]`}></i>
+            <div className="space-y-3 pt-3 border-t border-slate-50">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nom personnalisé</label>
+                <input 
+                  type="text" 
+                  value={customName}
+                  onChange={(e) => setCustomName(e.target.value)}
+                  placeholder="Ex: Commande Amazon Papa" 
+                  className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-            </button>
-            
-            {showAdvanced && (
-              <div className="space-y-3 pt-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Nom personnalisé</label>
-                  <input 
-                    type="text" 
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    placeholder="Ex: Commande Amazon Papa" 
-                    className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Transporteur</label>
-                  <input 
-                    type="text" 
-                    value={carrier}
-                    onChange={(e) => setCarrier(e.target.value)}
-                    placeholder="Ex: DHL, UPS, La Poste" 
-                    className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Transporteur</label>
+                <input 
+                  type="text" 
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  placeholder="Ex: DHL, UPS, La Poste" 
+                  className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-xs font-bold focus:ring-2 focus:ring-blue-500"
+                />
               </div>
-            )}
+            </div>
           </div>
 
           {/* QUICK HELP / INFO */}

@@ -10,11 +10,11 @@ interface AuthPageProps {
 export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, onBack }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
+  const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simuler un appel API
     setTimeout(() => {
       setLoading(false);
       onAuthComplete();
@@ -24,16 +24,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, onBack }) =>
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      setLoadingProvider('Google');
       await signInWithGoogle();
       onAuthComplete();
     } catch (error) {
       console.error('Google sign-in failed:', error);
       setLoading(false);
+      setLoadingProvider(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col theme-transition">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col theme-transition relative">
+      {/* Loading overlay when provider sign-in is in progress */}
+      {loadingProvider && (
+        <div className="fixed inset-0 bg-white/90 dark:bg-slate-950/90 z-50 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-[20px] bg-slate-900 dark:bg-blue-600 flex items-center justify-center text-white shadow-2xl">
+            <i className="fas fa-circle-notch animate-spin text-2xl"></i>
+          </div>
+          <p className="text-sm font-black text-slate-900 dark:text-white">Connexion via {loadingProvider}...</p>
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Redirection en cours</p>
+        </div>
+      )}
+
       <header className="px-6 pt-12 pb-6 flex items-center relative z-10">
         <button onClick={onBack} className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 flex items-center justify-center border border-slate-100 dark:border-white/5 active:scale-90 transition-all">
           <i className="fas fa-arrow-left text-xs text-slate-900 dark:text-white"></i>
@@ -106,25 +119,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, onBack }) =>
         </form>
 
         <div className="mt-8">
-          <div className="flex items-center gap-4 mb-8">
+          <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-slate-200 dark:bg-white/5"></div>
             <span className="text-[10px] font-black text-slate-300 dark:text-slate-700 uppercase tracking-widest">Ou continuer avec</span>
             <div className="flex-1 h-px bg-slate-200 dark:bg-white/5"></div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
             <button 
               type="button"
               onClick={handleGoogleSignIn}
               disabled={loading}
-              className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-95 transition-all disabled:opacity-50"
+              className="w-full flex items-center gap-4 py-4 px-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Google</span>
+              <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+              <span className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Continuer avec Google</span>
             </button>
-            <button className="flex items-center justify-center gap-3 py-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-95 transition-all">
-              <img src="https://www.microsoft.com/favicon.ico" className="w-4 h-4" alt="Outlook" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Outlook</span>
+            <button 
+              type="button"
+              disabled={loading}
+              className="w-full flex items-center gap-4 py-4 px-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/5 rounded-[20px] active:scale-[0.98] transition-all disabled:opacity-50"
+            >
+              <img src="https://www.microsoft.com/favicon.ico" className="w-5 h-5" alt="Outlook" />
+              <span className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">Continuer avec Outlook</span>
             </button>
           </div>
         </div>

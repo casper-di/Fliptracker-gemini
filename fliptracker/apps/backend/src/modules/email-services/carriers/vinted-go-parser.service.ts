@@ -137,32 +137,41 @@ export class VintedGoParserService {
     // Extract pickup address using comprehensive address extractor
     result.pickupAddress = this.addressExtractor.extractAddress(email.body);
     
-    // Fallback patterns if extractor didn't find address
+    // Fallback: Vinted Go specific address extraction from "Adresse" block
     if (!result.pickupAddress) {
-      // Pattern 1: Vinted Go specific - extract all content after "Adresse" block header
-      const vintedGoAddressMatch = email.body.match(/block-header[^>]*>Adresse<\/div>([\s\S]{0,800}?)(?:<div class="block-header"|Détails de la commande|Horaires d'ouverture)/i);
+      // Pattern 1: Vinted Go specific - extract all content between "Adresse" and next section
+      const vintedGoAddressMatch = email.body.match(/block-header[^>]*>(?:\s*)Adresse(?:\s*)<\/div>([\s\S]{0,800}?)(?:<div[^>]*class=["']block-header|D[eé]tails de la commande|Horaires d'ouverture|Horaires d&#39;ouverture)/i);
       if (vintedGoAddressMatch) {
-        // Extract all text content, removing HTML tags but keeping structure
         const addressHtml = vintedGoAddressMatch[1];
         const addressParts: string[] = [];
         
-        // Extract content from <b> tags and <a> tags
-        const contentMatches = addressHtml.matchAll(/<b[^>]*>(.*?)<\/b>/gi);
-        for (const match of contentMatches) {
-          // Remove inner HTML tags but keep text
+        // Extract text from <b> tags (which may contain <a> tags for address links)
+        const boldMatches = addressHtml.matchAll(/<b[^>]*>([\s\S]*?)<\/b>/gi);
+        for (const match of boldMatches) {
+          // Strip inner HTML tags but keep text content
           const text = match[1]
             .replace(/<a[^>]*>/gi, '')
             .replace(/<\/a>/gi, '')
             .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<[^>]*>/g, '')
             .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
             .trim();
-          if (text && text.length > 0 && !text.includes('http')) {
-            addressParts.push(text);
+          if (text && text.length > 0) {
+            // Split by newlines and add each non-empty part
+            text.split('\n').forEach(part => {
+              const cleaned = part.trim();
+              if (cleaned.length > 0) {
+                addressParts.push(cleaned);
+              }
+            });
           }
         }
         
-        if (addressParts.length >= 3) {
+        if (addressParts.length >= 2) {
           result.pickupAddress = addressParts.join('\n');
+          console.log(`[VintedGoParser] Extracted address from Adresse block: ${result.pickupAddress}`);
         }
       }
     }

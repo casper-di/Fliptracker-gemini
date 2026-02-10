@@ -75,6 +75,7 @@ const App: React.FC = () => {
   // Auth States
   const [user, setUser] = useState<any>(null);
   const [appLoading, setAppLoading] = useState<boolean>(true);
+  const [splashReady, setSplashReady] = useState<boolean>(false);
 
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(appStore.syncStatus.get());
@@ -158,8 +159,11 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', checkEmailOAuthCallback);
   }, []);
 
-  // Initial Data Loading
+  // Initial Data Loading - keep splash screen until auth is determined
   useEffect(() => {
+    // Minimum splash duration to prevent flash
+    const splashTimer = setTimeout(() => setSplashReady(true), 800);
+
     const unsubscribe = onAuthStateChange((authSession) => {
       console.log('Auth state changed:', { hasUser: !!authSession });
       setUser(authSession);
@@ -178,7 +182,10 @@ const App: React.FC = () => {
       try { setPreferences(JSON.parse(savedPrefs)); } catch (e) { console.error(e); }
     }
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(splashTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -498,7 +505,8 @@ const App: React.FC = () => {
     setShowAuthPage(false);
   };
 
-  if (appLoading) return <LoadingOverlay />;
+  // Show splash screen until both auth resolves AND minimum splash time passes
+  if (appLoading || !splashReady) return <LoadingOverlay />;
 
   if (!user) {
     if (showAuthPage) {

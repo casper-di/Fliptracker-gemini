@@ -8,10 +8,30 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class ShipmentTypeDetectorService {
   /**
+   * Strip HTML tags from text to enable keyword matching across tags
+   */
+  private stripHTML(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
    * Detect if email is for a SALE (outgoing shipment) or PURCHASE (incoming delivery)
    */
   detectType(email: { subject: string; body: string; from?: string }): 'sale' | 'purchase' {
-    const bodyLower = email.body.toLowerCase();
+    // Strip HTML tags BEFORE matching keywords - this is critical because
+    // emails like "Votre colis <strong>a été pris en charge</strong>" would not
+    // match "votre colis a été pris en charge" with HTML tags present
+    const bodyLower = this.stripHTML(email.body).toLowerCase();
     const subjectLower = email.subject.toLowerCase();
     const fromLower = email.from?.toLowerCase() || '';
     
@@ -55,6 +75,11 @@ export class ShipmentTypeDetectorService {
       'depot de votre colis',
       'colis d\u00e9pos\u00e9',
       'colis depose',
+      
+      // Deposit proof (outgoing shipment confirmation)
+      'preuve de d\u00e9p\u00f4t',
+      'preuve de depot',
+      'votre preuve de d\u00e9p\u00f4t',
       
       // Label/shipment creation
       '\u00e9tiquette d\'exp\u00e9dition',

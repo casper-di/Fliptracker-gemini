@@ -53,30 +53,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
 
         <div className="mb-10 animate-in fade-in slide-in-from-bottom-8 delay-300 fill-mode-both duration-700">
           <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Connexion rapide</p>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-3">
             <button
               type="button"
               onClick={onLogin}
-              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+              className="w-full flex items-center gap-4 py-4 px-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 shadow-sm active:scale-[0.98] transition-all"
             >
-              <i className="fab fa-apple text-lg"></i>
-              Apple
+              <i className="fab fa-google text-lg text-slate-500"></i>
+              <span className="text-xs font-black uppercase tracking-widest">Continuer avec Google</span>
             </button>
             <button
               type="button"
               onClick={onLogin}
-              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+              className="w-full flex items-center gap-4 py-4 px-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 shadow-sm active:scale-[0.98] transition-all"
             >
-              <i className="fab fa-google text-lg"></i>
-              Gmail
+              <i className="fab fa-microsoft text-lg text-slate-500"></i>
+              <span className="text-xs font-black uppercase tracking-widest">Continuer avec Outlook</span>
             </button>
             <button
               type="button"
               onClick={onLogin}
-              className="flex flex-col items-center gap-2 py-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 font-black text-[10px] uppercase tracking-widest shadow-sm active:scale-95 transition-all"
+              className="w-full flex items-center gap-4 py-4 px-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-white/10 text-slate-700 dark:text-slate-300 shadow-sm active:scale-[0.98] transition-all"
             >
-              <i className="fab fa-microsoft text-lg"></i>
-              Hotmail
+              <i className="fab fa-apple text-lg text-slate-500"></i>
+              <span className="text-xs font-black uppercase tracking-widest">Continuer avec Apple</span>
             </button>
           </div>
         </div>

@@ -10,15 +10,15 @@ interface ShipmentCardProps {
 const getStatusVisuals = (status: ShipmentStatus) => {
   switch (status) {
     case ShipmentStatus.PICKUP_AVAILABLE: 
-      return { icon: 'fa-location-dot', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', strip: 'bg-emerald-500', label: 'Disponible' };
+      return { icon: 'fa-location-dot', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', strip: 'bg-emerald-500', borderColor: 'border-emerald-200 dark:border-emerald-500/20', label: 'Disponible' };
     case ShipmentStatus.OUT_FOR_DELIVERY: 
-      return { icon: 'fa-truck-fast', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10', strip: 'bg-blue-500', label: 'En livraison' };
+      return { icon: 'fa-truck-fast', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10', strip: 'bg-blue-500', borderColor: 'border-blue-200 dark:border-blue-500/20', label: 'En livraison' };
     case ShipmentStatus.DELAYED: 
-      return { icon: 'fa-triangle-exclamation', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-500/10', strip: 'bg-rose-500', label: 'Retardé' };
+      return { icon: 'fa-triangle-exclamation', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-500/10', strip: 'bg-rose-500', borderColor: 'border-rose-200 dark:border-rose-500/20', label: 'Retardé' };
     case ShipmentStatus.DELIVERED: 
-      return { icon: 'fa-check-double', color: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-50 dark:bg-slate-800', strip: 'bg-slate-400', label: 'Livré' };
+      return { icon: 'fa-check-double', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-500/10', strip: 'bg-emerald-500', borderColor: 'border-emerald-300 dark:border-emerald-500/30', label: 'Livré' };
     default: 
-      return { icon: 'fa-route', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-500/10', strip: 'bg-indigo-500', label: 'En transit' };
+      return { icon: 'fa-route', color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-500/10', strip: 'bg-indigo-500', borderColor: 'border-indigo-200 dark:border-indigo-500/20', label: 'En transit' };
   }
 };
 
@@ -41,12 +41,19 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onClick })
     ? `Estimé: ${new Date(shipment.estimatedDelivery).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`
     : 'Date inconnue';
 
+  // Determine card border color based on status
+  const cardBorderClass = shipment.status === ShipmentStatus.DELIVERED
+    ? 'border-emerald-300 dark:border-emerald-500/30'
+    : isPickupSoon
+    ? 'border-red-300 dark:border-red-500/30'
+    : 'border-slate-100 dark:border-white/5';
+
   return (
     <div 
       onClick={() => onClick(shipment)}
-      className="group bg-white dark:bg-slate-800/80 rounded-[22px] mb-3 relative overflow-hidden shadow-sm hover:shadow-md dark:shadow-none active:scale-[0.98] transition-all cursor-pointer border border-slate-100 dark:border-white/5 flex h-32 theme-transition"
+      className={`group bg-white dark:bg-slate-800/80 rounded-[22px] mb-3 relative overflow-hidden shadow-sm hover:shadow-md dark:shadow-none active:scale-[0.98] transition-all cursor-pointer border ${cardBorderClass} flex h-32 theme-transition`}
     >
-      <div className={`w-1.5 h-full ${isPickupSoon ? 'bg-orange-500' : visuals.strip}`}></div>
+      <div className={`w-1.5 h-full ${isPickupSoon ? 'bg-red-500' : visuals.strip}`}></div>
 
       <div className="flex-1 p-4 flex flex-col justify-between overflow-hidden">
         <div className="flex justify-between items-start gap-2">
@@ -74,18 +81,9 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ shipment, onClick })
              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-500">{displayDate}</span>
           </div>
           
-          <div className="flex gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-            <button 
-              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(shipment.trackingNumber); }}
-              className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-400 dark:text-slate-300 flex items-center justify-center active:scale-90"
-            >
-              <i className="far fa-copy text-[10px]"></i>
-            </button>
-            <button 
-              className="w-7 h-7 rounded-lg bg-slate-900 dark:bg-blue-600 text-white flex items-center justify-center active:scale-90"
-            >
-              <i className="fas fa-qrcode text-[10px]"></i>
-            </button>
+          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 px-2.5 py-1 rounded-lg">
+            <i className="fas fa-barcode text-[9px] text-slate-300 dark:text-slate-600"></i>
+            <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 truncate max-w-[120px]">{shipment.trackingNumber}</span>
           </div>
         </div>
       </div>

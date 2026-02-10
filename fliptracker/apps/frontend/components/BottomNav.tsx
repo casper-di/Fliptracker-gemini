@@ -10,10 +10,10 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onTabChange, unreadCount = 0 }) => {
   const tabs: { id: TabType; icon: string; label: string }[] = [
-    { id: 'incoming', icon: 'fa-arrow-down-long', label: 'Incoming' },
-    { id: 'outgoing', icon: 'fa-arrow-up-long', label: 'Outgoing' },
-    { id: 'notifications', icon: 'fa-bell', label: 'Alerts' },
-    { id: 'settings', icon: 'fa-gear', label: 'Settings' },
+    { id: 'incoming', icon: 'fa-arrow-down-long', label: 'Réception' },
+    { id: 'outgoing', icon: 'fa-arrow-up-long', label: 'Expédition' },
+    { id: 'notifications', icon: 'fa-bell', label: 'Alertes' },
+    { id: 'settings', icon: 'fa-gear', label: 'Réglages' },
   ];
 
   return (

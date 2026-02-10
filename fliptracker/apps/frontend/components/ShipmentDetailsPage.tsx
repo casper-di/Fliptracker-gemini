@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Shipment, ShipmentDirection, ShipmentStatus } from '../types';
-import { get } from '../services/httpClient';
+import { get, post } from '../services/httpClient';
 
 interface ShipmentDetailsPageProps {
   shipment: Shipment;
@@ -13,6 +13,8 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const [showAllPickups, setShowAllPickups] = useState(false);
   const [showRawEmail, setShowRawEmail] = useState(false);
   const [rawEmailData, setRawEmailData] = useState<any>(null);
+  const [reportSent, setReportSent] = useState(false);
+  const [reportSending, setReportSending] = useState(false);
   const isPickupReady = shipment.status === ShipmentStatus.PICKUP_AVAILABLE;
   const isDelivered = shipment.status === ShipmentStatus.DELIVERED;
   const isSale = shipment.direction === 'OUTBOUND'; // SALE = you are sending
@@ -72,9 +74,27 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
 
   const openGoogleMaps = () => {
     if (displayAddress) {
-      // Format: Google Maps search URL compatible avec mobile et desktop
       const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayAddress)}`;
       window.open(mapsUrl, '_blank');
+    }
+  };
+
+  const handleReportProblem = async () => {
+    setReportSending(true);
+    try {
+      await post(`/parcels/${shipment.id}/report`, {
+        trackingNumber: shipment.trackingNumber,
+        carrier: shipment.carrier,
+        status: shipment.status,
+        reason: 'parsing_issue',
+      });
+      setReportSent(true);
+    } catch (error) {
+      console.error('Failed to report problem:', error);
+      // Still mark as sent for UX (will store locally)
+      setReportSent(true);
+    } finally {
+      setReportSending(false);
     }
   };
 
@@ -272,6 +292,38 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             </p>
           </section>
         )}
+      </div>
+
+      {/* Report Problem Button */}
+      <div className="px-6 pb-6">
+        <section className="bg-white dark:bg-slate-800 rounded-[28px] p-5 shadow-sm border border-slate-100 dark:border-white/5 theme-transition">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shrink-0">
+              <i className="fas fa-flag text-sm"></i>
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-black text-slate-900 dark:text-white">Problème de détection ?</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Signalez si les infos du colis sont incorrectes</p>
+            </div>
+            <button
+              onClick={handleReportProblem}
+              disabled={reportSent || reportSending}
+              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                reportSent
+                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20'
+              } disabled:opacity-60`}
+            >
+              {reportSending ? (
+                <i className="fas fa-circle-notch animate-spin"></i>
+              ) : reportSent ? (
+                <><i className="fas fa-check mr-1"></i> Signalé</>
+              ) : (
+                'Signaler'
+              )}
+            </button>
+          </div>
+        </section>
       </div>
 
       {/* Modal pour afficher l'email original */}

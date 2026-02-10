@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SyncStatus, UserPreferences, ConnectedEmail, EmailSummary, ParsedEmail, EmailLog } from '../types';
+import { SyncStatus, UserPreferences, ConnectedEmail, EmailSummary, EmailLog } from '../types';
 
 interface EmailSyncPageProps {
   status: SyncStatus;
@@ -11,9 +11,17 @@ interface EmailSyncPageProps {
   onBack: () => void;
 }
 
+const EMAIL_PROVIDERS = [
+  { id: 'gmail', name: 'Gmail', icon: 'https://www.google.com/favicon.ico', color: 'bg-red-50 dark:bg-red-500/10', action: 'connect_gmail' },
+  { id: 'outlook', name: 'Outlook', icon: 'https://www.microsoft.com/favicon.ico', color: 'bg-blue-50 dark:bg-blue-500/10', action: 'connect_outlook' },
+  { id: 'yahoo', name: 'Yahoo Mail', icon: 'https://www.yahoo.com/favicon.ico', color: 'bg-purple-50 dark:bg-purple-500/10', action: null },
+  { id: 'icloud', name: 'iCloud Mail', icon: 'https://www.apple.com/favicon.ico', color: 'bg-slate-50 dark:bg-slate-800', action: null },
+  { id: 'proton', name: 'ProtonMail', icon: 'https://proton.me/favicon.ico', color: 'bg-indigo-50 dark:bg-indigo-500/10', action: null },
+];
+
 export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, preferences, onUpdatePreferences, onSyncAction, onBack }) => {
   const [showLogs, setShowLogs] = useState(false);
-  const [connectingProvider, setConnectingProvider] = useState<'gmail' | 'outlook' | null>(null);
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
 
   const toggleSyncPref = (key: keyof UserPreferences['sync']) => {
     onUpdatePreferences({
@@ -22,8 +30,8 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
     });
   };
 
-  const getStatusColor = (status: ConnectedEmail['status']) => {
-    const normalized = status === 'active' ? 'connected' : status === 'revoked' ? 'error' : status;
+  const getStatusColor = (connStatus: ConnectedEmail['status']) => {
+    const normalized = connStatus === 'active' ? 'connected' : connStatus === 'revoked' ? 'error' : connStatus;
     switch (normalized) {
       case 'connected': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400';
       case 'expired': return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400';
@@ -40,19 +48,16 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
     }
   };
 
-  const getParsedStatusColor = (status: ParsedEmail['status']) => {
-    switch (status) {
-      case 'parsed': return 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400';
-      case 'failed': return 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400';
-      default: return 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400';
-    }
+  const formatStatusLabel = (connStatus: ConnectedEmail['status']) => {
+    if (connStatus === 'active') return 'Actif';
+    if (connStatus === 'revoked') return 'Révoqué';
+    if (connStatus === 'connected') return 'Connecté';
+    if (connStatus === 'expired') return 'Expiré';
+    if (connStatus === 'error') return 'Erreur';
+    return connStatus;
   };
 
-  const formatStatusLabel = (status: ConnectedEmail['status']) => {
-    if (status === 'active') return 'connected';
-    if (status === 'revoked') return 'error';
-    return status;
-  };
+  const connectedCount = status.connections.length;
 
   return (
     <div className="bg-slate-50 dark:bg-slate-950 min-h-full flex flex-col animate-in slide-in-from-right duration-300">
@@ -60,170 +65,117 @@ export const EmailSyncPage: React.FC<EmailSyncPageProps> = ({ status, summary, p
         <button onClick={onBack} className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 flex items-center justify-center active:scale-90 transition-all shadow-sm">
           <i className="fas fa-chevron-left text-xs dark:text-white"></i>
         </button>
-        <h2 className="text-xl font-black text-slate-900 dark:text-white">Connected Emails</h2>
+        <div className="flex-1">
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">Emails connectés</h2>
+          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-0.5">
+            {connectedCount} compte{connectedCount !== 1 ? 's' : ''} lié{connectedCount !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => onSyncAction('manual_sync')}
+          disabled={status.isLoading}
+          className="w-10 h-10 rounded-full bg-slate-900 dark:bg-blue-600 text-white flex items-center justify-center active:scale-90 transition-all shadow-sm disabled:opacity-60"
+        >
+          <i className={`fas fa-arrows-rotate text-xs ${status.isLoading ? 'animate-spin' : ''}`}></i>
+        </button>
       </header>
 
       <div className="px-6 pb-32 space-y-6 overflow-y-auto no-scrollbar">
-        {/* Connected Emails Summary */}
-        <section className="bg-white dark:bg-slate-800 rounded-[32px] p-6 shadow-sm border border-slate-100 dark:border-white/5">
-          <div className="flex items-center justify-between mb-5">
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Connected Emails</p>
-            <button
-              onClick={() => onSyncAction('manual_sync')}
-              disabled={status.isLoading}
-              className="text-[9px] font-black uppercase tracking-widest bg-slate-900 dark:bg-blue-600 text-white px-4 py-2 rounded-xl active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {status.isLoading ? 'Synchronisation...' : 'Synchroniser'}
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-3">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">Comptes</p>
-              <p className="text-lg font-black text-slate-900 dark:text-white">{summary.stats.totalConnections}</p>
-              <p className="text-[9px] font-bold text-emerald-500">{summary.stats.connected} actifs</p>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-3">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">Analysés</p>
-              <p className="text-lg font-black text-slate-900 dark:text-white">{summary.stats.emailsAnalyzed}</p>
-              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500">emails</p>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-3">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">Dernier sync</p>
-              <p className="text-[11px] font-black text-slate-900 dark:text-white">
-                {summary.stats.lastSyncAt
-                  ? new Date(summary.stats.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : 'Jamais'}
-              </p>
-              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
-                {summary.stats.lastSyncAt
-                  ? new Date(summary.stats.lastSyncAt).toLocaleDateString()
-                  : 'Aucune synchro'}
-              </p>
-            </div>
-          </div>
-        </section>
 
-        {/* Connection List */}
-        <section className="space-y-3">
-          <div className="flex justify-between items-center mb-1 px-1">
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Comptes connectés</p>
-            {status.isLoading && <i className="fas fa-circle-notch animate-spin text-blue-500 text-xs"></i>}
-          </div>
-
-          {status.connections.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-10 text-center border border-slate-100 dark:border-white/5 border-dashed">
-              <i className="fas fa-envelope-open text-slate-200 dark:text-slate-800 text-3xl mb-4"></i>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-600">Aucun compte Gmail ou Outlook n'est actuellement lié.</p>
-            </div>
-          ) : (
-            status.connections.map(conn => (
-              <div key={conn.id} className="bg-white dark:bg-slate-800 rounded-[28px] p-5 shadow-sm border border-slate-100 dark:border-white/5 flex flex-col gap-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-3">
-                    <img 
-                      src={conn.provider === 'gmail' ? 'https://www.google.com/favicon.ico' : 'https://www.microsoft.com/favicon.ico'} 
-                      className="w-8 h-8 rounded-lg" 
-                      alt={conn.provider} 
-                    />
-                    <div>
-                      <p className="text-sm font-black text-slate-900 dark:text-white truncate max-w-[180px]">{conn.emailAddress}</p>
-                      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 mt-1 rounded-md text-[8px] font-black uppercase tracking-tight ${getStatusColor(conn.status)}`}>
+        {/* Connected Accounts List */}
+        {status.connections.length > 0 && (
+          <section className="space-y-3">
+            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">Comptes actifs</p>
+            {status.connections.map(conn => (
+              <div key={conn.id} className="bg-white dark:bg-slate-800 rounded-[24px] p-4 shadow-sm border border-slate-100 dark:border-white/5">
+                <div className="flex items-center gap-3">
+                  <img 
+                    src={conn.provider === 'gmail' ? 'https://www.google.com/favicon.ico' : 'https://www.microsoft.com/favicon.ico'} 
+                    className="w-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-900 p-2" 
+                    alt={conn.provider} 
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-slate-900 dark:text-white truncate">{conn.emailAddress}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tight ${getStatusColor(conn.status)}`}>
                         <span className={`w-1 h-1 rounded-full ${conn.status === 'connected' || conn.status === 'active' ? 'bg-emerald-500' : 'bg-current'}`}></span>
                         {formatStatusLabel(conn.status)}
-                      </div>
+                      </span>
+                      {conn.lastSyncAt && (
+                        <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
+                          Sync {new Date(conn.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[8px] font-black text-slate-400 dark:text-slate-600 uppercase mb-0.5">Dernier scan</p>
-                    <p className="text-[10px] font-bold text-slate-900 dark:text-white">
-                      {conn.lastSyncAt ? new Date(conn.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Jamais'}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex gap-2 pt-2 border-t border-slate-50 dark:border-white/5">
-                  <button 
-                    onClick={() => onSyncAction('reconnect', conn.id)}
-                    className="flex-1 bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all"
-                  >
-                    Re-lier
-                  </button>
                   <button 
                     onClick={() => onSyncAction('delete', conn.id)}
-                    className="flex-1 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                    className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 transition-all active:scale-90"
                   >
-                    Supprimer
+                    <i className="fas fa-trash-can text-[10px]"></i>
                   </button>
                 </div>
               </div>
-            ))
-          )}
+            ))}
+          </section>
+        )}
 
-          <div className="space-y-3">
-            <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">Ajouter un compte</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => {
-                  setConnectingProvider('gmail');
-                  onSyncAction('connect_gmail');
-                }}
-                disabled={connectingProvider === 'gmail'}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <img src="https://www.google.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Gmail" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Gmail</span>
-              </button>
-              <button 
-                onClick={() => {
-                  setConnectingProvider('outlook');
-                  onSyncAction('connect_outlook');
-                }}
-                disabled={connectingProvider === 'outlook'}
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 p-5 rounded-[24px] flex flex-col items-center gap-3 active:scale-[0.98] transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <img src="https://www.microsoft.com/favicon.ico" className="w-8 h-8 rounded-lg" alt="Outlook" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Outlook</span>
-              </button>
+        {status.connections.length === 0 && (
+          <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-10 text-center border border-slate-100 dark:border-white/5 border-dashed">
+            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i className="fas fa-envelope-open text-2xl"></i>
             </div>
+            <p className="text-sm font-black text-slate-900 dark:text-white mb-1">Aucun compte connecté</p>
+            <p className="text-xs font-bold text-slate-400 dark:text-slate-600">Connectez un compte email pour détecter vos colis automatiquement</p>
           </div>
-        </section>
+        )}
 
-        {/* Recently Parsed Emails */}
+        {/* Add Provider Section */}
         <section className="space-y-3">
-          <div className="flex justify-between items-center mb-1 px-1">
-            <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Emails analysés récemment</p>
-            <span className="text-[9px] font-black text-slate-400 dark:text-slate-600">{summary.recentParsed.length}</span>
-          </div>
-
-          {summary.recentParsed.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900/50 rounded-[32px] p-8 text-center border border-slate-100 dark:border-white/5 border-dashed">
-              <i className="fas fa-inbox text-slate-200 dark:text-slate-800 text-3xl mb-4"></i>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-600">Aucun email analysé pour le moment.</p>
-            </div>
-          ) : (
-            summary.recentParsed.map(email => (
-              <div key={email.id} className="bg-white dark:bg-slate-800 rounded-[28px] p-5 shadow-sm border border-slate-100 dark:border-white/5 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm font-black text-slate-900 dark:text-white line-clamp-2">{email.subject}</p>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{email.from}</p>
+          <p className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest px-1">Ajouter un compte</p>
+          <div className="space-y-2">
+            {EMAIL_PROVIDERS.map((provider) => {
+              const isAvailable = !!provider.action;
+              return (
+                <button
+                  key={provider.id}
+                  onClick={() => {
+                    if (provider.action) {
+                      setConnectingProvider(provider.id);
+                      onSyncAction(provider.action);
+                    }
+                  }}
+                  disabled={!isAvailable || connectingProvider === provider.id}
+                  className={`w-full flex items-center gap-4 p-4 rounded-[20px] border transition-all ${
+                    isAvailable
+                      ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-white/5 active:scale-[0.98] hover:shadow-md shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-white/5 opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl ${provider.color} flex items-center justify-center p-2`}>
+                    <img src={provider.icon} className="w-5 h-5" alt={provider.name} />
                   </div>
-                  <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-tight ${getParsedStatusColor(email.status)}`}>
-                    {email.status}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2 text-[9px] font-bold text-slate-500 dark:text-slate-400">
-                  {email.marketplace && <span className="bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg">{email.marketplace}</span>}
-                  {email.carrier && <span className="bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg">{email.carrier}</span>}
-                  {email.trackingNumber && <span className="bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg">{email.trackingNumber}</span>}
-                  {email.orderId && <span className="bg-slate-50 dark:bg-slate-900/60 px-2 py-1 rounded-lg">Commande {email.orderId}</span>}
-                </div>
-                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500">
-                  Reçu le {new Date(email.receivedAt).toLocaleDateString()} à {new Date(email.receivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))
-          )}
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-black text-slate-900 dark:text-white">{provider.name}</p>
+                    {!isAvailable && (
+                      <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">Bientôt disponible</p>
+                    )}
+                  </div>
+                  {connectingProvider === provider.id ? (
+                    <i className="fas fa-circle-notch animate-spin text-blue-500 text-sm"></i>
+                  ) : isAvailable ? (
+                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+                      <i className="fas fa-plus text-[10px] text-slate-400 dark:text-slate-500"></i>
+                    </div>
+                  ) : (
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      <i className="fas fa-lock text-[10px] text-slate-300 dark:text-slate-600"></i>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         {/* Sync Preferences */}
