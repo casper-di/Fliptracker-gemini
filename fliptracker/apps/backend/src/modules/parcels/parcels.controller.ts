@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards, Re
 import { ForbiddenException } from '@nestjs/common';
 import { ParcelsService } from './parcels.service';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { FirebaseService } from '../auth/firebase.service';
 import { CreateParcelDto, UpdateParcelDto, ParcelFiltersDto } from './dto';
 import { IParcelReportRepository, PARCEL_REPORT_REPOSITORY } from '../../domain/repositories';
 
@@ -12,6 +13,7 @@ export class ParcelsController {
 
   constructor(
     private parcelsService: ParcelsService,
+    private firebaseService: FirebaseService,
     @Inject(PARCEL_REPORT_REPOSITORY) private reportRepo: IParcelReportRepository,
   ) {}
 
@@ -134,7 +136,25 @@ export class ParcelsController {
         reportReason: body.reason || 'parsing_issue',
       } as any);
 
-      // Also store a detailed report record
+      // Fetch the raw email that generated this parcel (if any)
+      let rawEmailBody: string | null = null;
+      const sourceEmailId = existing.sourceEmailId;
+      if (sourceEmailId) {
+        try {
+          const rawDoc = await this.firebaseService
+            .getFirestore()
+            .collection('rawEmails')
+            .doc(sourceEmailId)
+            .get();
+          if (rawDoc.exists) {
+            rawEmailBody = rawDoc.data()?.rawBody ?? null;
+          }
+        } catch (e) {
+          this.logger.warn(`Could not fetch rawEmail ${sourceEmailId}: ${e}`);
+        }
+      }
+
+      // Also store a detailed report record (with the raw email for traceability)
       const report = await this.reportRepo.create({
         userId: req.user.uid,
         parcelId: id,
@@ -142,6 +162,8 @@ export class ParcelsController {
         carrier: body.carrier,
         status: body.status,
         reason: body.reason || 'parsing_issue',
+        sourceEmailId: sourceEmailId || null,
+        rawEmail: rawEmailBody,
         resolved: false,
       });
 

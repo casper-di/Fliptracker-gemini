@@ -70,6 +70,8 @@ export class FirestoreParcelReportRepository implements IParcelReportRepository 
       carrier: data.carrier,
       status: data.status,
       reason: data.reason,
+      sourceEmailId: data.sourceEmailId ?? null,
+      rawEmail: data.rawEmail ?? null,
       resolved: data.resolved ?? false,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt),
