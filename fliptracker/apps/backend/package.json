@@ -8,7 +8,8 @@
     "start": "nest start",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest"
+    "test": "jest",
+    "export:reports": "node scripts/export-reports.js"
   },
   "dependencies": {
     "@heyputer/puter.js": "^2.2.8",
