@@ -63,6 +63,11 @@ export interface Parcel {
   
   // Status tracking
   statusHistory?: StatusHistoryEntry[];
+
+  // Issue reporting
+  reported?: boolean;
+  reportedAt?: Date | null;
+  reportReason?: string | null;
   
   createdAt: Date;
   updatedAt: Date;

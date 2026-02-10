@@ -197,6 +197,49 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
           )}
         </section>
 
+        {/* Report Problem - visible immediately */}
+        <section className={`rounded-[20px] p-4 border transition-all ${
+          reportSent 
+            ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20' 
+            : (shipment as any).reported 
+              ? 'bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20'
+              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-white/5'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              reportSent ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+            }`}>
+              <i className={`fas ${reportSent ? 'fa-check' : 'fa-flag'} text-xs`}></i>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-black text-slate-900 dark:text-white">
+                {reportSent ? 'Problème signalé' : (shipment as any).reported ? 'Déjà signalé' : 'Infos incorrectes ?'}
+              </p>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                {reportSent ? 'Merci, on va analyser ce colis' : (shipment as any).reported ? 'Ce colis est en cours d\'analyse' : 'Aidez-nous à améliorer la détection'}
+              </p>
+            </div>
+            <button
+              onClick={handleReportProblem}
+              disabled={reportSent || reportSending || (shipment as any).reported}
+              className={`px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 ${
+                reportSent || (shipment as any).reported
+                  ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-amber-500 text-white shadow-sm hover:bg-amber-600'
+              } disabled:opacity-60`}
+            >
+              {reportSending ? (
+                <i className="fas fa-circle-notch animate-spin"></i>
+              ) : reportSent || (shipment as any).reported ? (
+                <><i className="fas fa-check mr-1"></i>Signalé</>
+              ) : (
+                'Signaler'
+              )}
+            </button>
+          </div>
+        </section>
+
         {displayAddress && (
           <section className="bg-white dark:bg-slate-800 rounded-[32px] p-6 shadow-sm border border-slate-100 dark:border-white/5 theme-transition">
             <div className="flex items-start gap-4 mb-6">
@@ -292,38 +335,6 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
             </p>
           </section>
         )}
-      </div>
-
-      {/* Report Problem Button */}
-      <div className="px-6 pb-6">
-        <section className="bg-white dark:bg-slate-800 rounded-[28px] p-5 shadow-sm border border-slate-100 dark:border-white/5 theme-transition">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center shrink-0">
-              <i className="fas fa-flag text-sm"></i>
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-black text-slate-900 dark:text-white">Problème de détection ?</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">Signalez si les infos du colis sont incorrectes</p>
-            </div>
-            <button
-              onClick={handleReportProblem}
-              disabled={reportSent || reportSending}
-              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 ${
-                reportSent
-                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20'
-              } disabled:opacity-60`}
-            >
-              {reportSending ? (
-                <i className="fas fa-circle-notch animate-spin"></i>
-              ) : reportSent ? (
-                <><i className="fas fa-check mr-1"></i> Signalé</>
-              ) : (
-                'Signaler'
-              )}
-            </button>
-          </div>
-        </section>
       </div>
 
       {/* Modal pour afficher l'email original */}
