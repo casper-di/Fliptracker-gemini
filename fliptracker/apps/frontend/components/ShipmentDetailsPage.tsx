@@ -82,17 +82,22 @@ export const ShipmentDetailsPage: React.FC<ShipmentDetailsPageProps> = ({ shipme
   const handleReportProblem = async () => {
     setReportSending(true);
     try {
-      await post(`/parcels/${shipment.id}/report`, {
+      const response = await post(`/parcels/${shipment.id}/report`, {
         trackingNumber: shipment.trackingNumber,
         carrier: shipment.carrier,
         status: shipment.status,
         reason: 'parsing_issue',
       });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        console.error('Report failed:', response.status, errData);
+        alert('Erreur lors du signalement. Veuillez réessayer.');
+        return;
+      }
       setReportSent(true);
     } catch (error) {
       console.error('Failed to report problem:', error);
-      // Still mark as sent for UX (will store locally)
-      setReportSent(true);
+      alert('Erreur réseau. Veuillez réessayer.');
     } finally {
       setReportSending(false);
     }
