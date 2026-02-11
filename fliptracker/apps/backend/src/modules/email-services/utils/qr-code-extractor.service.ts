@@ -165,6 +165,24 @@ export class QRCodeExtractorService {
       return false;
     }
 
+    // Reject known non-QR images (logos, icons, trackers)
+    const rejectPatterns = [
+      /logo/i,
+      /icon/i,
+      /banner/i,
+      /header/i,
+      /footer/i,
+      /email_open_track/i,
+      /pixel/i,
+      /spacer/i,
+      /assets\/.*\.(png|jpg|gif)$/i, // Generic asset images (logos in /assets/ folder)
+    ];
+    
+    if (rejectPatterns.some(p => p.test(url))) {
+      console.log('[QRCodeExtractor] Validation failed: URL matches reject pattern (logo/icon/etc.):', url.substring(0, 100));
+      return false;
+    }
+
     // Valid base64 data URI
     if (/^data:image\/[^;]+;base64,/.test(url)) {
       console.log('[QRCodeExtractor] Validation passed: base64 data URI');

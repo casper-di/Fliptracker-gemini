@@ -104,6 +104,22 @@ export class ChronopostParserService {
       return pinMatch[1];
     }
 
+    // Pattern 5: Plain text forwarded email - *CODE* format (Gmail forwards)
+    // e.g., "Code de retrait :\n*522758*" or "code suivant :\n*692416*"
+    const plainTextBoldMatch = html.match(/(?:code|retrait|sécurisé|securise)[\s\S]{0,100}?\*(\d{4,8})\*/i);
+    if (plainTextBoldMatch) {
+      console.log('[ChronopostParser] Found plain text bold code:', plainTextBoldMatch[1]);
+      return plainTextBoldMatch[1];
+    }
+
+    // Pattern 6: Plain text - bare code after keyword on next line
+    // e.g., "Code de retrait :\n522758"
+    const plainTextCodeMatch = html.match(/(?:code\s*(?:de\s*)?retrait|code\s*s[eé]curis[eé])\s*:?\s*\n\s*(\d{4,8})/i);
+    if (plainTextCodeMatch) {
+      console.log('[ChronopostParser] Found plain text code on next line:', plainTextCodeMatch[1]);
+      return plainTextCodeMatch[1];
+    }
+
     return null;
   }
 
@@ -121,7 +137,7 @@ export class ChronopostParserService {
     if (relaisMatch) {
       const address = [relaisMatch[1].trim(), relaisMatch[2].trim(), relaisMatch[3].trim()].join('\n');
       console.log('[ChronopostParser] Found Relais address:', address);
-      return address;
+      return this.cleanChronopostAddress(address);
     }
 
     // Strategy 2: Chronopost Pickup - Extract from icon-based layout
@@ -134,7 +150,7 @@ export class ChronopostParserService {
         .replace(/<[^>]*>/g, '')
         .trim();
       console.log('[ChronopostParser] Found Pickup icon-based address:', addr);
-      return addr;
+      return this.cleanChronopostAddress(addr);
     }
 
     // Strategy 3: Chronopost MAS - "Adresse de livraison" section
@@ -151,22 +167,105 @@ export class ChronopostParserService {
       // Verify it looks like an address (has postal code)
       if (/\d{5}/.test(addr) && addr.length < 300) {
         console.log('[ChronopostParser] Found "Adresse de livraison":', addr);
-        return addr;
+        return this.cleanChronopostAddress(addr);
       }
     }
 
-    // Strategy 4: Minified Chronopost Pickup - extract text blocks with postal codes
+    // Strategy 4: Vinted/Chronopost Pickup - extract from structured Vinted format
+    // Pattern: "n° TRACKING ... Adresse ... STREET POSTAL CITY"
+    const vintedChronoPattern = /(?:Votre colis|Le colis)[\s\S]{0,500}?(\d+\s+(?:RUE|AVENUE|BOULEVARD|PLACE|ALL[EÉ]E|CHEMIN|IMPASSE|PASSAGE|ROUTE)\s+[A-ZÀ-ÿ\s]+\d{5}\s+[A-ZÀ-ÿ\s-]+?)(?:\s*(?:Voir|En cas|Horaires|Du\s+lundi))/i;
+    const vintedMatch = text.match(vintedChronoPattern);
+    if (vintedMatch) {
+      console.log('[ChronopostParser] Found Vinted/Chronopost address:', vintedMatch[1].trim());
+      return this.cleanChronopostAddress(vintedMatch[1].trim());
+    }
+
+    // Strategy 5: Minified Chronopost Pickup - extract text blocks with postal codes
     // In minified HTML: "17RueJacquard" becomes readable after normalizing
     const minifiedRelais = html.match(/(?:Relais|Point|Consigne|chez)\s*[A-Za-zÀ-ÿ]+[\s\S]{0,200}?\d+\s*(?:Rue|Avenue|Boulevard|Place|Allée|Chemin)[A-Za-zÀ-ÿ\s]+\d{5}\s*[A-Za-zÀ-ÿ\s-]+/i);
     if (minifiedRelais) {
       const addr = this.stripHTML(minifiedRelais[0]).trim();
       if (addr.length < 300) {
         console.log('[ChronopostParser] Found minified address:', addr);
-        return addr;
+        return this.cleanChronopostAddress(addr);
+      }
+    }
+
+    // Strategy 6: Plain text forwarded emails (Gmail forwards)
+    // Address appears as plain text lines with street + postal code
+    // e.g., "1 RUE DIDEROT\n69600 OULLINS PIERRE BENITE"
+    const isPlainText = (html.match(/<[a-z][^>]*>/gi) || []).length < 5;
+    if (isPlainText) {
+      // Try to find address between code and "Voir sur la carte" / end of section
+      const ptAddressMatch = html.match(/(\d+\s+(?:RUE|AVENUE|BOULEVARD|PLACE|ALL[EÉ]E|CHEMIN|IMPASSE|PASSAGE|ROUTE|COURS|QUAI|SQUARE|LOT)\s+[^\n]+(?:\n[^\n]{0,80})*?\d{5}\s+[^\n]+)/i);
+      if (ptAddressMatch) {
+        const addr = ptAddressMatch[1].replace(/\n/g, ' ').trim();
+        console.log('[ChronopostParser] Found plain text address:', addr);
+        return this.cleanChronopostAddress(addr);
+      }
+      
+      // Fallback: look for any line with a 5-digit postal code preceded by a street-like pattern
+      const ptPostalMatch = html.match(/([^\n]*(?:RUE|AVENUE|BOULEVARD|PLACE|ALL[EÉ]E|CHEMIN|IMPASSE|PASSAGE|ROUTE|COURS)[^\n]*\n[^\n]*\d{5}[^\n]*)/i);
+      if (ptPostalMatch) {
+        const addr = ptPostalMatch[1].replace(/\n/g, ' ').trim();
+        console.log('[ChronopostParser] Found plain text postal address:', addr);
+        return this.cleanChronopostAddress(addr);
       }
     }
 
     return null;
+  }
+
+  /**
+   * Clean Chronopost address by removing UI noise text
+   */
+  private cleanChronopostAddress(address: string): string | null {
+    if (!address) return null;
+    
+    // Remove UI navigation text
+    const noisePatterns = [
+      /Voir sur la carte/gi,
+      /Compl[eé]ter mon adresse/gi,
+      /Modifier la date de livraison/gi,
+      /Choisir un point de proximit[eé]/gi,
+      /En cas d[e'].*$/gim,
+      /Cliquez ici/gi,
+      /Suivre mon colis/gi,
+      /Adresse de livraison/gi,
+      /vous remercie de votre confiance/gi,
+      /Horaires d'ouverture[\s\S]*/gi,
+      /Du\s+lundi[\s\S]*/gi,
+      /\[image:[^\]]*\]/gi,
+      /https?:\/\/\S+/gi,
+      /(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s*(?:au|à|-)\s*(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)[\s\S]*/gi,
+    ];
+    
+    let cleaned = address;
+    for (const pattern of noisePatterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+    
+    // Normalize whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    // If after cleaning the address is too short, return null
+    if (cleaned.length < 10 || !/\d{5}/.test(cleaned)) {
+      console.log('[ChronopostParser] Address too short after cleaning:', cleaned);
+      return null;
+    }
+    
+    // Cap at 200 chars
+    if (cleaned.length > 200) {
+      // Try to cut at postal code + city
+      const postalCut = cleaned.match(/^(.{10,200}?\d{5}\s+[A-ZÀ-ÿ][A-Za-zÀ-ÿ\s-]+)/);
+      if (postalCut) {
+        cleaned = postalCut[1].trim();
+      } else {
+        cleaned = cleaned.substring(0, 200).trim();
+      }
+    }
+    
+    return cleaned;
   }
 
   /**
@@ -278,7 +377,9 @@ export class ChronopostParserService {
     result.pickupAddress = this.extractChronopostAddress(email.body);
     // Fallback to generic extractor only if Chronopost-specific didn't find anything
     if (!result.pickupAddress) {
-      result.pickupAddress = this.addressExtractor.extractAddress(email.body);
+      const genericAddress = this.addressExtractor.extractAddress(email.body);
+      // Clean generic address result with Chronopost-specific noise removal
+      result.pickupAddress = genericAddress ? this.cleanChronopostAddress(genericAddress) : null;
     }
 
     // Extract pickup deadline using smart parser

@@ -117,6 +117,9 @@ export class AddressExtractorService {
   private isAddressComplete(address: string | null): boolean {
     if (!address || address.length < 20) return false;
     
+    // Address should not be too long (indicates we captured the whole email body)
+    if (address.length > 200) return false;
+    
     // Must have postal code (5 digits for FR, or generic 4-6 digits)
     if (!/\d{4,6}/.test(address)) return false;
     
@@ -126,6 +129,9 @@ export class AddressExtractorService {
     
     // Filter out legal/footer noise
     if (this.isLegalNoise(address)) return false;
+    
+    // Filter out UI/navigation text that got captured 
+    if (this.isUIText(address)) return false;
     
     return true;
   }
@@ -142,6 +148,24 @@ export class AddressExtractorService {
     ];
 
     return noisePatterns.some(pattern => pattern.test(text));
+  }
+
+  /**
+   * Check if text contains UI/navigation text (buttons, links)
+   */
+  private isUIText(text: string): boolean {
+    const uiPatterns = [
+      /Voir sur la carte/i,
+      /Compléter mon adresse/i,
+      /Modifier la date/i,
+      /Choisir un point/i,
+      /vous remercie de votre confiance/i,
+      /En cas d/i,
+      /Cliquez ici/i,
+      /Suivre mon colis/i,
+    ];
+
+    return uiPatterns.some(pattern => pattern.test(text));
   }
 
   /**

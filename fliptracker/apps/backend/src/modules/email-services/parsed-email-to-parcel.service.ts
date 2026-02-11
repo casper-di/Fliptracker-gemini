@@ -106,6 +106,9 @@ export class ParsedEmailToParcelService {
         orderNumber: parsedEmail.orderNumber ?? null,
         withdrawalCode: parsedEmail.withdrawalCode ?? null,
         qrCode: parsedEmail.qrCode ?? null,
+        marketplace: parsedEmail.marketplace || undefined,
+        itemPrice: parsedEmail.estimatedValue || undefined,
+        currency: parsedEmail.currency || undefined,
       });
 
       console.log(`      ✅ Parcel created: ${parcel.id} - "${title}" [${status}]`);
@@ -156,6 +159,9 @@ export class ParsedEmailToParcelService {
       orderNumber: existing.orderNumber ?? parsedEmail.orderNumber ?? null,
       withdrawalCode: existing.withdrawalCode ?? parsedEmail.withdrawalCode ?? null,
       qrCode: existing.qrCode ?? parsedEmail.qrCode ?? null,
+      marketplace: existing.marketplace ?? parsedEmail.marketplace ?? null,
+      itemPrice: (existing as any).itemPrice ?? parsedEmail.estimatedValue ?? null,
+      currency: (existing as any).currency ?? parsedEmail.currency ?? null,
     };
 
     try {

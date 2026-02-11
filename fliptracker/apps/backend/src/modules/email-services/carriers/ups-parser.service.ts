@@ -59,32 +59,39 @@ export class UPSParserService {
 
     // 2. Extraction du nom du destinataire
     const recipientPatterns = [
-      /(?:dear|hello|hi)[\s]*([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)/gi,
-      /to[\s:]*([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+)/gi,
-      /ship[\s]*to[\s:]*([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+)/gi,
+      // Pattern 1: Greeting in HTML (common in UPS emails)
+      /(?:Bonjour|Dear|Hello|Hi)\s+([A-ZÀ-ÿ][a-zA-ZÀ-ÿ]+(?:\s+[A-ZÀ-ÿ][a-zA-ZÀ-ÿ]+){1,3})/i,
+      // Pattern 2: "Ship to:" or "Deliver to:" (English UPS)
+      /(?:ship\s*to|deliver\s*to|destinataire)[\s:]+([A-ZÀ-ÿ][a-zA-ZÀ-ÿ]+\s+[A-ZÀ-ÿ][a-zA-ZÀ-ÿ]+)/i,
     ];
 
     for (const pattern of recipientPatterns) {
       const match = bodyOriginal.match(pattern);
       if (match && match[1]) {
-        result.recipientName = match[1].trim();
-        break;
+        const name = match[1].trim();
+        // Validate: at least 4 chars, not a noise word
+        if (name.length >= 4 && name.length < 50 && !/votre|colis|package|tracking|shipment/i.test(name)) {
+          result.recipientName = name;
+          break;
+        }
       }
     }
 
     // 3. Extraction de l'expéditeur
     const senderPatterns = [
       /<span\s+id\s*=\s*["']shipperAndArrival["'][^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/i,
-      /from[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
-      /shipper[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
-      /sent[\s]*by[\s:]*([A-Z][a-zA-ZÀ-ÿ\s]{3,50})/gi,
+      /(?:from|exp[éeè]diteur|shipper)[\s:]+([A-ZÀ-ÿ][a-zA-ZÀ-ÿ\s]{3,50}?)(?:\s*[<,\n])/i,
+      /sent\s*by[\s:]+([A-ZÀ-ÿ][a-zA-ZÀ-ÿ\s]{3,50}?)(?:\s*[<,\n])/i,
     ];
 
     for (const pattern of senderPatterns) {
       const match = bodyOriginal.match(pattern);
       if (match && match[1]) {
-        result.senderName = match[1].trim();
-        break;
+        const name = match[1].trim();
+        if (name.length >= 3 && name.length < 50) {
+          result.senderName = name;
+          break;
+        }
       }
     }
 
@@ -110,9 +117,9 @@ export class UPSParserService {
 
     // 7. Extraction du numéro de référence / commande
     const referencePatterns = [
-      /reference[\s#:]*([A-Z0-9\-]{5,25})/gi,
-      /order[\s#:]*([A-Z0-9\-]{5,25})/gi,
-      /invoice[\s#:]*([A-Z0-9\-]{5,25})/gi,
+      /reference[\s#:]*([A-Z0-9\-]{5,25})/i,
+      /order[\s#:]*([A-Z0-9\-]{5,25})/i,
+      /invoice[\s#:]*([A-Z0-9\-]{5,25})/i,
     ];
 
     for (const pattern of referencePatterns) {
@@ -124,7 +131,7 @@ export class UPSParserService {
     }
 
     // 8. Extraction du poids (optionnel)
-    const weightPattern = /weight[\s:]*(\d+(?:\.\d+)?)\s*(lb|kg|lbs)/gi;
+    const weightPattern = /weight[\s:]*(\d+(?:\.\d+)?)\s*(lb|kg|lbs)/i;
     const weightMatch = bodyOriginal.match(weightPattern);
     if (weightMatch && weightMatch[0]) {
       result.productDescription = weightMatch[0].trim();

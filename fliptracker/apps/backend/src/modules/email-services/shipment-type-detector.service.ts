@@ -26,271 +26,196 @@ export class ShipmentTypeDetectorService {
 
   /**
    * Detect if email is for a SALE (outgoing shipment) or PURCHASE (incoming delivery)
+   * Uses scoring: both sale and purchase indicators are counted, highest score wins.
+   * This prevents footer text (e.g. "preuve de dépôt" in Chronopost privacy notice)
+   * from overriding clear purchase signals in the email body.
    */
   detectType(email: { subject: string; body: string; from?: string }): 'sale' | 'purchase' {
-    // Strip HTML tags BEFORE matching keywords - this is critical because
-    // emails like "Votre colis <strong>a été pris en charge</strong>" would not
-    // match "votre colis a été pris en charge" with HTML tags present
     const bodyLower = this.stripHTML(email.body).toLowerCase();
     const subjectLower = email.subject.toLowerCase();
     const fromLower = email.from?.toLowerCase() || '';
     
-    // Check for SALE indicators first (more specific)
-    if (this.isSaleEmail(bodyLower, subjectLower, fromLower)) {
-      return 'sale';
+    // Detect forwarded emails — these are often purchases forwarded from family
+    const isForwarded = /---------- message transféré|---------- forwarded message|^fwd:|^tr\s*:/i.test(email.body);
+    
+    // Score both directions
+    const saleScore = this.scoreSaleSignals(bodyLower, subjectLower, fromLower);
+    const purchaseScore = this.scorePurchaseSignals(bodyLower, subjectLower, fromLower);
+    
+    // For forwarded emails, boost purchase score (forwarded parcels are almost always purchases)
+    const adjustedPurchaseScore = isForwarded ? purchaseScore + 3 : purchaseScore;
+    
+    console.log(`[TypeDetector] Sale score: ${saleScore}, Purchase score: ${adjustedPurchaseScore}${isForwarded ? ' (forwarded +3)' : ''}`);
+    
+    // If both have signals, highest score wins
+    if (saleScore > 0 && adjustedPurchaseScore > 0) {
+      return adjustedPurchaseScore >= saleScore ? 'purchase' : 'sale';
     }
     
-    // Check for PURCHASE indicators
-    if (this.isPurchaseEmail(bodyLower, subjectLower, fromLower)) {
-      return 'purchase';
-    }
+    if (saleScore > 0) return 'sale';
+    if (adjustedPurchaseScore > 0) return 'purchase';
     
     // Default: assume purchase (safer - most emails are incoming deliveries)
     return 'purchase';
   }
 
   /**
-   * Check if email indicates a SALE (you are the seller/sender)
-   * Based on Fliptracker Mail Intelligence patterns for French market
+   * Score sale signals (higher = more likely a sale)
    */
-  private isSaleEmail(body: string, subject: string, from: string): boolean {
-    // SELLER indicators from prompt - strong signals
-    const strongSellerKeywords = [
-      // French - Seller specific (from prompt)
-      'vous avez expédié',
-      'vous avez expédi\u00e9',
+  private scoreSaleSignals(body: string, subject: string, from: string): number {
+    let score = 0;
+    
+    // Strong sale signals (+3 each)
+    const strongSaleKeywords = [
       'bordereau',
-      '\u00e9tiquette cr\u00e9\u00e9e',
+      'étiquette créée',
       'etiquette creee',
-      'votre colis a \u00e9t\u00e9 pris en charge',
+      'votre colis a été pris en charge',
       'votre colis a ete pris en charge',
       'remise au transporteur',
-      
-      // Deposit confirmation (outgoing shipment)
-      'a bien \u00e9t\u00e9 d\u00e9pos\u00e9',
-      'a bien ete depose',
-      'confirmons le d\u00e9p\u00f4t',
-      'confirmons le depot',
-      'd\u00e9p\u00f4t de votre colis',
-      'depot de votre colis',
-      'colis d\u00e9pos\u00e9',
-      'colis depose',
-      
-      // Deposit proof (outgoing shipment confirmation)
-      'preuve de d\u00e9p\u00f4t',
-      'preuve de depot',
-      'votre preuve de d\u00e9p\u00f4t',
-      
-      // Label/shipment creation
-      '\u00e9tiquette d\'exp\u00e9dition',
-      'etiquette d\'expedition',
-      '\u00e9tiquette de transport',
-      'bon de transport',
-      'imprimer l\'\u00e9tiquette',
-      'imprimer l\'etiquette',
-      't\u00e9l\u00e9charger le bordereau',
-      'telecharger le bordereau',
-      'votre \u00e9tiquette',
-      'votre etiquette',
-      'exp\u00e9diez votre colis',
-      'expediez votre colis',
-      'exp\u00e9dier le colis',
-      'd\u00e9poser votre colis',
-      'deposer votre colis',
-      'd\u00e9pose ton colis',
-      'd\u00e9poser au point relais',
-      
-      // Marketplace sales
-      'ton article a \u00e9t\u00e9 achet\u00e9',
-      'ton article est vendu',
-      'your item has been sold',
-      'prepare your shipment',
-      'pr\u00e9pare ton envoi',
-      'prepare ton envoi',
-      
-      // Seller platforms
-      'vous avez vendu',
-      'commande \u00e0 exp\u00e9dier',
-      'commande a expedier',
-      'pr\u00eat \u00e0 exp\u00e9dier',
-      'pret a expedier',
-      'article vendu',
-      
-      // English equivalents
       'shipping label',
       'print label',
       'ship your order',
-      'drop off package',
-      'you sold',
-      'order to ship',
-      'package dropped off',
-      'shipment received',
     ];
-
-    // Check body and subject for strong signals
-    for (const keyword of strongSellerKeywords) {
-      if (body.includes(keyword) || subject.includes(keyword)) {
-        return true;
-      }
+    for (const kw of strongSaleKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 3;
     }
     
-    // Check sender domains for seller platforms
-    const sellerDomains = [
-      'shopify.com',
-      'woocommerce.com',
-      'sellercentral.amazon',
-      'ebay.com/seller',
-      'etsy.com/seller',
+    // Medium sale signals (+2 each)
+    const mediumSaleKeywords = [
+      'confirmons le dépôt',
+      'confirmons le depot',
+      'colis déposé',
+      'colis depose',
+      'dépôt de votre colis',
+      'depot de votre colis',
+      'étiquette d\'expédition',
+      'etiquette d\'expedition',
+      'ton article a été acheté',
+      'ton article est vendu',
+      'article vendu',
+      'vous avez vendu',
+      'expédiez votre colis',
+      'expediez votre colis',
+      'déposer votre colis',
+      'deposer votre colis',
+      'dépose ton colis',
+      'déposer au point relais',
     ];
-    
-    for (const domain of sellerDomains) {
-      if (from.includes(domain)) {
-        // If from seller platform + contains shipment keywords
-        if (body.includes('ship') || body.includes('expédi') || body.includes('label')) {
-          return true;
-        }
-      }
+    for (const kw of mediumSaleKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 2;
     }
     
-    return false;
+    // Weak sale signals (+1 each) - often found in footers
+    const weakSaleKeywords = [
+      'preuve de dépôt',
+      'preuve de depot',
+      'votre preuve de dépôt',
+      'a bien été déposé',
+      'a bien ete depose',
+    ];
+    for (const kw of weakSaleKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 1;
+    }
+    
+    return score;
   }
 
   /**
-   * Check if email indicates a PURCHASE (you are the buyer/recipient)
-   * Based on Fliptracker Mail Intelligence patterns for French market
+   * Score purchase signals (higher = more likely a purchase)
    */
-  private isPurchaseEmail(body: string, subject: string, from: string): boolean {
-    // BUYER indicators from prompt - strong signals
-    const strongBuyerKeywords = [
-      // French - Buyer specific (from prompt)
-      'votre commande',
-      'vous allez être livré',
-      'vous allez etre livre',
-      'livraison en cours',
-      'expédié par',
-      'expedie par',
-      
-      // Delivery & Pickup
+  private scorePurchaseSignals(body: string, subject: string, from: string): number {
+    let score = 0;
+    
+    // Strong purchase signals (+3 each)
+    const strongPurchaseKeywords = [
+      'code de retrait',
+      'code de récupération',
+      'code de recuperation',
       'récupérer ton colis',
       'recuperer ton colis',
       'récupérer votre colis',
       'recuperer votre colis',
       'retirer votre colis',
       'retirer ton colis',
-      'prêt à être récupéré',
-      'pret a etre recupere',
-      'disponible au retrait',
+      'colis est disponible',
       'colis disponible',
-      'à retirer avant le',
-      'a retirer avant le',
-      'code de retrait',
-      'code de récupération',
-      'code de recuperation',
-      'ton colis arrive',
-      'votre colis arrive',
+      'disponible en relais',
+      'disponible au retrait',
+      'est arrivé dans votre relais',
+      'il est temps de récupérer',
+      'il est temps de recuperer',
+      'withdrawal code',
+      'pickup code',
+      'ready for pickup',
+    ];
+    for (const kw of strongPurchaseKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 3;
+    }
+    
+    // Medium purchase signals (+2 each)
+    const mediumPurchaseKeywords = [
+      'votre commande',
+      'livraison en cours',
       'livraison prévue',
       'livraison prevue',
       'en cours de livraison',
-      'colis en transit',
+      'ton colis arrive',
+      'votre colis arrive',
       'colis livré',
       'colis livre',
-      'il est temps de récupérer',
-      'il est temps de recuperer',
-      
-      // English - Delivery & Pickup
-      'pickup your parcel',
-      'collect your parcel',
-      'ready for pickup',
-      'available for pickup',
-      'pickup code',
-      'withdrawal code',
-      'your parcel is ready',
-      'your package is ready',
-      'delivery scheduled',
-      'out for delivery',
-      'in transit',
-      'delivered',
-      'tracking update',
-      
-      // Order confirmations (buyer side)
-      'your order',
-      'votre commande',
-      'order confirmation',
-      'confirmation de commande',
-      'merci pour votre achat',
-      'thank you for your purchase',
-      'your purchase',
-      'votre achat',
-      
-      // Marketplaces (buyer notifications)
-      'ton achat',
-      'your item',
-      'votre article',
-      'article acheté',
-      'article achete',
-      'item purchased',
-      'you purchased',
-      'vous avez acheté',
-      'vous avez achete',
-      
-      // QR codes for pickup (buyer feature)
+      'à retirer avant le',
+      'a retirer avant le',
       'qr code',
       'scanner le qr',
-      'scan qr',
       'présenter le code',
       'presenter le code',
-      'show this code',
+      'votre achat',
+      'ton achat',
+      'vous avez acheté',
+      'vous avez achete',
     ];
-
-    // Check body and subject for strong signals
-    for (const keyword of strongBuyerKeywords) {
-      if (body.includes(keyword) || subject.includes(keyword)) {
-        return true;
-      }
+    for (const kw of mediumPurchaseKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 2;
     }
     
-    return false;
+    // Weak purchase signals (+1 each)
+    const weakPurchaseKeywords = [
+      'expédié par',
+      'expedie par',
+      'tracking update',
+      'in transit',
+      'out for delivery',
+      'your order',
+      'your package',
+    ];
+    for (const kw of weakPurchaseKeywords) {
+      if (body.includes(kw) || subject.includes(kw)) score += 1;
+    }
+    
+    return score;
   }
 
   /**
    * Get confidence score for type detection (0-100)
-   * Useful for debugging and future ML improvements
    */
   getConfidence(email: { subject: string; body: string; from?: string }): {
     type: 'sale' | 'purchase';
     confidence: number;
     reason: string;
   } {
-    const type = this.detectType(email);
-    const bodyLower = email.body.toLowerCase();
+    const bodyLower = this.stripHTML(email.body).toLowerCase();
     const subjectLower = email.subject.toLowerCase();
+    const fromLower = email.from?.toLowerCase() || '';
     
-    let confidence = 50; // baseline
-    let reason = 'Default classification';
+    const type = this.detectType(email);
+    const saleScore = this.scoreSaleSignals(bodyLower, subjectLower, fromLower);
+    const purchaseScore = this.scorePurchaseSignals(bodyLower, subjectLower, fromLower);
+    const totalScore = saleScore + purchaseScore;
     
-    if (type === 'sale') {
-      if (bodyLower.includes('bordereau') || bodyLower.includes('shipping label')) {
-        confidence = 95;
-        reason = 'Contains shipping label/bordereau keywords';
-      } else if (bodyLower.includes('expédier') || bodyLower.includes('ship your')) {
-        confidence = 85;
-        reason = 'Contains shipment action keywords';
-      } else if (bodyLower.includes('vendu') || bodyLower.includes('sold')) {
-        confidence = 80;
-        reason = 'Contains sale confirmation keywords';
-      }
-    } else {
-      if (bodyLower.includes('code de retrait') || bodyLower.includes('withdrawal code')) {
-        confidence = 98;
-        reason = 'Contains withdrawal/pickup code';
-      } else if (bodyLower.includes('récupérer') || bodyLower.includes('pickup')) {
-        confidence = 90;
-        reason = 'Contains pickup keywords';
-      } else if (bodyLower.includes('votre commande') || bodyLower.includes('your order')) {
-        confidence = 75;
-        reason = 'Contains order confirmation keywords';
-      }
-    }
+    const winningScore = type === 'sale' ? saleScore : purchaseScore;
+    const confidence = totalScore > 0 ? Math.min(98, Math.round((winningScore / totalScore) * 100)) : 50;
+    const reason = `Sale signals: ${saleScore}, Purchase signals: ${purchaseScore}`;
     
     return { type, confidence, reason };
   }

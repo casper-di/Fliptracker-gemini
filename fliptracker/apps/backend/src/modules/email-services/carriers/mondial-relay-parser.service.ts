@@ -136,8 +136,50 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract withdrawal code using specialized extractor
-    result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(email.body, email.body);
+    // Extract withdrawal code - Mondial Relay specific first
+    // Pattern 1: code de retrait in styled span (common in Mondial Relay emails)
+    const mrCodePatterns = [
+      // Pattern: large styled code in <span> (usually 6 digits)
+      /code\s+(?:de\s+)?retrait[\s\S]{0,300}?(?:font-size:\s*\d+px[^>]*>|<b>|<strong>)\s*(\d{4,8})\s*(?:<\/span>|<\/b>|<\/strong>)/i,
+      // Pattern: JSON-LD has accessCode
+      /"accessCode"\s*:\s*"([A-Z0-9]{4,10})"/i,
+      // Pattern: "Retirez votre colis...avec votre code de retrait" followed by large number
+      /code\s+de\s+retrait[\s\S]{0,200}?(\d{4,8})/i,
+    ];
+
+    for (const pattern of mrCodePatterns) {
+      const match = email.body.match(pattern);
+      if (match && match[1]) {
+        result.withdrawalCode = match[1].trim();
+        console.log(`[MondialRelayParser] Found MR-specific withdrawal code: ${result.withdrawalCode}`);
+        break;
+      }
+    }
+    
+    // Fallback to generic extractor
+    if (!result.withdrawalCode) {
+      result.withdrawalCode = this.withdrawalCodeExtractor.extractCode(email.body, email.body);
+    }
+
+    // Extract pickup address from JSON-LD first (most reliable for Mondial Relay)
+    if (!result.pickupAddress) {
+      const jsonLdMatch = email.body.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+      if (jsonLdMatch) {
+        try {
+          const jsonLd = JSON.parse(jsonLdMatch[1]);
+          if (jsonLd.deliveryAddress) {
+            const addr = jsonLd.deliveryAddress;
+            const addressParts = [addr.name, addr.streetAddress, `${addr.postalCode} ${addr.addressLocality}`].filter(p => p && p.trim());
+            if (addressParts.length > 0) {
+              result.pickupAddress = addressParts.join('\n');
+              console.log(`[MondialRelayParser] Address from JSON-LD: ${result.pickupAddress}`);
+            }
+          }
+        } catch (e) {
+          // JSON parse failed, skip
+        }
+      }
+    }
 
     // Extract recipient name (usually in greeting or pickup section)
     const recipientPatterns = [
@@ -161,8 +203,10 @@ export class MondialRelayParserService {
       }
     }
 
-    // Extract pickup address using comprehensive extractor
-    result.pickupAddress = this.addressExtractor.extractAddress(email.body);
+    // Extract pickup address using comprehensive extractor (fallback if JSON-LD didn't work)
+    if (!result.pickupAddress) {
+      result.pickupAddress = this.addressExtractor.extractAddress(email.body);
+    }
 
     // Extract pickup deadline using smart date parser
     result.pickupDeadline = this.dateParser.parseDate(email.body, email.receivedAt);
