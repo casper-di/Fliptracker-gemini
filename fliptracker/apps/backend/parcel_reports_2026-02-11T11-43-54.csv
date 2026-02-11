@@ -1,0 +1,320 @@
+id,userId,parcelId,trackingNumber,carrier,status,reason,sourceEmailId,resolved,createdAt,updatedAt,rawEmail,parcel_trackingNumber,parcel_carrier,parcel_status,parcel_type,parcel_sourceEmailId,parcel_provider,parcel_title,parcel_price,parcel_currency,parcel_lastEmailType,parcel_sourceType,parcel_sourceName,parcel_productName,parcel_productDescription,parcel_recipientName,parcel_recipientEmail,parcel_senderName,parcel_senderEmail,parcel_pickupAddress,parcel_destinationAddress,parcel_pickupDeadline,parcel_estimatedDelivery,parcel_orderNumber,parcel_withdrawalCode,parcel_qrCode,parcel_marketplace,parcel_itemPrice,parcel_labelUrl,parcel_reported,parcel_reportedAt,parcel_reportReason,parcel_createdAt,parcel_updatedAt
+NHNDHjSWXjoH7hweuitX,3TsrGBvJR1QYPU7qItkHxcId03A3,y2MbHIb4fS8IqWi1Xohy,1769455421443891,vinted_go,delivered,parsing_issue,o7PQzqGqWPlafLjzaCAE,false,2026-02-11T11:42:15.412Z,2026-02-11T11:42:15.412Z,"<!DOCTYPE html><html><head>
+  <meta charset=""UTF-8""/>
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0""/>
+  <style>
+      .main {
+          font-family: 'Helvetica', Helvetica, 'Helvetica Neue', Arial, sans-serif;
+          font-size: 16px;
+          background-color: #f4f4f4;
+          border-radius: 20px;
+          margin: 0;
+          padding: 10px;
+      }
+
+      .container {
+          max-width: 600px;
+          margin: auto;
+          background-color: #fff;
+          border-radius: 15px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .header {
+          background-color: #004654;
+          padding: 20px;
+          font-size: 24px;
+      }
+
+      .content {
+          padding: 20px;
+      }
+
+      .content h1 {
+          font-size: 24px;
+          font-weight: 700;
+          margin: 30px 0 40px;
+          color: #4A4A4A;
+      }
+
+      .content p {
+          margin: 5px 0;
+      }
+
+      .img-div {
+          text-align: center;
+          width: 100%;
+      }
+
+      @media (min-width: 380px) {
+          .img-div .qr-code {
+              margin: 0 auto;
+              background-color: #FeFeFe;
+              border: 4px solid #003f4b;
+              padding: 15px;
+              border-radius: 20px;
+              width: 250px;
+          }
+      }
+      .vinted_color { color: #127078; font-weight: bold; }
+      .background-2{
+          background-color: #F2F3F2;
+      }
+      .img-div .qr-code{
+          margin: 0 auto;
+          background-color: #FeFeFe;
+          border: 4px solid #003f4b;
+          padding: 15px;
+          border-radius: 20px;
+          width: 250px;
+      }
+
+      .img-div img {
+          display: inline-block;
+          width: 70%;
+          max-width: 300px;
+      }
+
+      @media (max-width: 768px) {
+          .mobile-left {
+          margin: 0 auto;
+          text-align: left !important;
+          }
+      }
+      .block-header {
+        font-size:14px; font-weight: 300;
+      }
+</style>
+  <link rel=""stylesheet"" href=""/mailer.css""/>
+</head>
+<body><img src=""https://www.vinted.fr//crm/email_open_track?email_code=VCARRIER_READY_FOR_PICKUP_REMINDER&amp;hash=d595baa98bc16c44078d0f53102e74384c399e2a6692c9b943103c9f26f7b6e01600fd1e2a63811f5befabd3a3ec576e&amp;correlation_id=1769455421443891-95520025-d60c-40258c"" width=""1"" height=""1"" alt=""""/>
+<div class=""main"">
+  <div class=""container"">
+    <div class=""header"">
+      <a href=""https://links.vinted.com/e/t/aHR0cHM6Ly92aW50ZWRnby5jb218MTc2OTQ1NTQyMTQ0Mzg5MS05NTUyMDAyNS1kNjBjLTQwMjU4Y3xwVWplSGM4ckVvdEVsRVVmX1dxc2Z4Z1BRejBoUGtDZ3ZyMXlTTXBBbEYwPQ=="" target=""_blank"">
+          <img src=""https://vintedgo.com/assets/vinted-go-logo-white-email.png"" alt="""" style=""width: 180px;""/>
+      </a>
+    </div>
+    <div class=""content"">
+      <h1 style=""color: #004654; font-size: 24px; font-weight: 700; margin: 30px 0 40px;"">
+  Bonjour Amira Azzaz,
+</h1>
+
+  <p>Tu n&#39;as toujours pas récupéré ton colis <b>Vinted Go</b>.</p>
+<br/>
+<br/>
+  <div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; font-size: 14px;"">
+  <div class=""block-header"" style=""margin-bottom:16px;"">À retirer avant le</div>
+
+  <div style=""font-size:24px; font-weight:700; color:#222; margin-bottom:16px;"">
+    <b>08/02/2026</b>
+  </div>
+  <div style=""font-size:12px; margin-bottom:2px; background-color: #ECE2CE; padding: 8px; border-radius: 8px; text-align:left;"">
+    Nous le retournerons à l&#39;expéditeur si tu ne le récupères pas à temps.
+  </div>
+</div>
+
+<div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; font-size: 14px;"">
+  <div class=""block-header"" style=""margin-bottom:16px;"">Adresse</div>
+ <div style=""font-size:16px; font-weight:700; color:#222; margin-bottom:6px;"">
+    <b>Consigne Vinted Go</b>
+  </div>
+
+  <div style=""font-size:16px; font-weight:700; color:#222; margin-bottom:16px;"">
+    <b>
+      Monoprix 
+    </b>
+  </div>
+  <div style=""font-size:16px; font-weight:700; color:#222; margin-bottom:2px;"">
+    <b>
+      <a target=""_blank"" href=""https://links.vinted.com/e/t/aHR0cHM6Ly92aW50ZWRnby5jb20vZnIvY2Fycmllci1sb2NhdGlvbnM_cmVnaW9uPWV1cm9wZSZzZWxlY3RlZF9wb2ludD0xMDA3Mjd8MTc2OTQ1NTQyMTQ0Mzg5MS05NTUyMDAyNS1kNjBjLTQwMjU4Y3xlRkh0OE9yRXFKUy1ZcmhYOTFyc3JRc2VHaFIxS25ReE0wN082WGNSc2ZjPQ=="">90 Grande Rue</a>
+    </b>
+    <br/>
+      <b><a target=""_blank"" href=""https://links.vinted.com/e/t/aHR0cHM6Ly92aW50ZWRnby5jb20vZnIvY2Fycmllci1sb2NhdGlvbnM_cmVnaW9uPWV1cm9wZSZzZWxlY3RlZF9wb2ludD0xMDA3Mjd8MTc2OTQ1NTQyMTQ0Mzg5MS05NTUyMDAyNS1kNjBjLTQwMjU4Y3xlRkh0OE9yRXFKUy1ZcmhYOTFyc3JRc2VHaFIxS25ReE0wN082WGNSc2ZjPQ=="">Oullins</a></b>
+  </div>
+</div>
+
+    <div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; font-size: 14px;"">
+    <div class=""block-header"" style=""margin-bottom:16px;"">Détails de la commande</div>
+    <div style=""font-size:16px; font-weight:700; color:#222; margin-bottom:6px;"">
+      <b>Chemise Ralph Lauren f...<br/>5.00 €</b>
+    </div>
+  </div>
+
+  <div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; font-size: 14px;"">
+    <div class=""block-header"" style=""margin-bottom:16px;"">Horaires d&#39;ouverture</div>
+    <div style=""font-size:16px; margin-bottom:6px; line-height: 22px;"">
+          <div style=""padding: 4px;"">
+            <b>Lundi–Samedi</b>
+            <p>
+              08:00-20:30
+            </p>
+          </div>
+            <div style=""border-bottom:1px solid #15191A; opacity: 8%; margin:0 24px;""></div>
+          <div style=""padding: 4px;"">
+            <b>Dimanche</b>
+            <p>
+              09:00-19:00
+            </p>
+          </div>
+    </div>
+  </div>
+
+<div style=""background:#F2F3F2; border-top-left-radius:10px; border-top-right-radius:10px; text-align:center; padding:24px; font-size: 14px;"">
+  <div class=""block-header"" style="" margin-bottom:16px;"">Code de retrait</div>
+  <div class=""img-div"" style=""margin-bottom:16px;"">
+      <img alt=""QR code"" style=""border: 4px solid #003f4b; border-radius: 20px;"" src=""http://p.vintedgo.com/public/v1/qr_codes/1769455421443891:H12030:7b431b57313dcd4e3614cd2d441249dc3868e60ce0511095ead7ccfbfc10fb05?email_code=VCARRIER_READY_FOR_PICKUP_REMINDER&amp;time=2026-02-04T12%3A31%3A52Z""/>
+  </div>
+</div>
+<div style=""background:#F2F3F2; border-bottom-left-radius:10px; border-bottom-right-radius:10px; text-align:center; padding:0 24px 24px 24px; margin:0 0 16px 0; font-size: 14px;"">
+  <div class=""mobile-left"" style=""font-size:14px;"">
+    Scanne ce QR code pour récupérer ton colis ou saisis le code suivant : <b>H12030</b>
+  </div>
+</div>
+<br/>
+<p>Numéro de suivi : <a target=""_blank"" href=""https://links.vinted.com/e/t/aHR0cHM6Ly92aW50ZWRnby5jb20vZnIvdHJhY2tpbmcvMTc2OTQ1NTQyMTQ0Mzg5MXwxNzY5NDU1NDIxNDQzODkxLTk1NTIwMDI1LWQ2MGMtNDAyNThjfGFLLXdTUFNIMnBhZXZGVUZVdkdQcjJLXzNmN3k0YXh2dlI4YmpyUy1GVmM9"">1769455421443891</a></p>
+<br/>
+<p><b>Besoin d&#39;aide ?</b> N&#39;hésite pas à consulter notre <a href=""https://links.vinted.com/e/t/aHR0cHM6Ly92aW50ZWRnby5jb20vZnIvZmFxfDE3Njk0NTU0MjE0NDM4OTEtOTU1MjAwMjUtZDYwYy00MDI1OGN8ZDd1MktFcjFRVFBUNzRzRF92WXBWSWlYNWNqMk5reDRVTldXeFd0WHBTYz0="" target=""_blank"">site Web</a>.</p>
+<br/>
+<p>L&#39;équipe Vinted Go</p>
+
+    </div>
+  </div>
+</div>
+
+
+</body></html>
+",1769455421443891,vinted_go,delivered,purchase,o7PQzqGqWPlafLjzaCAE,gmail,Chemise Ralph Lauren f...,,EUR,unknown,platform,vinted,Chemise Ralph Lauren f...,,Amira Azzaz,,,no-reply@vinted.com,,,2026-02-08T00:00:00.000Z,,,H12030,http://p.vintedgo.com/public/v1/qr_codes/1769455421443891:H12030:7b431b57313dcd4e3614cd2d441249dc3868e60ce0511095ead7ccfbfc10fb05?email_code=VCARRIER_READY_FOR_PICKUP_REMINDER&amp;time=2026-02-04T12%3A31%3A52Z,vinted,5,,true,2026-02-11T11:42:13.542Z,parsing_issue,2026-02-11T11:20:51.384Z,2026-02-11T11:42:14.232Z
+KymQHy6QTDANvZf8s9Y7,3TsrGBvJR1QYPU7qItkHxcId03A3,kr62TMqcamFifZ7RVyhU,RTZ1UW17DE988212,vinted_go,pending,parsing_issue,CXWNCPs1zJ0g3uZKz1GO,false,2026-02-11T11:41:16.420Z,2026-02-11T11:41:16.420Z,"<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=""UTF-8"">
+  <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+  <style>
+      .main {
+          font-family: 'Helvetica', Helvetica, 'Helvetica Neue', Arial, sans-serif;
+          font-size: 16px;
+          background-color: #f4f4f4;
+          border-radius: 20px;
+          margin: 0;
+          padding: 10px;
+      }
+
+      .container {
+          max-width: 600px;
+          margin: auto;
+          background-color: #fff;
+          border-radius: 15px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .header {
+          background-color: #004654;
+          padding: 20px;
+          font-size: 24px;
+      }
+
+      .content {
+          padding: 20px;
+      }
+
+      .content h1 {
+          font-size: 24px;
+          font-weight: 700;
+          margin: 30px 0 40px;
+          color: #4A4A4A;
+      }
+
+      .content p {
+          margin: 5px 0;
+      }
+
+      .img-div {
+          text-align: center;
+          width: 100%;
+      }
+
+      @media (min-width: 380px) {
+          .img-div .qr-code {
+              margin: 0 auto;
+              background-color: #FeFeFe;
+              border: 4px solid #003f4b;
+              padding: 15px;
+              border-radius: 20px;
+              width: 250px;
+          }
+      }
+      .vinted_color { color: #127078; font-weight: bold; }
+      .background-2{
+          background-color: #F2F3F2;
+      }
+      .img-div .qr-code{
+          margin: 0 auto;
+          background-color: #FeFeFe;
+          border: 4px solid #003f4b;
+          padding: 15px;
+          border-radius: 20px;
+          width: 250px;
+      }
+
+      .img-div img {
+          display: inline-block;
+          width: 70%;
+          max-width: 300px;
+      }
+
+      @media (max-width: 768px) {
+          .mobile-left {
+          margin: 0 auto;
+          text-align: left !important;
+          }
+      }
+      .block-header {
+        font-size:14px; font-weight: 300;
+      }
+</style>
+  <link rel=""stylesheet"" href=""/mailer.css"">
+</head>
+<body><img src='https://www.vinted.fr//crm/email_open_track?email_code=VCARRIER_DROP_OFF_CONFIRMATION&hash=31b0bbd162e8520437030ffa9ca4baa4ed3e887cbe84cd2ebc362f4147e245cdb704b180ae715a9008e6bf24da865e96&correlation_id=RTZ1UW17DE988212-defb3469-08ef-40c8c0' width=1 height=1 alt=''/>
+<div class=""main"">
+  <div class=""container"">
+    <div class=""header"">
+      <a href=""https://vintedgo.com"" target=""_blank"">
+          <img src='https://vintedgo.com/assets/vinted-go-logo-white-email.png' alt='' style='width: 180px;'>
+      </a>
+    </div>
+    <div class=""content"">
+      <h1 style=""color: #004654; font-size: 24px; font-weight: 700; margin: 30px 0 40px;"">
+  Bonjour Amira Azzaz,
+</h1>
+<p>Le colis que tu as déposé dans un <b>relais Vinted Go</b> est prêt à être expédié.</p>
+<br>
+<p>Tu pourras ensuite suivre son acheminement sur notre site Web.</p>
+<br>
+<div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; "">
+  <div class=""block-header"" style=""margin-bottom:16px;"">Numéro de suivi :</div>
+  <b><a target=""_blank"" href=""https://vintedgo.com/fr/tracking/RTZ1UW17DE988212"">RTZ1UW17DE988212</a></b>
+</div>
+
+    <div style=""background:#F2F3F2; border-radius:10px; text-align:center; padding:24px; margin:0 0 16px 0; font-size: 14px;"">
+    <div class=""block-header"" style=""margin-bottom:16px;"">Détails de la commande</div>
+    <div style=""font-size:16px; font-weight:700; color:#222; margin-bottom:6px;"">
+      <b>Pantalon -Jean- Noir G...<br>12.00 €</b>
+    </div>
+  </div>
+
+<br>
+<p><b>Besoin d'aide ?</b> N'hésite pas à consulter notre <a href='https://vintedgo.com/fr/faq' target='_blank'>site Web</a>.</p>
+<br>
+<p>Satisfait de ton expérience avec Vinted Go ? N'hésite pas à <a href='https://fr.trustpilot.com/evaluate/vintedgo.com' target='blank'>laisser un avis.</a> Cela ne te prendra que 2 petites minutes.</p>
+<br>
+<br>
+<p>L&#39;équipe Vinted Go</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+",RTZ1UW17DE988212,vinted_go,pending,purchase,CXWNCPs1zJ0g3uZKz1GO,gmail,Pantalon -Jean- Noir G...,,EUR,unknown,platform,vinted,Pantalon -Jean- Noir G...,,Amira Azzaz,,,no-reply@vinted.com,,,,,,,,vinted,12,,true,2026-02-11T11:41:14.582Z,parsing_issue,2026-02-11T11:21:29.255Z,2026-02-11T11:41:15.271Z

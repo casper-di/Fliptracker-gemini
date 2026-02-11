@@ -101,6 +101,12 @@ export class ShipmentTypeDetectorService {
       'deposer votre colis',
       'dépose ton colis',
       'déposer au point relais',
+      'tu as déposé',
+      'vous avez déposé',
+      'prêt à être expédié',
+      'pret a etre expedie',
+      'drop off confirmation',
+      'drop_off_confirmation',
     ];
     for (const kw of mediumSaleKeywords) {
       if (body.includes(kw) || subject.includes(kw)) score += 2;

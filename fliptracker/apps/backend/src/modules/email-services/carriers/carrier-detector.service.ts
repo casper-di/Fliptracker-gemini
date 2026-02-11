@@ -26,133 +26,97 @@ export class CarrierDetectorService {
     const from = email.from.toLowerCase();
     const subject = email.subject.toLowerCase();
     const body = email.body?.toLowerCase() || '';
-    const combined = `${from} ${subject} ${body}`;
 
-    // Vinted Go - handles both VintedGo and Vinted Go parcels
-    if (this.matchesPatterns(combined, ['vintedgo.com', 'vinted.com', 'vintedgo', 'vinted go'])) {
+    // ---- STEP 1: Check sender (from) first — most reliable signal ----
+    // Carrier-specific sender domains take absolute priority
+    if (this.matchesPatterns(from, ['chronopost.fr', 'chronopost.com', 'pickup.fr'])) {
+      return 'chronopost';
+    }
+    if (this.matchesPatterns(from, ['mondialrelay.fr', 'mondialrelay.com'])) {
+      return 'mondial_relay';
+    }
+    if (this.matchesPatterns(from, ['colissimo.fr', 'laposte.fr', 'laposte.net'])) {
+      return 'colissimo';
+    }
+    if (this.matchesPatterns(from, ['dhl.com', 'dhl.fr', 'dhl.de'])) {
+      return 'dhl';
+    }
+    if (this.matchesPatterns(from, ['ups.com', 'ups.fr'])) {
+      return 'ups';
+    }
+    if (this.matchesPatterns(from, ['fedex.com', 'fedex.fr'])) {
+      return 'fedex';
+    }
+    if (this.matchesPatterns(from, ['dpd.fr', 'dpd.com'])) {
+      return 'dpd';
+    }
+    if (this.matchesPatterns(from, ['colisprive.fr', 'colisprive.com'])) {
+      return 'colis_prive';
+    }
+    if (this.matchesPatterns(from, ['gls-france.com', 'gls.fr'])) {
+      return 'gls';
+    }
+    if (this.matchesPatterns(from, ['relaiscolis.com'])) {
+      return 'relais_colis';
+    }
+    if (this.matchesPatterns(from, ['amazon.fr', 'amazon.com'])) {
+      return 'amazon_logistics';
+    }
+
+    // ---- STEP 2: For VintedGo-specific sender ----
+    if (this.matchesPatterns(from, ['vintedgo.com', 'vinted.com', 'vinted.fr'])) {
+      // Check if body indicates a SPECIFIC carrier (Vinted sends on behalf of carriers)
+      // e.g. "Chronopost Pickup" / "Mondial Relay" in body
+      if (this.bodyMentionsCarrier(body, ['chronopost', 'chrono pickup', 'chronopost.fr'])) {
+        return 'chronopost';
+      }
+      if (this.bodyMentionsCarrier(body, ['mondial relay', 'mondialrelay'])) {
+        return 'mondial_relay';
+      }
+      if (this.bodyMentionsCarrier(body, ['colissimo', 'la poste'])) {
+        return 'colissimo';
+      }
+      // Otherwise it's a genuine Vinted Go shipment
       return 'vinted_go';
     }
 
-    // Relais Colis (distinct from Mondial Relay)
-    if (this.matchesPatterns(from, ['relaiscolis.com', 'noreply@relaiscolis.com'])) {
-      return 'relais_colis';
-    }
-
-    // Mondial Relay
-    if (this.matchesPatterns(combined, [
-      'mondialrelay.fr', 
-      'mondial relay', 
-      'point relais mondial',
-      'mondialrelay',
-    ])) {
-      return 'mondial_relay';
-    }
-
-    // Chronopost Pickup
-    if (this.matchesPatterns(combined, [
-      'chronopost.fr',
-      'chronopost.com',
-      'pickup.fr',
-      'chronopost',
-      'chrono relais',
-    ])) {
+    // ---- STEP 3: Body-based detection for forwarded or unknown-sender emails ----
+    // Check SPECIFIC carriers BEFORE vinted (forwarded emails have user's from, not carrier's)
+    if (this.bodyMentionsCarrier(body, ['chronopost.fr', 'chronopost.com', 'chrono pickup', 'chronopost relais', 'chrono relais'])) {
       return 'chronopost';
     }
-
-    // Colissimo / La Poste
-    if (this.matchesPatterns(combined, [
-      'colissimo.fr',
-      'laposte.fr',
-      'laposte.net',
-      'colissimo',
-      'la poste',
-      'bureau de poste',
-      'point retrait colissimo',
-    ])) {
+    if (this.bodyMentionsCarrier(body, ['mondialrelay.fr', 'mondial relay', 'mondialrelay'])) {
+      return 'mondial_relay';
+    }
+    if (this.bodyMentionsCarrier(body, ['colissimo.fr', 'colissimo', 'laposte.fr'])) {
       return 'colissimo';
     }
-
-    // DHL (Express, eCommerce, Parcel)
-    if (this.matchesPatterns(combined, [
-      'dhl.com',
-      'dhl.fr',
-      'dhl.de',
-      'dhl express',
-      'dhl ecommerce',
-      'dhl parcel',
-      'dhl delivery',
-    ])) {
+    if (this.bodyMentionsCarrier(body, ['dhl.com', 'dhl express', 'dhl parcel'])) {
       return 'dhl';
     }
-
-    // UPS
-    if (this.matchesPatterns(combined, [
-      'ups.com',
-      'ups.fr',
-      'united parcel',
-      'ups delivery',
-      'ups tracking',
-      '1z', // UPS tracking format
-    ])) {
+    if (this.bodyMentionsCarrier(body, ['ups.com', 'united parcel'])) {
       return 'ups';
     }
-
-    // FedEx
-    if (this.matchesPatterns(combined, [
-      'fedex.com',
-      'fedex.fr',
-      'fedex express',
-      'fedex ground',
-      'fedex delivery',
-      'fedex tracking',
-    ])) {
+    if (this.bodyMentionsCarrier(body, ['fedex.com', 'fedex express'])) {
       return 'fedex';
     }
 
-    // DPD (Dynamic Parcel Distribution)
-    if (this.matchesPatterns(combined, [
-      'dpd.fr',
-      'dpd.com',
-      'dpd parcel',
-      'dpd delivery',
-      'dpd relay',
-    ])) {
-      return 'dpd';
+    // Vinted Go — only if no specific carrier was found above
+    if (this.matchesPatterns(`${from} ${subject} ${body}`, ['vintedgo.com', 'vintedgo', 'vinted go'])) {
+      return 'vinted_go';
+    }
+    // Generic "vinted" (marketplace, not a specific carrier) — route to vinted_go as default
+    if (this.matchesPatterns(`${from} ${subject} ${body}`, ['vinted.com', 'vinted.fr'])) {
+      return 'vinted_go';
     }
 
-    // Colis Privé
-    if (this.matchesPatterns(combined, [
-      'colisprive.fr',
-      'colisprive.com',
-      'colis privé',
-      'colis prive',
-      'pick&ship',
-    ])) {
-      return 'colis_prive';
-    }
-
-    // GLS (General Logistics Systems)
-    if (this.matchesPatterns(combined, [
-      'gls-france.com',
-      'gls.fr',
-      'gls parcel',
-      'gls delivery',
-      'gls relay',
-    ])) {
-      return 'gls';
-    }
-
-    // Amazon Logistics
-    if (this.matchesPatterns(combined, [
-      'amazon.fr',
-      'amazon.com',
-      'amazon logistics',
-      'livraison amazon',
-      'transporteur amazon',
-      'tba', // Amazon tracking prefix
-    ])) {
-      return 'amazon_logistics';
-    }
+    // Remaining carriers via combined text
+    const combined = `${from} ${subject} ${body}`;
+    if (this.matchesPatterns(combined, ['relaiscolis.com'])) return 'relais_colis';
+    if (this.matchesPatterns(combined, ['dpd.fr', 'dpd parcel'])) return 'dpd';
+    if (this.matchesPatterns(combined, ['colisprive.fr', 'colis privé', 'colis prive'])) return 'colis_prive';
+    if (this.matchesPatterns(combined, ['gls-france.com', 'gls parcel'])) return 'gls';
+    if (this.matchesPatterns(combined, ['amazon logistics', 'livraison amazon'])) return 'amazon_logistics';
 
     return 'other';
   }
@@ -162,6 +126,14 @@ export class CarrierDetectorService {
    */
   private matchesPatterns(text: string, patterns: string[]): boolean {
     return patterns.some(pattern => text.includes(pattern));
+  }
+
+  /**
+   * Check if body mentions a specific carrier.
+   * Uses word-boundary-aware matching to avoid false positives.
+   */
+  private bodyMentionsCarrier(body: string, patterns: string[]): boolean {
+    return patterns.some(pattern => body.includes(pattern));
   }
 
   /**

@@ -356,7 +356,7 @@ export class VintedGoParserService {
    * Extract address from Vinted Go HTML email (Adresse block)
    */
   private extractVintedGoHtmlAddress(body: string): string | null {
-    const vintedGoAddressMatch = body.match(/block-header[^>]*>(?:\s*)Adresse(?:\s*)<\/div>([\s\S]{0,800}?)(?:<div[^>]*class=["']block-header|D[eé]tails de la commande|Horaires d'ouverture|Horaires d&#39;ouverture)/i);
+    const vintedGoAddressMatch = body.match(/block-header[^>]*>(?:\s*)Adresse(?:\s*)<\/div>([\s\S]{0,2000}?)(?:<div[^>]*class=["']block-header|D[eé]tails de la commande|Horaires d'ouverture|Horaires d&#39;ouverture)/i);
     if (!vintedGoAddressMatch) return null;
     
     const addressHtml = vintedGoAddressMatch[1];
