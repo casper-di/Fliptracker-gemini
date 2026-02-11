@@ -34,15 +34,18 @@ export class ColissimoParserService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    const body = email.body.toLowerCase();
-    const bodyOriginal = email.body;
+    const body = this.stripHTML(email.body).toLowerCase();
+    const bodyOriginal = this.stripHTML(email.body);
+    const htmlBody = email.body; // Keep HTML for address extractor
 
     // 1. Extraction du numéro de suivi avec validation
     const trackingPatterns = [
       /(?:tracking|suivi|colis)[\s:#]*([A-Z]{2}\d{9}[A-Z]{2})/gi,
       /(?:n[°u]m[eé]ro|num[eé]ro)[\s:]*([A-Z]{2}\d{9}[A-Z]{2})/gi,
       /([A-Z]{2}\d{9}[A-Z]{2})/g,
-      /\b([0-9]{13,18})\b/g, // Tracking alternatif numérique
+      /\b([A-Z]{2}\d{11,13})\b/g,  // PP42753268305, CB123456789012 (2 letters + 11-13 digits)
+      /\b([A-Z]\d{10})\b/g,        // La Poste: single letter + 10 digits (A0429190862, J0213781630)
+      /\b([0-9]{11,18})\b/g,       // Tracking numérique: 11-18 digits
     ];
 
     for (const pattern of trackingPatterns) {
@@ -78,8 +81,8 @@ export class ColissimoParserService {
       }
     }
 
-    // 5. Extraction de l'adresse du point retrait
-    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
+    // 5. Extraction de l'adresse du point retrait (use HTML for structure)
+    result.pickupAddress = this.addressExtractor.extractAddress(htmlBody);
 
     // 6. Extraction de la date limite de retrait
     result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
@@ -161,5 +164,20 @@ export class ColissimoParserService {
       return new Date(fullYear, month, day);
     }
     throw new Error('Invalid date format');
+  }
+
+  private stripHTML(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<\/(?:p|div|tr|td|h[1-6]|li)>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

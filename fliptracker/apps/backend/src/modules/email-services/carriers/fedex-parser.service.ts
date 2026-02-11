@@ -27,7 +27,8 @@ export class FedExParserService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    const bodyOriginal = email.body;
+    const bodyOriginal = this.stripHTML(email.body);
+    const htmlBody = email.body; // Keep HTML for address extractor
 
     // 1. Extraction du numéro de suivi FedEx
     // Formats FedEx:
@@ -87,8 +88,8 @@ export class FedExParserService {
       }
     }
 
-    // 4. Extraction de l'adresse
-    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
+    // 4. Extraction de l'adresse (use HTML for structure)
+    result.pickupAddress = this.addressExtractor.extractAddress(htmlBody);
 
     // 5. Extraction de la date de livraison
     result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
@@ -134,5 +135,20 @@ export class FedExParserService {
     }
 
     return result;
+  }
+
+  private stripHTML(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<\/(?:p|div|tr|td|h[1-6]|li)>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

@@ -27,7 +27,8 @@ export class UPSParserService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    const bodyOriginal = email.body;
+    const bodyOriginal = this.stripHTML(email.body);
+    const htmlBody = email.body; // Keep HTML for address/sender extraction
 
     // 1. Extraction du numéro de suivi UPS
     // Formats UPS:
@@ -77,7 +78,7 @@ export class UPSParserService {
       }
     }
 
-    // 3. Extraction de l'expéditeur
+    // 3. Extraction de l'expéditeur (use original HTML for HTML-aware pattern)
     const senderPatterns = [
       /<span\s+id\s*=\s*["']shipperAndArrival["'][^>]*>[\s\S]*?<strong>([^<]+)<\/strong>/i,
       /(?:from|exp[éeè]diteur|shipper)[\s:]+([A-ZÀ-ÿ][a-zA-ZÀ-ÿ\s]{3,50}?)(?:\s*[<,\n])/i,
@@ -85,7 +86,9 @@ export class UPSParserService {
     ];
 
     for (const pattern of senderPatterns) {
-      const match = bodyOriginal.match(pattern);
+      // First pattern is HTML-aware, try on HTML; others on stripped
+      const matchSource = pattern.source.includes('<') ? email.body : bodyOriginal;
+      const match = matchSource.match(pattern);
       if (match && match[1]) {
         const name = match[1].trim();
         if (name.length >= 3 && name.length < 50) {
@@ -95,8 +98,8 @@ export class UPSParserService {
       }
     }
 
-    // 4. Extraction de l'adresse using comprehensive extractor
-    result.pickupAddress = this.addressExtractor.extractAddress(bodyOriginal);
+    // 4. Extraction de l'adresse using comprehensive extractor (use HTML)
+    result.pickupAddress = this.addressExtractor.extractAddress(htmlBody);
 
     // 5. Extraction de la date using smart parser
     result.pickupDeadline = this.dateParser.parseDate(bodyOriginal, email.receivedAt);
@@ -138,5 +141,20 @@ export class UPSParserService {
     }
 
     return result;
+  }
+
+  private stripHTML(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<\/(?:p|div|tr|td|h[1-6]|li)>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

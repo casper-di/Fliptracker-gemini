@@ -25,34 +25,59 @@ export class MarketplaceDetectorService {
     'depop.com': 'depop',
     'wallapop.com': 'wallapop',
     'shopify.com': 'shopify',
+    'sheinnotice.com': 'shein',
+    'shein.com': 'shein',
+    'orders.temu.com': 'temu',
+    'temu.com': 'temu',
+    'showroomprive.com': 'showroomprive',
+    'cdiscount.com': 'cdiscount',
+    'fnac.com': 'fnac',
+    'rakuten.com': 'rakuten',
+    'nespresso.com': 'nespresso',
+    'redcare-pharmacie.fr': 'redcare',
   };
 
   private readonly bodyPatterns: Record<string, RegExp[]> = {
     vinted: [
-      /vinted/i,
-      /vintedgo/i,
+      /\bvinted\b/i,
+      /\bvintedgo\b/i,
     ],
     leboncoin: [
-      /leboncoin/i,
-      /le bon coin/i,
+      /\bleboncoin\b/i,
+      /\ble bon coin\b/i,
     ],
     vestiaire_collective: [
-      /vestiaire collective/i,
-      /vestiaire/i,
+      /\bvestiaire collective\b/i,
     ],
     amazon: [
-      /amazon/i,
-      /prime/i,
+      /\bamazon\b/i,
     ],
     ebay: [
-      /ebay/i,
-      /paypal/i,
+      /\bebay\b/i,
     ],
     depop: [
-      /depop/i,
+      /\bdepop\b/i,
     ],
     wallapop: [
-      /wallapop/i,
+      /\bwallapop\b/i,
+    ],
+    shein: [
+      /\bshein\b/i,
+    ],
+    temu: [
+      /\btemu\b/i,
+    ],
+    cdiscount: [
+      /\bcdiscount\b/i,
+    ],
+    fnac: [
+      /\bfnac\b/i,
+    ],
+    zalando: [
+      /\bzalando\b/i,
+    ],
+    rakuten: [
+      /\brakuten\b/i,
     ],
   };
 
@@ -78,18 +103,31 @@ export class MarketplaceDetectorService {
     }
 
     // Strategy 3: Extract from "confié par X" pattern (Colissimo)
-    const confieMatch = email.body.match(/confié\s+par\s+([A-Z][a-zA-Z0-9\s]{2,30})/i);
+    // Stop capturing at punctuation, common verbs, or sentence boundaries
+    const confieMatch = email.body.match(/confié\s+par\s+([A-Z][a-zA-Z0-9\s'-]{1,25}?)(?:\s+(?:sera|est|a\s|va|qui|pour|votre|le\s|la\s|les\s|un\s|une\s|de\s|du\s|des\s|en\s|bien|livr|expéd|envoy|dispon)|[.,;:!?\n<]|$)/i);
     if (confieMatch && confieMatch[1]) {
-      const name = confieMatch[1].trim().toLowerCase();
+      const name = confieMatch[1].trim();
+      if (name.length < 2) return null;
+      const nameLower = name.toLowerCase();
       
       // Map common marketplace names
-      if (name.includes('vinted')) return 'vinted';
-      if (name.includes('leboncoin') || name.includes('le bon coin')) return 'leboncoin';
-      if (name.includes('amazon')) return 'amazon';
-      if (name.includes('ebay')) return 'ebay';
+      if (nameLower.includes('vinted')) return 'vinted';
+      if (nameLower.includes('leboncoin') || nameLower.includes('le bon coin')) return 'leboncoin';
+      if (nameLower.includes('amazon')) return 'amazon';
+      if (nameLower.includes('ebay')) return 'ebay';
+      if (nameLower.includes('zalando')) return 'zalando';
+      if (nameLower.includes('cdiscount')) return 'cdiscount';
+      if (nameLower.includes('fnac')) return 'fnac';
+      if (nameLower.includes('shein')) return 'shein';
+      if (nameLower.includes('temu')) return 'temu';
+      if (nameLower.includes('rakuten')) return 'rakuten';
       
-      // Return as-is if not in known list
-      return confieMatch[1].trim();
+      // Reject if it looks like a sentence fragment
+      const rejectWords = ['sera', 'livr', 'bien', 'expéd', 'envoy', 'votre', 'est'];
+      if (rejectWords.some(w => nameLower.includes(w))) return null;
+      
+      // Return cleaned marketplace name (max ~20 chars, no trailing spaces)
+      return name.substring(0, 25).trim();
     }
 
     return null;

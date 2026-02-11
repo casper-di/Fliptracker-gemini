@@ -1,6 +1,6 @@
 export type ParcelStatus = 'pending' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'returned' | 'unknown';
 export type ParcelType = 'sale' | 'purchase';
-export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'vinted_go' | 'mondial_relay' | 'relais_colis' | 'other';
+export type Carrier = 'ups' | 'fedex' | 'laposte' | 'dhl' | 'usps' | 'colissimo' | 'chronopost' | 'vinted_go' | 'mondial_relay' | 'relais_colis' | 'dpd' | 'gls' | 'colis_prive' | 'amazon_logistics' | 'other';
 
 // Email classification types
 export type EmailType = 

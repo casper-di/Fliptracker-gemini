@@ -246,6 +246,10 @@ export class ParsedEmailToParcelService {
       vinted_go: 'vinted_go',
       mondial_relay: 'mondial_relay',
       relais_colis: 'relais_colis',
+      dpd: 'dpd',
+      gls: 'gls',
+      colis_prive: 'colis_prive',
+      amazon_logistics: 'amazon_logistics',
     };
     return map[raw] ?? 'other';
   }

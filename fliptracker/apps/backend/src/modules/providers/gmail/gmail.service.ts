@@ -85,7 +85,7 @@ export class GmailService {
     const response = await gmail.users.messages.list({
       userId: 'me',
       maxResults,
-      q: 'from:vinted OR from:vintedgo OR from:chronopost OR from:colissimo OR from:mondialrelay OR from:laposte OR from:dhl OR from:ups OR from:fedex OR from:dpd OR from:gls OR from:relaiscolis OR subject:(colis OR livraison OR tracking OR shipping OR delivered OR retrait OR suivi OR expédition OR récupérer OR chronopost OR colissimo OR mondial OR vinted)',
+      q: 'from:vinted OR from:vintedgo OR from:chronopost OR from:colissimo OR from:mondialrelay OR from:notif-colissimo-laposte OR from:notif-laposte.info OR from:dhl OR from:ups OR from:fedex OR from:dpd OR from:gls OR from:relaiscolis OR from:sheinnotice OR from:orders.temu.com OR from:gofoexpress OR from:cirroparcel OR from:pickup.fr OR from:showroomprive OR from:redcare-pharmacie OR subject:(colis OR livraison OR tracking OR shipping OR delivered OR retrait OR suivi OR expédition OR récupérer OR chronopost OR colissimo OR mondial OR vinted OR livré OR bordereau OR étiquette)',
     });
 
     const messages = response.data.messages || [];
@@ -154,13 +154,15 @@ export class GmailService {
     }
 
     if (payload.parts) {
+      // Prefer HTML — carrier emails have richer address/tracking structure in HTML.
+      // All parsers already handle HTML (strip tags as needed).
       for (const part of payload.parts) {
-        if (part.mimeType === 'text/plain' && part.body?.data) {
+        if (part.mimeType === 'text/html' && part.body?.data) {
           return Buffer.from(part.body.data, 'base64').toString('utf-8');
         }
       }
       for (const part of payload.parts) {
-        if (part.mimeType === 'text/html' && part.body?.data) {
+        if (part.mimeType === 'text/plain' && part.body?.data) {
           return Buffer.from(part.body.data, 'base64').toString('utf-8');
         }
       }

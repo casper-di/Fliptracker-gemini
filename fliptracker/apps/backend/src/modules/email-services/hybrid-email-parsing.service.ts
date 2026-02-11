@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EmailParsingService, ParsedTrackingInfo } from './email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
+import { AddressExtractorService } from './utils/address-extractor.service';
 
 /**
  * Smart email parsing service
@@ -16,6 +17,7 @@ export class HybridEmailParsingService {
   constructor(
     private emailParsingService: EmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
+    private addressExtractor: AddressExtractorService,
   ) {}
 
   async parseEmail(email: {
@@ -49,22 +51,10 @@ export class HybridEmailParsingService {
 
   /**
    * Validate if extracted address is complete and usable
-   * A complete address should have:
-   * - Minimum 20 characters
-   * - French postal code (5 digits)
-   * - Street number or name indication
+   * Delegates to AddressExtractorService for consistent validation
    */
   private isAddressComplete(address: string | null): boolean {
-    if (!address || address.length < 20) return false;
-    
-    // Must contain a 5-digit postal code (French format)
-    if (!/\d{5}/.test(address)) return false;
-    
-    // Should contain some street indication (number or "rue", "avenue", etc.)
-    const hasStreetInfo = /\d+\s|rue|avenue|boulevard|place|chemin|allée/i.test(address);
-    if (!hasStreetInfo) return false;
-    
-    return true;
+    return this.addressExtractor.isAddressComplete(address);
   }
 
   /**

@@ -222,6 +222,16 @@ export class EmailSyncOrchestrator {
                 continue;
               }
 
+              // Clean tracking number (strip prefixes like "suivi : ")
+              parsed.trackingNumber = this.cleanTrackingNumber(parsed.trackingNumber);
+
+              // Validate tracking number quality before saving
+              if (!this.isValidTrackingNumber(parsed.trackingNumber)) {
+                console.log(`   ⚠️  Rejected invalid tracking: "${parsed.trackingNumber}" from ${rawEmailData.subject.substring(0, 60)}`);
+                parsedNoTracking++;
+                continue;
+              }
+
               totalTrackingEmails++;
               parsedWithTracking++;
               
@@ -296,6 +306,16 @@ export class EmailSyncOrchestrator {
                 const cleaned = this.removeUndefinedValues(merged);
 
                 if (!cleaned.trackingNumber) {
+                  parsedNoTracking++;
+                  continue;
+                }
+
+                // Clean tracking number (strip prefixes like "suivi : ")
+                cleaned.trackingNumber = this.cleanTrackingNumber(cleaned.trackingNumber);
+
+                // Validate tracking number quality
+                if (!this.isValidTrackingNumber(cleaned.trackingNumber)) {
+                  console.log(`   ⚠️  Rejected invalid DeepSeek tracking: "${cleaned.trackingNumber}"`);
                   parsedNoTracking++;
                   continue;
                 }
@@ -669,5 +689,69 @@ export class EmailSyncOrchestrator {
     if (result.withdrawalCode || result.qrCode) score += 1;
     
     return Math.round((score / maxScore) * 100);
+  }
+
+  /**
+   * Validate tracking number quality before saving to database.
+   * Cleans tracking number by stripping common French/English prefixes
+   * e.g. "suivi : PP42753268305" → "PP42753268305"
+   *      "n° de suivi: 6A12345678901" → "6A12345678901"
+   */
+  private cleanTrackingNumber(tracking: string): string {
+    if (!tracking) return tracking;
+    
+    // Strip common prefix patterns (French and English)
+    let cleaned = tracking
+      // "suivi : XXX", "suivi: XXX", "suivi XXX"
+      .replace(/^(?:n[°u]m[eé]ro\s*(?:de\s*)?)?(?:suivi|tracking|colis|envoi|bordereau)[\s:]*[:=\-]?\s*/i, '')
+      // "numéro : XXX", "n° : XXX"
+      .replace(/^(?:n[°u]m[eé]ro|n°|ref|réf[eé]rence)[\s:]*[:=\-]?\s*/i, '')
+      .trim();
+    
+    // If still contains a colon, take the part after the last colon
+    if (cleaned.includes(':') && /[a-zéèêëàâäùûüôöîïç]/i.test(cleaned.split(':')[0])) {
+      const afterColon = cleaned.split(':').pop()?.trim();
+      if (afterColon && /[A-Z0-9]/i.test(afterColon)) {
+        cleaned = afterColon;
+      }
+    }
+    
+    return cleaned;
+  }
+
+  /**
+   * Validates tracking number after cleaning.
+   * Rejects obviously invalid tracking numbers like:
+   * - "Tracking Information" (literal text extracted by bad regex)
+   * - "333333333333336" (all same digit)
+   * - Numbers containing common words
+   * - Too short strings
+   */
+  private isValidTrackingNumber(tracking: string): boolean {
+    if (!tracking || tracking.length < 6) return false;
+    
+    const lower = tracking.toLowerCase();
+    
+    // Reject literal text that got extracted as tracking
+    const rejectTexts = [
+      'tracking information', 'tracking details', 'suivi de',
+      'numéro de suivi', 'information', 'undefined', 'null', 'n/a',
+    ];
+    if (rejectTexts.some(t => lower.includes(t))) return false;
+    
+    // Reject if still contains French/English words (not a real tracking number)
+    const wordPattern = /\b(suivi|tracking|colis|livraison|commande|numero|numéro|envoi|details|information)\b/i;
+    if (wordPattern.test(tracking)) return false;
+
+    // Reject all-same-digit numbers
+    if (/^(\d)\1{7,}$/.test(tracking)) return false;
+    
+    // Must contain at least some digits
+    if (!/\d/.test(tracking)) return false;
+    
+    // Reject if > 40 chars (no valid tracking is this long)
+    if (tracking.length > 40) return false;
+    
+    return true;
   }
 }

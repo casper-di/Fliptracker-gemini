@@ -13,6 +13,8 @@ export class EmailTrackingDetectorService {
     'adresse de livraison', 'livré', 'delivered',
     'bordereau', 'étiquette', 'expédié', 'expédition',
     'vinted', 'mondial relay', 'chronopost', 'relais colis',
+    'déposé', 'pickup', 'relais pickup', 'disponible',
+    'votre commande', 'your order', 'order delivered',
   ];
 
   // Negative signals: emails that are NOT about tracking
@@ -27,11 +29,56 @@ export class EmailTrackingDetectorService {
     'manage subscriptions', 'gérer les abonnements',
   ];
 
+  // Strong non-tracking signals (specific Vinted/LaPoste non-shipping emails)
+  private nonTrackingPatterns = [
+    'ton offre a été refusée',
+    'ton offre a été acceptée',
+    'nouvelle offre pour',
+    'nouveau message à propos',
+    'tu as reçu un nouveau message',
+    'articles boostés : ta facture',
+    'articles boostés',
+    'votre avis nous intéresse',
+    'impatients de connaître votre avis',
+    'votre code de vérification',
+    'vous venez de changer votre mot de passe',
+    'dernière ligne droite pour les impôts',
+    'simplifiez vos démarches',
+    'welcome to your',
+    'bienvenue',
+    'free trial',
+    'bercy se modernise',
+    'ticket de caisse',
+    'votre demande n°',
+  ];
+
   /**
-   * Detect if email is likely a tracking/transactional email (not promo)
+   * Detect if email is likely a tracking/transactional email (not promo or non-shipping)
    */
   isTrackingEmail(email: { subject: string; from: string; body: string }): boolean {
-    const combinedText = `${email.subject} ${email.from} ${email.body}`.toLowerCase();
+    const subjectLower = email.subject.toLowerCase();
+    const fromLower = email.from.toLowerCase();
+    const bodyLower = email.body.toLowerCase();
+
+    // Fast reject: subject matches non-tracking pattern
+    for (const pattern of this.nonTrackingPatterns) {
+      if (subjectLower.includes(pattern)) {
+        return false;
+      }
+    }
+
+    // Fast reject: known non-shipping senders
+    const nonShippingSenders = [
+      'digiposte@', 'nepasrepondre@regardclient', 'monexperienceclient@',
+      'nepasrepondre@csa', 'enquetes@satisfaction', 'lemoniteur@',
+      'notif-moncompte-laposte', 'conseils.bnpparibas',
+      'newsletter.info-msa', 'news-construction',
+    ];
+    if (nonShippingSenders.some(s => fromLower.includes(s))) {
+      return false;
+    }
+
+    const combinedText = `${subjectLower} ${fromLower} ${bodyLower}`;
 
     // Check promo signals first (negative filter)
     const promoCount = this.promoKeywords.filter(kw => combinedText.includes(kw)).length;

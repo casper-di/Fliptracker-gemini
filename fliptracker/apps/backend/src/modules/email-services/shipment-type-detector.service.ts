@@ -42,10 +42,11 @@ export class ShipmentTypeDetectorService {
     const saleScore = this.scoreSaleSignals(bodyLower, subjectLower, fromLower);
     const purchaseScore = this.scorePurchaseSignals(bodyLower, subjectLower, fromLower);
     
-    // For forwarded emails, boost purchase score (forwarded parcels are almost always purchases)
-    const adjustedPurchaseScore = isForwarded ? purchaseScore + 3 : purchaseScore;
+    // For forwarded emails, add small bonus to purchase (reduced from +3 to +1)
+    // +3 was too aggressive — some forwarded emails ARE sale notifications
+    const adjustedPurchaseScore = isForwarded ? purchaseScore + 1 : purchaseScore;
     
-    console.log(`[TypeDetector] Sale score: ${saleScore}, Purchase score: ${adjustedPurchaseScore}${isForwarded ? ' (forwarded +3)' : ''}`);
+    console.log(`[TypeDetector] Sale score: ${saleScore}, Purchase score: ${adjustedPurchaseScore}${isForwarded ? ' (forwarded +1)' : ''}`);
     
     // If both have signals, highest score wins
     if (saleScore > 0 && adjustedPurchaseScore > 0) {
@@ -76,6 +77,11 @@ export class ShipmentTypeDetectorService {
       'shipping label',
       'print label',
       'ship your order',
+      'tu as vendu',
+      'ta vente est confirmée',
+      'ta vente est confirmee',
+      'félicitations pour ta vente',
+      'felicitations pour ta vente',
     ];
     for (const kw of strongSaleKeywords) {
       if (body.includes(kw) || subject.includes(kw)) score += 3;
@@ -107,6 +113,19 @@ export class ShipmentTypeDetectorService {
       'pret a etre expedie',
       'drop off confirmation',
       'drop_off_confirmation',
+      'l\'acheteur a récupéré',
+      'l\'acheteur a recupere',
+      'votre vente est terminée',
+      'votre vente est terminee',
+      'envoie ton colis',
+      'envoyez votre colis',
+      'ton colis a été envoyé',
+      'ton colis a ete envoye',
+      'buyer has picked up',
+      'imprime ton bordereau',
+      'imprimez votre bordereau',
+      'prépare ton colis',
+      'prepare ton colis',
     ];
     for (const kw of mediumSaleKeywords) {
       if (body.includes(kw) || subject.includes(kw)) score += 2;

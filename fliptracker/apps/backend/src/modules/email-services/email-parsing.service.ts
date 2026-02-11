@@ -10,6 +10,7 @@ import { UPSParserService } from './carriers/ups-parser.service';
 import { FedExParserService } from './carriers/fedex-parser.service';
 import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
 import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
+import { AddressExtractorService } from './utils/address-extractor.service';
 
 export interface ParsedTrackingInfo {
   trackingNumber?: string;
@@ -51,6 +52,7 @@ export class EmailParsingService {
     private upsParser: UPSParserService,
     private fedexParser: FedExParserService,
     private trackingExtractor: TrackingNumberExtractorService,
+    private addressExtractor: AddressExtractorService,
   ) {}
 
   /**
@@ -180,71 +182,119 @@ export class EmailParsingService {
       type: this.shipmentTypeDetector.detectType(email),
     };
 
-    // 1. Extract tracking number (common patterns)
-    const trackingPatterns = [
-      /(?:tracking|suivi|numéro)[\s:]*([A-Z0-9]{8,20})/gi,
-      /[A-Z]{2}\d{9}[A-Z]{2}/g, // UPS format
-      /1Z[A-Z0-9]{16}/g, // UPS format 2
-      /\d{20,30}/g, // Long numbers
+    // Strip HTML for text-based regex matching
+    const strippedBody = this.stripHTML(email.body);
+    const combined = `${email.subject}\n${strippedBody}`;
+
+    // 1. Extract tracking number (common patterns) — use capture groups
+    const trackingExtractors: { pattern: RegExp; group: number }[] = [
+      // Explicit tracking/suivi label followed by alphanumeric code
+      { pattern: /(?:tracking|suivi|numéro de suivi)[\s:#]*([A-Z0-9]{8,30})/gi, group: 1 },
+      // International postal format: XX123456789XX
+      { pattern: /\b([A-Z]{2}\d{9}[A-Z]{2})\b/g, group: 1 },
+      // UPS format: 1Z...
+      { pattern: /\b(1Z[A-Z0-9]{16})\b/g, group: 1 },
+      // Chronopost format: XW/XS + digits + 2 letters
+      { pattern: /\b(X[WS]\d{9,11}[A-Z]{2})\b/g, group: 1 },
+      // Colissimo format
+      { pattern: /\b([6-8][AV]\d{11})\b/g, group: 1 },
+      // GOFO format
+      { pattern: /\b(GFFR\d{10,20})\b/gi, group: 1 },
+      // Generic long digit tracking (13-22 digits) — but NOT inside URLs
+      { pattern: /(?<![\/=&?])\b(\d{13,22})\b(?![\/=&?])/g, group: 1 },
     ];
 
-    for (const pattern of trackingPatterns) {
-      const match = email.body.match(pattern) || email.subject.match(pattern);
-      if (match) {
-        result.trackingNumber = match[0];
-        break;
+    for (const { pattern, group } of trackingExtractors) {
+      let match: RegExpExecArray | null;
+      pattern.lastIndex = 0; // Reset regex state
+      while ((match = pattern.exec(combined)) !== null) {
+        const candidate = match[group]?.trim();
+        if (candidate && this.isValidTrackingNumber(candidate)) {
+          result.trackingNumber = candidate;
+          break;
+        }
       }
+      if (result.trackingNumber) break;
     }
 
     // 2. Extract QR code (if present)
     const qrPattern = /(?:qr code|code qr|qr)[\s:]*([A-Z0-9]{10,50})/gi;
-    const qrMatch = email.body.match(qrPattern);
+    const qrMatch = strippedBody.match(qrPattern);
     if (qrMatch) {
       result.qrCode = qrMatch[0].split(':')[1]?.trim() || null;
     }
 
     // 3. Extract withdrawal/pickup code (for parcel points)
     const withdrawalPatterns = [
-      /(?:code|numéro)[\s]*(?:de[\s])?(?:retrait|retrait|pickup)[\s:]*([A-Z0-9]{4,10})/gi,
-      /(?:retrait|pickup)[\s:]*([A-Z0-9]{4,10})/gi,
+      /(?:code|numéro)[\s]*(?:de[\s])?(?:retrait|pickup)[\s:]+([A-Z0-9]{4,10})/gi,
+      /(?:retrait|pickup)[\s:]+([A-Z0-9]{4,10})/gi,
     ];
 
     for (const pattern of withdrawalPatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
-        result.withdrawalCode = match[0].split(':')[1]?.trim() || null;
+      const match = strippedBody.match(pattern);
+      if (match && match[1]) {
+        result.withdrawalCode = match[1].trim();
         break;
       }
     }
 
-    // 4. Extract article ID
-    const articlePatterns = [
-      /(?:article|produit|ref)[\s]*:?\s*([A-Z0-9]{6,15})/gi,
-      /(?:sku|asin)[\s]*:?\s*([A-Z0-9]{6,15})/gi,
-    ];
+    // 4. Detect marketplace from subject+from
+    const combinedMeta = `${email.subject} ${email.from}`.toLowerCase();
+    if (combinedMeta.includes('amazon')) result.marketplace = 'amazon';
+    else if (combinedMeta.includes('ebay')) result.marketplace = 'ebay';
+    else if (combinedMeta.includes('aliexpress')) result.marketplace = 'aliexpress';
+    else if (combinedMeta.includes('cdiscount')) result.marketplace = 'cdiscount';
+    else if (combinedMeta.includes('fnac')) result.marketplace = 'fnac';
+    else if (combinedMeta.includes('shein')) result.marketplace = 'shein';
+    else if (combinedMeta.includes('temu')) result.marketplace = 'temu';
+    else if (combinedMeta.includes('zalando')) result.marketplace = 'zalando';
+    else if (combinedMeta.includes('rakuten')) result.marketplace = 'rakuten';
 
-    for (const pattern of articlePatterns) {
-      const match = email.body.match(pattern);
-      if (match) {
-        result.articleId = match[0].split(':')[1]?.trim() || null;
-        break;
-      }
-    }
+    // 5. Detect carrier from subject+from
+    if (combinedMeta.includes('dhl')) result.carrier = 'dhl';
+    else if (combinedMeta.includes('ups')) result.carrier = 'ups';
+    else if (combinedMeta.includes('fedex')) result.carrier = 'fedex';
+    else if (combinedMeta.includes('laposte') || combinedMeta.includes('colissimo')) result.carrier = 'laposte';
 
-    // 5. Detect marketplace
-    const combined = `${email.subject} ${email.from}`.toLowerCase();
-    if (combined.includes('amazon')) result.marketplace = 'amazon';
-    else if (combined.includes('ebay')) result.marketplace = 'ebay';
-    else if (combined.includes('aliexpress')) result.marketplace = 'aliexpress';
-    else if (combined.includes('cdiscount')) result.marketplace = 'cdiscount';
-    else if (combined.includes('fnac')) result.marketplace = 'fnac';
-
-    // 6. Detect carrier
-    if (combined.includes('dhl')) result.carrier = 'dhl';
-    else if (combined.includes('ups')) result.carrier = 'ups';
-    else if (combined.includes('fedex')) result.carrier = 'fedex';
-    else if (combined.includes('laposte') || combined.includes('colissimo')) result.carrier = 'laposte';
+    // 6. Extract pickup address
+    result.pickupAddress = this.addressExtractor.extractAddress(email.body);
 
     return result;
+  }
+
+  /**
+   * Validate that a string is actually a tracking number and not random text
+   */
+  private isValidTrackingNumber(candidate: string): boolean {
+    // Reject if it contains common words
+    const lower = candidate.toLowerCase();
+    const rejectWords = ['tracking', 'information', 'suivi', 'livraison', 'details', 'number', 'numéro', 'colis'];
+    if (rejectWords.some(w => lower.includes(w))) return false;
+    
+    // Reject if all same digit (e.g., 333333333333336)
+    if (/^(\d)\1{10,}$/.test(candidate)) return false;
+    
+    // Must be at least 8 chars
+    if (candidate.length < 8) return false;
+    
+    // Must contain at least some digits
+    if (!/\d/.test(candidate)) return false;
+    
+    return true;
+  }
+
+  private stripHTML(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<\/(?:p|div|tr|td|h[1-6]|li)>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }
