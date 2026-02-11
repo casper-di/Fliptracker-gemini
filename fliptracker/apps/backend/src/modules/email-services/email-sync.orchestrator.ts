@@ -186,11 +186,10 @@ export class EmailSyncOrchestrator {
 
           for (const rawEmailData of savedRawEmails) {
             try {
-              // On INITIAL sync: parse tous les emails
-              // On MAINTENANCE: parser seulement si c'est du tracking
-              const shouldParse =
-                !connectedEmail.initialSyncCompleted ||
-                this.trackingDetector.isTrackingEmail(rawEmailData.fetched);
+              // Always parse all fetched emails — the Gmail query already filters
+              // for carrier/tracking emails, so no need to filter again here.
+              // The hybrid parser will set isTrackingEmail=false for non-tracking ones.
+              const shouldParse = true;
 
               if (!shouldParse) {
                 skippedNonTracking++;

@@ -27,6 +27,8 @@ export class CarrierDetectorService {
     const subject = email.subject.toLowerCase();
     const body = email.body?.toLowerCase() || '';
 
+    console.log(`[CarrierDetector] Analyzing email from="${from.substring(0, 60)}" subject="${subject.substring(0, 80)}"`);
+
     // ---- STEP 1: Check sender (from) first — most reliable signal ----
     // Carrier-specific sender domains take absolute priority
     if (this.matchesPatterns(from, ['chronopost.fr', 'chronopost.com', 'pickup.fr'])) {

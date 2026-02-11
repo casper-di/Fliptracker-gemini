@@ -85,7 +85,7 @@ export class GmailService {
     const response = await gmail.users.messages.list({
       userId: 'me',
       maxResults,
-      q: '{subject:(shipping OR tracking OR delivered OR order OR colis OR livraison OR suivi OR retrait OR expédition OR récupérer OR relais OR chronopost OR colissimo OR vinted OR mondial) subject:(Fwd: OR Tr: OR Re:) from:(vinted OR chronopost OR colissimo OR mondialrelay OR laposte OR dhl OR ups OR fedex OR dpd OR gls OR relaiscolis OR vintedgo)}',
+      q: 'from:vinted OR from:vintedgo OR from:chronopost OR from:colissimo OR from:mondialrelay OR from:laposte OR from:dhl OR from:ups OR from:fedex OR from:dpd OR from:gls OR from:relaiscolis OR subject:(colis OR livraison OR tracking OR shipping OR delivered OR retrait OR suivi OR expédition OR récupérer OR chronopost OR colissimo OR mondial OR vinted)',
     });
 
     const messages = response.data.messages || [];
