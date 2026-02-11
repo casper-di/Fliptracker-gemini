@@ -5,6 +5,7 @@ import { EmailTrackingDetectorService } from './email-tracking-detector.service'
 import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { DeepSeekService } from './deepseek.service';
+import { NlpClientService } from './nlp-client.service';
 import { ParsedTrackingInfo } from './email-parsing.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
 import { UsersService } from '../users/users.service';
@@ -31,6 +32,7 @@ export class EmailSyncOrchestrator {
     private emailClassifier: EmailClassifierService,
     private parsedEmailToParcelService: ParsedEmailToParcelService,
     private deepSeekService: DeepSeekService,
+    private nlpClientService: NlpClientService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
     private labelUrlExtractor: LabelUrlExtractorService,
@@ -285,11 +287,87 @@ export class EmailSyncOrchestrator {
             }
           }
 
+          // ── NLP Model Enhancement (primary) → DeepSeek (fallback) ──
           if (deepSeekCandidates.length > 0) {
-            console.log(`\n🤖 DeepSeek enhancement for ${deepSeekCandidates.length} email(s)...`);
+            // Try NLP service first if enabled
+            const nlpEnabled = this.nlpClientService.isEnabled();
+            const remainingCandidates: typeof deepSeekCandidates = [];
+
+            if (nlpEnabled) {
+              console.log(`\n🧠 NLP Model enhancement for ${deepSeekCandidates.length} email(s)...`);
+              try {
+                const nlpResults = await this.nlpClientService.extractBatch(
+                  deepSeekCandidates.map(c => ({
+                    body: c.rawEmailData.rawBody || c.rawEmailData.fetched.body,
+                    subject: c.rawEmailData.subject,
+                    from: c.rawEmailData.from,
+                  })),
+                );
+
+                for (let i = 0; i < deepSeekCandidates.length; i++) {
+                  const candidate = deepSeekCandidates[i];
+                  const nlpResult = nlpResults[i];
+
+                  if (nlpResult && nlpResult.trackingNumber) {
+                    const merged = this.mergeParsedResults(candidate.parsed, nlpResult);
+                    const cleaned = this.removeUndefinedValues(merged);
+                    cleaned.trackingNumber = this.cleanTrackingNumber(cleaned.trackingNumber!);
+
+                    if (this.isValidTrackingNumber(cleaned.trackingNumber)) {
+                      totalTrackingEmails++;
+                      parsedWithTracking++;
+
+                      try {
+                        const bodyText = (candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
+                        const classification = await this.emailClassifier.classify({
+                          subject: candidate.rawEmailData.subject,
+                          from: candidate.rawEmailData.from,
+                          bodySnippet: bodyText,
+                        });
+                        cleaned.emailType = classification.emailType;
+                        cleaned.sourceType = classification.sourceType;
+                        cleaned.sourceName = classification.sourceName;
+                        cleaned.classificationConfidence = classification.confidence;
+                      } catch {}
+
+                      try {
+                        const labelUrl = this.labelUrlExtractor.extractLabelUrl(
+                          candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body,
+                        );
+                        if (labelUrl) cleaned.labelUrl = labelUrl;
+                      } catch {}
+
+                      console.log(`   ✅ NLP tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
+                      if (cleaned.type) console.log(`      📍 Type: ${cleaned.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
+
+                      const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, cleaned);
+                      if (saved?.created) totalEmailsParsed++;
+                      if (saved?.parsedEmail) await this.createParcelFromParsedEmail(saved.parsedEmail, cleaned);
+                      continue;
+                    }
+                  }
+                  // NLP didn't produce a valid tracking — fall back to DeepSeek
+                  remainingCandidates.push(candidate);
+                }
+
+                if (remainingCandidates.length > 0) {
+                  console.log(`   ⚠️  ${remainingCandidates.length} email(s) need DeepSeek fallback`);
+                }
+              } catch (nlpError) {
+                console.warn('[EmailSyncOrchestrator] NLP service failed, falling back to DeepSeek:', nlpError);
+                remainingCandidates.push(...deepSeekCandidates);
+              }
+            } else {
+              remainingCandidates.push(...deepSeekCandidates);
+            }
+
+            // DeepSeek fallback for remaining candidates
+            const deepSeekFallback = nlpEnabled ? remainingCandidates : deepSeekCandidates;
+            if (deepSeekFallback.length > 0) {
+            console.log(`\n🤖 DeepSeek enhancement for ${deepSeekFallback.length} email(s)...`);
             try {
               const enhancements = await this.deepSeekService.enhanceEmails(
-                deepSeekCandidates.map(candidate => ({
+                deepSeekFallback.map(candidate => ({
                   id: candidate.rawEmailData.id,
                   subject: candidate.rawEmailData.subject,
                   from: candidate.rawEmailData.from,
@@ -299,7 +377,7 @@ export class EmailSyncOrchestrator {
                 })),
               );
 
-              for (const candidate of deepSeekCandidates) {
+              for (const candidate of deepSeekFallback) {
                 const enhanced = enhancements[candidate.rawEmailData.id];
                 const merged = this.mergeParsedResults(candidate.parsed, enhanced);
                 // Clean undefined values before saving to Firestore
@@ -361,7 +439,8 @@ export class EmailSyncOrchestrator {
             } catch (deepSeekError) {
               console.warn('[EmailSyncOrchestrator] DeepSeek enhancement failed:', deepSeekError);
             }
-          }
+            } // end deepSeekFallback.length > 0
+          } // end deepSeekCandidates.length > 0
 
           console.log(`\n📊 Parsing summary:`);
           console.log(`   - Emails with tracking: ${parsedWithTracking}`);

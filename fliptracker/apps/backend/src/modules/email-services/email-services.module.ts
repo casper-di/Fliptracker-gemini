@@ -7,6 +7,7 @@ import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
 import { DeepSeekService } from './deepseek.service';
+import { NlpClientService } from './nlp-client.service';
 import { CarrierDetectorService } from './carriers/carrier-detector.service';
 import { VintedGoParserService } from './carriers/vinted-go-parser.service';
 import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
@@ -52,6 +53,7 @@ import { AuthModule } from '../auth/auth.module';
     EmailClassifierService,
     ParsedEmailToParcelService,
     DeepSeekService,
+    NlpClientService,
     EmailSyncOrchestrator,
     CarrierDetectorService,
     ShipmentTypeDetectorService,
