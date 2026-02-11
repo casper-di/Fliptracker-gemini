@@ -75,8 +75,8 @@ export class ParsedEmailToParcelService {
     const historyEntry: StatusHistoryEntry = {
       status,
       timestamp: new Date(),
-      emailType: emailType,
-      sourceEmailId: parsedEmail.rawEmailId,
+      ...(emailType ? { emailType } : {}),
+      ...(parsedEmail.rawEmailId ? { sourceEmailId: parsedEmail.rawEmailId } : {}),
     };
 
     try {
@@ -106,10 +106,10 @@ export class ParsedEmailToParcelService {
         orderNumber: parsedEmail.orderNumber ?? null,
         withdrawalCode: parsedEmail.withdrawalCode ?? null,
         qrCode: parsedEmail.qrCode ?? null,
-        marketplace: parsedEmail.marketplace || undefined,
-        itemPrice: parsedEmail.estimatedValue || undefined,
-        currency: parsedEmail.currency || undefined,
-      });
+        marketplace: parsedEmail.marketplace || null,
+        itemPrice: parsedEmail.estimatedValue || null,
+        currency: parsedEmail.currency || null,
+      } as any);
 
       console.log(`      ✅ Parcel created: ${parcel.id} - "${title}" [${status}]`);
       return parcel;
@@ -135,18 +135,18 @@ export class ParsedEmailToParcelService {
     const historyEntry: StatusHistoryEntry = {
       status: newStatus,
       timestamp: new Date(),
-      emailType: emailType,
-      sourceEmailId: parsedEmail.rawEmailId,
+      ...(emailType ? { emailType } : {}),
+      ...(parsedEmail.rawEmailId ? { sourceEmailId: parsedEmail.rawEmailId } : {}),
     };
     const statusHistory = [...(existing.statusHistory ?? []), historyEntry];
 
     // Merge: only overwrite null/empty fields — never erase existing data
     const updates: Partial<Parcel> = {
       status: finalStatus,
-      lastEmailType: emailType ?? existing.lastEmailType,
-      sourceType: (parsedEmail as any).sourceType ?? existing.sourceType,
-      sourceName: (parsedEmail as any).sourceName ?? existing.sourceName,
-      labelUrl: (parsedEmail as any).labelUrl ?? existing.labelUrl,
+      lastEmailType: emailType ?? existing.lastEmailType ?? null,
+      sourceType: (parsedEmail as any).sourceType ?? existing.sourceType ?? null,
+      sourceName: (parsedEmail as any).sourceName ?? existing.sourceName ?? null,
+      labelUrl: (parsedEmail as any).labelUrl ?? existing.labelUrl ?? null,
       statusHistory,
       // Metadata: fill blanks
       productName: existing.productName ?? parsedEmail.productName ?? null,
