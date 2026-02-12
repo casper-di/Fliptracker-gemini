@@ -37,11 +37,13 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
         run: |
-          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
-            echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}"
+          # Write secret to file (may contain newlines); ignore errors
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}" || true
+          # If file non-empty, run export; otherwise skip
+          if [ -s "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
             python training/export_data.py
           else
-            echo "FIREBASE_SERVICE_ACCOUNT not set, skipping export"
+            echo "FIREBASE_SERVICE_ACCOUNT not set or empty, skipping export"
           fi
 
       - name: Prepare data (annotate)
