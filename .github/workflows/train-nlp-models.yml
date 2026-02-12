@@ -64,10 +64,10 @@ jobs:
           sudo rm -rf /tmp/* ~/.cache/pip || true
           df -h
 
-      - name: Archive prepared data (only .jsonl/.csv)
+      - name: Archive prepared data (only annotated .json)
         run: |
           cd fliptracker/apps/nlp-service
-          find data -type f \( -name '*.jsonl' -o -name '*.csv' \) | tar -czf prepared-data-${{ github.run_id }}.tar.gz -T -
+          tar -czf prepared-data-${{ github.run_id }}.tar.gz data/annotated/*.json
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
