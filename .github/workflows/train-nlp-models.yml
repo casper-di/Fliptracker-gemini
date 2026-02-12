@@ -66,8 +66,7 @@ jobs:
 
       - name: Archive prepared data (only annotated .json)
         run: |
-          cd fliptracker/apps/nlp-service
-          tar -czf prepared-data-${{ github.run_id }}.tar.gz data/annotated/*.json
+          tar -czf prepared-data-${{ github.run_id }}.tar.gz fliptracker/apps/nlp-service/data/annotated/*.json
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
