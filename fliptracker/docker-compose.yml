@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  # ── NLP Service (CamemBERT) ──────────────────────────────
+  nlp-service:
+    build:
+      context: ./apps/nlp-service
+      dockerfile: Dockerfile
+    container_name: fliptracker-nlp
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount models directory so trained models persist outside container
+      - ./apps/nlp-service/models:/app/models
+    environment:
+      - NLP_HOST=0.0.0.0
+      - NLP_PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ── Backend (NestJS) ─────────────────────────────────────
+  # Uncomment to also run the backend via Docker
+  # backend:
+  #   build:
+  #     context: ./apps/backend
+  #   container_name: fliptracker-backend
+  #   ports:
+  #     - "3001:3001"
+  #   env_file:
+  #     - ./apps/backend/.env
+  #   environment:
+  #     - NLP_SERVICE_URL=http://nlp-service:8000
+  #     - NLP_SERVICE_ENABLED=true
+  #   depends_on:
+  #     nlp-service:
+  #       condition: service_healthy

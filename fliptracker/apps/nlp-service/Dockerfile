@@ -8,16 +8,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install PyTorch CPU-only first (much smaller than CUDA version)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download CamemBERT tokenizer (cached in image)
-RUN python -c "from transformers import CamembertTokenizer; CamembertTokenizer.from_pretrained('camembert-base')"
+# Download CamemBERT tokenizer + model weights (cached in image)
+RUN python -c "from transformers import CamembertTokenizer, CamembertForSequenceClassification; \
+    CamembertTokenizer.from_pretrained('camembert-base'); \
+    CamembertForSequenceClassification.from_pretrained('camembert-base')"
 
 # Copy source code
 COPY src/ src/
-COPY models/ models/
+
+# Create models directory (will be mounted as volume with trained models)
+RUN mkdir -p models
 
 # Expose port
 EXPOSE 8000

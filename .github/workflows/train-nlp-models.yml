@@ -1,0 +1,71 @@
+name: Train NLP models
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  train:
+    name: Train CamemBERT NER + Classifiers
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: 1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsndfile1
+
+      - name: Install PyTorch (CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+
+      - name: Install Python requirements
+        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
+
+      - name: (Optional) Export data from Firestore
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        working-directory: fliptracker/apps/nlp-service
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}"
+          python training/export_data.py
+
+      - name: Prepare data (annotate)
+        working-directory: fliptracker/apps/nlp-service
+        run: python training/prepare_data.py
+
+      - name: Train NER + classifiers
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          # Short default epochs for CI; override in dispatcher if needed
+          python training/train.py --epochs-ner 5 --epochs-cls 3
+
+      - name: Collect trained models
+        run: |
+          set -e
+          if [ -d "fliptracker/apps/nlp-service/models" ]; then
+            tar -czf nlp-models-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service models
+          else
+            echo "No models produced" && touch nlp-models-${{ github.run_id }}.tar.gz
+          fi
+
+      - name: Upload models artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nlp-models
+          path: nlp-models-${{ github.run_id }}.tar.gz
+
+      - name: Cleanup (optional)
+        if: always()
+        run: rm -f nlp-models-${{ github.run_id }}.tar.gz || true
