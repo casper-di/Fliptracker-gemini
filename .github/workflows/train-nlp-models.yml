@@ -124,12 +124,12 @@ jobs:
         run: |
           python training/train.py --epochs-ner 5 --epochs-cls 3
 
-      - name: Collect trained models (only necessary files)
+      - name: Collect trained models (archive all model files)
         run: |
           set -e
           cd fliptracker/apps/nlp-service
           if [ -d "models" ]; then
-            find models -type f \( -name '*.pt' -o -name '*.bin' -o -name 'config.json' -o -name 'tokenizer.json' -o -name 'vocab.txt' \) | tar -czf nlp-models-${{ github.run_id }}.tar.gz -T -
+            tar -czf nlp-models-${{ github.run_id }}.tar.gz models
           else
             echo "No models produced" && touch nlp-models-${{ github.run_id }}.tar.gz
           fi
