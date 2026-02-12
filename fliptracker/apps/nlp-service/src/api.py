@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
         cls_carrier_path=settings.cls_carrier_path,
         cls_type_path=settings.cls_type_path,
         cls_marketplace_path=settings.cls_marketplace_path,
+        cls_email_type_path=settings.cls_email_type_path,
     )
     
     elapsed = time.time() - start
@@ -90,6 +91,7 @@ class ExtractResponse(BaseModel):
     carrier: Optional[ClassificationResponse] = None
     shipmentType: Optional[ClassificationResponse] = None
     marketplace: Optional[ClassificationResponse] = None
+    emailType: Optional[ClassificationResponse] = None
     entities: list[EntityResponse] = []
     processingTimeMs: float = 0
 
@@ -184,6 +186,10 @@ async def model_info():
             "marketplace": {
                 "loaded": extractor.cls_marketplace is not None,
                 "labels": extractor.cls_marketplace["labels"] if extractor.cls_marketplace else [],
+            },
+            "emailType": {
+                "loaded": extractor.cls_email_type is not None,
+                "labels": extractor.cls_email_type["labels"] if extractor.cls_email_type else [],
             },
         }
     }

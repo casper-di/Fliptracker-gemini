@@ -185,6 +185,7 @@ def annotate_sample(sample: dict) -> Optional[dict]:
         "carrier": labels.get("carrier", "other"),
         "type": labels.get("type", "unknown"),
         "marketplace": labels.get("marketplace") or "none",
+        "email_type": labels.get("emailType", "unknown"),
         "is_tracking": labels.get("isTrackingEmail", False),
     }
     
@@ -225,10 +226,11 @@ def to_spacy_format(annotated: list[dict]) -> list[tuple[str, dict]]:
 
 
 def to_classification_dataset(annotated: list[dict]) -> dict:
-    """Create classification datasets for carrier, type, marketplace."""
+    """Create classification datasets for carrier, type, marketplace, email_type."""
     carrier_data = []
     type_data = []
     marketplace_data = []
+    email_type_data = []
     
     for item in annotated:
         text = item["text"][:1000]  # Truncate for classifier
@@ -246,11 +248,15 @@ def to_classification_dataset(annotated: list[dict]) -> dict:
         
         if cats["marketplace"] and cats["marketplace"] != "none":
             marketplace_data.append({"text": combined, "label": cats["marketplace"]})
+        
+        if cats.get("email_type") and cats["email_type"] != "unknown":
+            email_type_data.append({"text": combined, "label": cats["email_type"]})
     
     return {
         "carrier": carrier_data,
         "type": type_data,
         "marketplace": marketplace_data,
+        "email_type": email_type_data,
     }
 
 

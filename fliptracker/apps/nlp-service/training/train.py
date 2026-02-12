@@ -231,7 +231,7 @@ buffer = 256
 
 # ── Classification Training with HuggingFace ────────────────────
 def train_classifiers(data_dir: Path, output_dir: Path, epochs: int = 5):
-    """Train classification models for carrier, type, marketplace."""
+    """Train classification models for carrier, type, marketplace, email_type."""
     print("\n" + "="*60)
     print("🏷️  Training Classification Models")
     print("="*60)
@@ -251,7 +251,7 @@ def train_classifiers(data_dir: Path, output_dir: Path, epochs: int = 5):
     
     annotated_dir = data_dir / "annotated"
     
-    for task in ["carrier", "type", "marketplace"]:
+    for task in ["carrier", "type", "marketplace", "email_type"]:
         cls_path = annotated_dir / f"cls_{task}.json"
         if not cls_path.exists():
             print(f"   ⚠️  No data for {task} — skipping")

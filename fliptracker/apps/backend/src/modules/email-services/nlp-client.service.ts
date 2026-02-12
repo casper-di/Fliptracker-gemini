@@ -8,7 +8,9 @@ import { ParsedTrackingInfo } from './email-parsing.service';
  * HTTP client that calls the Python NLP FastAPI service for
  * CamemBERT-based entity extraction and classification.
  * 
- * Replaces DeepSeek as the primary AI-based email parser.
+ * This is the PRIMARY and ONLY parser for email data extraction.
+ * The NLP model handles: tracking numbers, carriers, type (sale/purchase),
+ * marketplace, addresses, names, codes, prices, dates, and email type.
  */
 
 interface NlpExtractResponse {
@@ -24,6 +26,7 @@ interface NlpExtractResponse {
   carrier: { label: string; confidence: number } | null;
   shipmentType: { label: string; confidence: number } | null;
   marketplace: { label: string; confidence: number } | null;
+  emailType: { label: string; confidence: number } | null;
   entities: Array<{ text: string; label: string; start: number; end: number; confidence: number }>;
   processingTimeMs: number;
 }
@@ -43,8 +46,8 @@ export class NlpClientService {
 
   constructor(private configService: ConfigService) {
     this.baseUrl = this.configService.get<string>('NLP_SERVICE_URL', 'http://localhost:8000');
-    this.timeout = this.configService.get<number>('NLP_SERVICE_TIMEOUT', 10000);
-    this.enabled = this.configService.get<string>('NLP_SERVICE_ENABLED', 'false') === 'true';
+    this.timeout = this.configService.get<number>('NLP_SERVICE_TIMEOUT', 15000);
+    this.enabled = this.configService.get<string>('NLP_SERVICE_ENABLED', 'true') === 'true';
   }
 
   /**
@@ -175,6 +178,11 @@ export class NlpClientService {
     // Marketplace
     if (nlp.marketplace && nlp.marketplace.confidence > 0.3) {
       result.marketplace = nlp.marketplace.label;
+    }
+
+    // Email type (lifecycle classification from NLP)
+    if (nlp.emailType && nlp.emailType.confidence > 0.3) {
+      result.emailType = nlp.emailType.label as ParsedTrackingInfo['emailType'];
     }
 
     // Address

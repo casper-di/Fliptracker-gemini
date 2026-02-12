@@ -1,10 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
-import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
-import { DeepSeekService } from './deepseek.service';
 import { NlpClientService } from './nlp-client.service';
 import { ParsedTrackingInfo } from './email-parsing.service';
 import { ConnectedEmailsService } from '../connected-emails/connected-emails.service';
@@ -22,16 +20,14 @@ import { RawEmail, ParsedEmail } from '../../domain/entities/email-sync.entity';
 
 @Injectable()
 export class EmailSyncOrchestrator {
-  private readonly INITIAL_SYNC_LIMIT = 200; // Premier sync: 200 emails
-  private readonly MAINTENANCE_SYNC_LIMIT = 200; // Syncs suivants: 30 emails
+  private readonly INITIAL_SYNC_LIMIT = 200;
+  private readonly MAINTENANCE_SYNC_LIMIT = 200;
 
   constructor(
     private fetchService: EmailFetchService,
-    private hybridParsingService: HybridEmailParsingService,
     private trackingDetector: EmailTrackingDetectorService,
     private emailClassifier: EmailClassifierService,
     private parsedEmailToParcelService: ParsedEmailToParcelService,
-    private deepSeekService: DeepSeekService,
     private nlpClientService: NlpClientService,
     private connectedEmailsService: ConnectedEmailsService,
     private usersService: UsersService,
@@ -176,224 +172,64 @@ export class EmailSyncOrchestrator {
             totalEmails: fetchedEmails.length,
           });
 
-          // STEP 3: PARSE EMAILS + EXTRACT TRACKING
-          console.log(`\n🔍 STEP 3: Parsing emails for tracking information...`);
+          // STEP 3: PARSE EMAILS VIA NLP MODEL
+          console.log(`\n🧠 STEP 3: Extracting tracking information via NLP model...`);
           let skippedNonTracking = 0;
           let parsedWithTracking = 0;
           let parsedNoTracking = 0;
-          const deepSeekCandidates: Array<{
-            rawEmailData: RawEmail & { fetched: typeof fetchedEmails[0] };
-            parsed: ParsedTrackingInfo & { isTrackingEmail: boolean; needsDeepSeek: boolean };
-          }> = [];
+
+          // Phase A: Filter tracking emails (Tier 1 — keyword detection)
+          const trackingEmails: Array<RawEmail & { fetched: typeof fetchedEmails[0] }> = [];
 
           for (const rawEmailData of savedRawEmails) {
-            try {
-              // Always parse all fetched emails — the Gmail query already filters
-              // for carrier/tracking emails, so no need to filter again here.
-              // The hybrid parser will set isTrackingEmail=false for non-tracking ones.
-              const shouldParse = true;
-
-              if (!shouldParse) {
-                skippedNonTracking++;
-                continue;
-              }
-
-              // Parse email - pass receivedAt for metadata extraction
-              const parsed = await this.hybridParsingService.parseEmail({
-                ...rawEmailData.fetched,
-                receivedAt: rawEmailData.receivedAt,
-              });
-
-              // If not a tracking email, skip
-              if (!parsed.isTrackingEmail) {
-                parsedNoTracking++;
-                continue;
-              }
-
-              if (parsed.needsDeepSeek) {
-                console.log(`   🤖 Flagging for DeepSeek enhancement: ${rawEmailData.subject.substring(0, 60)}...`);
-                if (!parsed.trackingNumber) console.log(`      ⚠️  Reason: No tracking number found`);
-                if (!parsed.pickupAddress || parsed.pickupAddress.length < 20) console.log(`      ⚠️  Reason: Incomplete or missing address`);
-                if (!parsed.marketplace) console.log(`      ⚠️  Reason: Marketplace not detected`);
-                deepSeekCandidates.push({ rawEmailData, parsed });
-                continue;
-              }
-
-              if (!parsed.trackingNumber) {
-                parsedNoTracking++;
-                continue;
-              }
-
-              // Clean tracking number (strip prefixes like "suivi : ")
-              parsed.trackingNumber = this.cleanTrackingNumber(parsed.trackingNumber);
-
-              // Validate tracking number quality before saving
-              if (!this.isValidTrackingNumber(parsed.trackingNumber)) {
-                console.log(`   ⚠️  Rejected invalid tracking: "${parsed.trackingNumber}" from ${rawEmailData.subject.substring(0, 60)}`);
-                parsedNoTracking++;
-                continue;
-              }
-
-              totalTrackingEmails++;
-              parsedWithTracking++;
-              
-              // Clean undefined values before saving to Firestore
-              const cleanedParsed = this.removeUndefinedValues(parsed);
-
-              // ── Classify email type + extract label URL ──
-              try {
-                const bodyText = (rawEmailData.rawBody || rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
-                const classification = await this.emailClassifier.classify({
-                  subject: rawEmailData.subject,
-                  from: rawEmailData.from,
-                  bodySnippet: bodyText,
-                });
-                cleanedParsed.emailType = classification.emailType;
-                cleanedParsed.sourceType = classification.sourceType;
-                cleanedParsed.sourceName = classification.sourceName;
-                cleanedParsed.classificationConfidence = classification.confidence;
-                console.log(`      🏷️  Classification: ${classification.emailType} (${classification.sourceType}/${classification.sourceName}) [${Math.round(classification.confidence * 100)}%]`);
-              } catch (classErr) {
-                console.warn(`      ⚠️  Classification failed:`, classErr.message);
-              }
-
-              try {
-                const labelUrl = this.labelUrlExtractor.extractLabelUrl(
-                  rawEmailData.rawBody || rawEmailData.fetched.body,
-                );
-                if (labelUrl) {
-                  cleanedParsed.labelUrl = labelUrl;
-                  console.log(`      🏷️  Label URL found: ${labelUrl.substring(0, 80)}…`);
-                }
-              } catch (labelErr) {
-                // non-critical
-              }
-              
-              console.log(`   ✅ Found tracking: ${cleanedParsed.trackingNumber} (${cleanedParsed.carrier || 'unknown carrier'})`);
-              if (cleanedParsed.type) console.log(`      📍 Type: ${cleanedParsed.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
-              if (cleanedParsed.qrCode) console.log(`      📦 QR Code: ${cleanedParsed.qrCode}`);
-              if (cleanedParsed.withdrawalCode) console.log(`      🔑 Withdrawal: ${cleanedParsed.withdrawalCode}`);
-              if (cleanedParsed.marketplace) console.log(`      🛒 Marketplace: ${cleanedParsed.marketplace}`);
-
-              const saved = await this.persistParsedEmail(userId, rawEmailData, cleanedParsed);
-              if (saved?.created) {
-                totalEmailsParsed++;
-              }
-              if (saved?.parsedEmail) {
-                await this.createParcelFromParsedEmail(saved.parsedEmail, cleanedParsed);
-              }
-            } catch (parseError) {
-              console.warn('[EmailSyncOrchestrator] Failed to parse email:', parseError);
+            const isTracking = this.trackingDetector.isTrackingEmail({
+              subject: rawEmailData.fetched.subject,
+              from: rawEmailData.fetched.from,
+              body: rawEmailData.fetched.body,
+            });
+            if (isTracking) {
+              trackingEmails.push(rawEmailData);
+            } else {
+              skippedNonTracking++;
             }
           }
 
-          // ── NLP Model Enhancement (primary) → DeepSeek (fallback) ──
-          if (deepSeekCandidates.length > 0) {
-            // Try NLP service first if enabled
-            const nlpEnabled = this.nlpClientService.isEnabled();
-            const remainingCandidates: typeof deepSeekCandidates = [];
+          console.log(`   📧 Tracking emails detected: ${trackingEmails.length} / ${savedRawEmails.length}`);
+          console.log(`   🚫 Non-tracking skipped: ${skippedNonTracking}`);
 
-            if (nlpEnabled) {
-              console.log(`\n🧠 NLP Model enhancement for ${deepSeekCandidates.length} email(s)...`);
-              try {
-                const nlpResults = await this.nlpClientService.extractBatch(
-                  deepSeekCandidates.map(c => ({
-                    body: c.rawEmailData.rawBody || c.rawEmailData.fetched.body,
-                    subject: c.rawEmailData.subject,
-                    from: c.rawEmailData.from,
-                  })),
-                );
+          // Phase B: Batch NLP extraction on all tracking emails
+          if (trackingEmails.length > 0) {
+            console.log(`\n🧠 Running NLP model on ${trackingEmails.length} tracking email(s)...`);
 
-                for (let i = 0; i < deepSeekCandidates.length; i++) {
-                  const candidate = deepSeekCandidates[i];
-                  const nlpResult = nlpResults[i];
-
-                  if (nlpResult && nlpResult.trackingNumber) {
-                    const merged = this.mergeParsedResults(candidate.parsed, nlpResult);
-                    const cleaned = this.removeUndefinedValues(merged);
-                    cleaned.trackingNumber = this.cleanTrackingNumber(cleaned.trackingNumber!);
-
-                    if (this.isValidTrackingNumber(cleaned.trackingNumber)) {
-                      totalTrackingEmails++;
-                      parsedWithTracking++;
-
-                      try {
-                        const bodyText = (candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
-                        const classification = await this.emailClassifier.classify({
-                          subject: candidate.rawEmailData.subject,
-                          from: candidate.rawEmailData.from,
-                          bodySnippet: bodyText,
-                        });
-                        cleaned.emailType = classification.emailType;
-                        cleaned.sourceType = classification.sourceType;
-                        cleaned.sourceName = classification.sourceName;
-                        cleaned.classificationConfidence = classification.confidence;
-                      } catch {}
-
-                      try {
-                        const labelUrl = this.labelUrlExtractor.extractLabelUrl(
-                          candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body,
-                        );
-                        if (labelUrl) cleaned.labelUrl = labelUrl;
-                      } catch {}
-
-                      console.log(`   ✅ NLP tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
-                      if (cleaned.type) console.log(`      📍 Type: ${cleaned.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
-
-                      const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, cleaned);
-                      if (saved?.created) totalEmailsParsed++;
-                      if (saved?.parsedEmail) await this.createParcelFromParsedEmail(saved.parsedEmail, cleaned);
-                      continue;
-                    }
-                  }
-                  // NLP didn't produce a valid tracking — fall back to DeepSeek
-                  remainingCandidates.push(candidate);
-                }
-
-                if (remainingCandidates.length > 0) {
-                  console.log(`   ⚠️  ${remainingCandidates.length} email(s) need DeepSeek fallback`);
-                }
-              } catch (nlpError) {
-                console.warn('[EmailSyncOrchestrator] NLP service failed, falling back to DeepSeek:', nlpError);
-                remainingCandidates.push(...deepSeekCandidates);
-              }
-            } else {
-              remainingCandidates.push(...deepSeekCandidates);
-            }
-
-            // DeepSeek fallback for remaining candidates
-            const deepSeekFallback = nlpEnabled ? remainingCandidates : deepSeekCandidates;
-            if (deepSeekFallback.length > 0) {
-            console.log(`\n🤖 DeepSeek enhancement for ${deepSeekFallback.length} email(s)...`);
+            let nlpResults: (ParsedTrackingInfo | null)[] = [];
             try {
-              const enhancements = await this.deepSeekService.enhanceEmails(
-                deepSeekFallback.map(candidate => ({
-                  id: candidate.rawEmailData.id,
-                  subject: candidate.rawEmailData.subject,
-                  from: candidate.rawEmailData.from,
-                  body: candidate.rawEmailData.rawBody,
-                  receivedAt: candidate.rawEmailData.receivedAt,
-                  partial: candidate.parsed,
+              nlpResults = await this.nlpClientService.extractBatch(
+                trackingEmails.map(e => ({
+                  body: e.rawBody || e.fetched.body,
+                  subject: e.subject,
+                  from: e.from,
                 })),
               );
+            } catch (nlpError) {
+              console.error('[EmailSyncOrchestrator] NLP batch extraction failed:', nlpError);
+              nlpResults = trackingEmails.map(() => null);
+            }
 
-              for (const candidate of deepSeekFallback) {
-                const enhanced = enhancements[candidate.rawEmailData.id];
-                const merged = this.mergeParsedResults(candidate.parsed, enhanced);
-                // Clean undefined values before saving to Firestore
-                const cleaned = this.removeUndefinedValues(merged);
+            // Phase C: Process each NLP result
+            for (let i = 0; i < trackingEmails.length; i++) {
+              const rawEmailData = trackingEmails[i];
+              const nlpResult = nlpResults[i];
 
-                if (!cleaned.trackingNumber) {
+              try {
+                if (!nlpResult || !nlpResult.trackingNumber) {
                   parsedNoTracking++;
                   continue;
                 }
 
-                // Clean tracking number (strip prefixes like "suivi : ")
-                cleaned.trackingNumber = this.cleanTrackingNumber(cleaned.trackingNumber);
-
-                // Validate tracking number quality
-                if (!this.isValidTrackingNumber(cleaned.trackingNumber)) {
-                  console.log(`   ⚠️  Rejected invalid DeepSeek tracking: "${cleaned.trackingNumber}"`);
+                // Clean & validate tracking number
+                nlpResult.trackingNumber = this.cleanTrackingNumber(nlpResult.trackingNumber);
+                if (!this.isValidTrackingNumber(nlpResult.trackingNumber)) {
+                  console.log(`   ⚠️  Rejected invalid tracking: "${nlpResult.trackingNumber}" from ${rawEmailData.subject.substring(0, 60)}`);
                   parsedNoTracking++;
                   continue;
                 }
@@ -401,46 +237,54 @@ export class EmailSyncOrchestrator {
                 totalTrackingEmails++;
                 parsedWithTracking++;
 
-                // ── Classify DeepSeek-enhanced email + extract label URL ──
+                const cleaned = this.removeUndefinedValues(nlpResult);
+
+                // Classify email type (rule-based)
                 try {
-                  const dsBodyText = (candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
+                  const bodyText = (rawEmailData.rawBody || rawEmailData.fetched.body || '').replace(/<[^>]*>/g, ' ').substring(0, 2000);
                   const classification = await this.emailClassifier.classify({
-                    subject: candidate.rawEmailData.subject,
-                    from: candidate.rawEmailData.from,
-                    bodySnippet: dsBodyText,
+                    subject: rawEmailData.subject,
+                    from: rawEmailData.from,
+                    bodySnippet: bodyText,
                   });
                   cleaned.emailType = classification.emailType;
                   cleaned.sourceType = classification.sourceType;
                   cleaned.sourceName = classification.sourceName;
                   cleaned.classificationConfidence = classification.confidence;
-                } catch {}
+                  console.log(`      🏷️  Classification: ${classification.emailType} (${classification.sourceType}/${classification.sourceName}) [${Math.round(classification.confidence * 100)}%]`);
+                } catch (classErr) {
+                  console.warn(`      ⚠️  Classification failed:`, classErr.message);
+                }
 
+                // Extract label URL
                 try {
                   const labelUrl = this.labelUrlExtractor.extractLabelUrl(
-                    candidate.rawEmailData.rawBody || candidate.rawEmailData.fetched.body,
+                    rawEmailData.rawBody || rawEmailData.fetched.body,
                   );
-                  if (labelUrl) cleaned.labelUrl = labelUrl;
+                  if (labelUrl) {
+                    cleaned.labelUrl = labelUrl;
+                    console.log(`      🏷️  Label URL found: ${labelUrl.substring(0, 80)}…`);
+                  }
                 } catch {}
 
-                console.log(`   ✅ DeepSeek tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
+                console.log(`   ✅ NLP tracking: ${cleaned.trackingNumber} (${cleaned.carrier || 'unknown carrier'})`);
                 if (cleaned.type) console.log(`      📍 Type: ${cleaned.type === 'sale' ? 'VENTE (expédition)' : 'ACHAT (réception)'}`);
                 if (cleaned.qrCode) console.log(`      📦 QR Code: ${cleaned.qrCode}`);
                 if (cleaned.withdrawalCode) console.log(`      🔑 Withdrawal: ${cleaned.withdrawalCode}`);
                 if (cleaned.marketplace) console.log(`      🛒 Marketplace: ${cleaned.marketplace}`);
 
-                const saved = await this.persistParsedEmail(userId, candidate.rawEmailData, cleaned);
+                const saved = await this.persistParsedEmail(userId, rawEmailData, cleaned);
                 if (saved?.created) {
                   totalEmailsParsed++;
                 }
                 if (saved?.parsedEmail) {
                   await this.createParcelFromParsedEmail(saved.parsedEmail, cleaned);
                 }
+              } catch (parseError) {
+                console.warn('[EmailSyncOrchestrator] Failed to process NLP result:', parseError);
               }
-            } catch (deepSeekError) {
-              console.warn('[EmailSyncOrchestrator] DeepSeek enhancement failed:', deepSeekError);
             }
-            } // end deepSeekFallback.length > 0
-          } // end deepSeekCandidates.length > 0
+          }
 
           console.log(`\n📊 Parsing summary:`);
           console.log(`   - Emails with tracking: ${parsedWithTracking}`);
@@ -706,22 +550,6 @@ export class EmailSyncOrchestrator {
     }
   }
 
-  private mergeParsedResults(
-    base: ParsedTrackingInfo,
-    enhanced?: ParsedTrackingInfo,
-  ): ParsedTrackingInfo {
-    if (!enhanced) return base;
-
-    const merged: ParsedTrackingInfo = { ...base };
-    for (const [key, value] of Object.entries(enhanced)) {
-      if (value !== null && value !== undefined) {
-        (merged as any)[key] = value;
-      }
-    }
-
-    return merged;
-  }
-
   private removeUndefinedValues(obj: any): any {
     const cleaned: any = {};
     for (const [key, value] of Object.entries(obj)) {
@@ -754,20 +582,6 @@ export class EmailSyncOrchestrator {
 
   private generateId(): string {
     return `sync_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-  }
-
-  private calculateCompleteness(result: any): number {
-    let score = 0;
-    let maxScore = 10;
-    
-    if (result.trackingNumber) score += 3;
-    if (result.carrier) score += 2;
-    if (result.type) score += 1;
-    if (result.productName) score += 1;
-    if (result.pickupAddress) score += 2;
-    if (result.withdrawalCode || result.qrCode) score += 1;
-    
-    return Math.round((score / maxScore) * 100);
   }
 
   /**

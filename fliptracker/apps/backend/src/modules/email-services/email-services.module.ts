@@ -1,24 +1,10 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { EmailFetchService } from './email-fetch.service';
-import { EmailParsingService } from './email-parsing.service';
-import { HybridEmailParsingService } from './hybrid-email-parsing.service';
 import { EmailTrackingDetectorService } from './email-tracking-detector.service';
 import { EmailClassifierService } from './email-classifier.service';
 import { ParsedEmailToParcelService } from './parsed-email-to-parcel.service';
 import { EmailSyncOrchestrator } from './email-sync.orchestrator';
-import { DeepSeekService } from './deepseek.service';
 import { NlpClientService } from './nlp-client.service';
-import { CarrierDetectorService } from './carriers/carrier-detector.service';
-import { VintedGoParserService } from './carriers/vinted-go-parser.service';
-import { MondialRelayParserService } from './carriers/mondial-relay-parser.service';
-import { RelaisColisParserService } from './carriers/relais-colis-parser.service';
-import { ChronopostParserService } from './carriers/chronopost-parser.service';
-import { ColissimoParserService } from './carriers/colissimo-parser.service';
-import { DHLParserService } from './carriers/dhl-parser.service';
-import { UPSParserService } from './carriers/ups-parser.service';
-import { FedExParserService } from './carriers/fedex-parser.service';
-import { TrackingNumberExtractorService } from './tracking-number-extractor.service';
-import { ShipmentTypeDetectorService } from './shipment-type-detector.service';
 import { StatusDetectorService } from './status-detector.service';
 import { AddressExtractorService } from './utils/address-extractor.service';
 import { TrackingValidatorService } from './utils/tracking-validator.service';
@@ -47,20 +33,12 @@ import { AuthModule } from '../auth/auth.module';
   imports: [ProvidersModule, forwardRef(() => ConnectedEmailsModule), UsersModule, ParcelsModule, forwardRef(() => AuthModule)],
   providers: [
     EmailFetchService,
-    EmailParsingService,
-    HybridEmailParsingService,
     EmailTrackingDetectorService,
     EmailClassifierService,
     ParsedEmailToParcelService,
-    DeepSeekService,
     NlpClientService,
     EmailSyncOrchestrator,
-    CarrierDetectorService,
-    ShipmentTypeDetectorService,
     StatusDetectorService,
-    VintedGoParserService,
-    MondialRelayParserService,
-    RelaisColisParserService,
     AddressExtractorService,
     TrackingValidatorService,
     DateParserService,
@@ -68,12 +46,6 @@ import { AuthModule } from '../auth/auth.module';
     MarketplaceDetectorService,
     WithdrawalCodeExtractorService,
     LabelUrlExtractorService,
-    ChronopostParserService,
-    ColissimoParserService,
-    DHLParserService,
-    UPSParserService,
-    FedExParserService,
-    TrackingNumberExtractorService,
     {
       provide: RAW_EMAIL_REPOSITORY,
       useClass: FirestoreRawEmailRepository,

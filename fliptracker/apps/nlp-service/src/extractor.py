@@ -49,6 +49,7 @@ class ExtractionResult:
     carrier: Optional[ClassificationResult] = None
     shipment_type: Optional[ClassificationResult] = None
     marketplace: Optional[ClassificationResult] = None
+    email_type: Optional[ClassificationResult] = None
     
     # Raw entities for debugging
     entities: list[ExtractedEntity] = field(default_factory=list)
@@ -67,6 +68,7 @@ class ExtractionResult:
             "carrier": {"label": self.carrier.label, "confidence": self.carrier.confidence} if self.carrier else None,
             "shipmentType": {"label": self.shipment_type.label, "confidence": self.shipment_type.confidence} if self.shipment_type else None,
             "marketplace": {"label": self.marketplace.label, "confidence": self.marketplace.confidence} if self.marketplace else None,
+            "emailType": {"label": self.email_type.label, "confidence": self.email_type.confidence} if self.email_type else None,
             "entities": [asdict(e) for e in self.entities],
         }
         return result
@@ -84,6 +86,7 @@ class EmailExtractor:
         cls_carrier_path: Optional[str] = None,
         cls_type_path: Optional[str] = None,
         cls_marketplace_path: Optional[str] = None,
+        cls_email_type_path: Optional[str] = None,
     ):
         # Load NER model
         ner_path = Path(ner_model_path)
@@ -99,10 +102,12 @@ class EmailExtractor:
         self.cls_carrier = None
         self.cls_type = None
         self.cls_marketplace = None
+        self.cls_email_type = None
         
         self._load_classifier("carrier", cls_carrier_path)
         self._load_classifier("type", cls_type_path)
         self._load_classifier("marketplace", cls_marketplace_path)
+        self._load_classifier("email_type", cls_email_type_path)
     
     def _load_classifier(self, name: str, model_path: Optional[str]):
         """Load a HuggingFace classification model."""
@@ -228,6 +233,7 @@ class EmailExtractor:
         result.carrier = self._classify("carrier", cls_text)
         result.shipment_type = self._classify("type", cls_text)
         result.marketplace = self._classify("marketplace", cls_text)
+        result.email_type = self._classify("email_type", cls_text)
         
         # ── Sender-based carrier hint ──
         if sender and (not result.carrier or result.carrier.confidence < 0.5):

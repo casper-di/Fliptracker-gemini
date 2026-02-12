@@ -115,6 +115,7 @@ def build_training_samples(raw_emails: list[dict], parsed_emails: list[dict],
             sample["labels"]["carrier"] = parsed.get("carrier")
             sample["labels"]["type"] = parsed.get("type")
             sample["labels"]["marketplace"] = parsed.get("marketplace")
+            sample["labels"]["emailType"] = parsed.get("emailType")
             sample["labels"]["pickupAddress"] = parsed.get("pickupAddress")
             sample["labels"]["recipientName"] = parsed.get("recipientName")
             sample["labels"]["senderName"] = parsed.get("senderName")

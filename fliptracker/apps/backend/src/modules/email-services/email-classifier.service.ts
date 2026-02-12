@@ -1,7 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-// @ts-ignore - init.cjs is the Node.js-specific entry point
-const { init } = require('@heyputer/puter.js/src/init.cjs');
 
 export interface EmailClassification {
   emailType: 'order_confirmed' | 'label_created' | 'shipped' | 'in_transit' | 'out_for_delivery' | 'delivered' | 'pickup_ready' | 'returned' | 'info' | 'promo' | 'unknown';
@@ -19,47 +16,14 @@ interface EmailInput {
 
 @Injectable()
 export class EmailClassifierService {
-  private puter: any = null;
-  private readonly defaultModel = 'deepseek/deepseek-v3.2-speciale';
-
-  constructor(private configService: ConfigService) {
-    const puterToken = this.configService.get<string>('PUTER_AUTH_TOKEN');
-    if (puterToken) {
-      try {
-        this.puter = init(puterToken);
-        console.log('[EmailClassifier] Puter.js initialized');
-      } catch (error) {
-        console.error('[EmailClassifier] Failed to init Puter.js:', error.message);
-      }
-    } else {
-      console.warn('[EmailClassifier] PUTER_AUTH_TOKEN not set — LLM classification disabled');
-    }
-  }
-
   /**
-   * Classify an email using LLM, with rule-based fallback
+   * Classify an email using rule-based analysis.
+   * The NLP model handles carrier/type/marketplace classification.
+   * This service handles email lifecycle type (shipped, delivered, etc.) + source detection.
    */
   async classify(email: EmailInput): Promise<EmailClassification> {
-    // Try rule-based first (fast, free, no API call)
     const ruleResult = this.classifyByRules(email);
-    if (ruleResult.confidence >= 0.85) {
-      console.log(`[EmailClassifier] Rule-based: ${ruleResult.emailType} (${ruleResult.sourceType}:${ruleResult.sourceName}) conf=${ruleResult.confidence}`);
-      return ruleResult;
-    }
-
-    // Fallback to LLM if available
-    if (this.puter) {
-      try {
-        const llmResult = await this.classifyByLLM(email);
-        if (llmResult && llmResult.confidence > ruleResult.confidence) {
-          console.log(`[EmailClassifier] LLM: ${llmResult.emailType} (${llmResult.sourceType}:${llmResult.sourceName}) conf=${llmResult.confidence}`);
-          return llmResult;
-        }
-      } catch (err) {
-        console.warn('[EmailClassifier] LLM failed, using rule-based:', err.message);
-      }
-    }
-
+    console.log(`[EmailClassifier] Rule-based: ${ruleResult.emailType} (${ruleResult.sourceType}:${ruleResult.sourceName}) conf=${ruleResult.confidence}`);
     return ruleResult;
   }
 
@@ -286,75 +250,8 @@ export class EmailClassifierService {
     return null;
   }
 
-  // ─── LLM Classification ─────────────────────────────────────────────
-
-  private async classifyByLLM(email: EmailInput): Promise<EmailClassification | null> {
-    const model = this.configService.get<string>('DEEPSEEK_MODEL') || this.defaultModel;
-
-    const prompt = [
-      'You are an email classifier for a parcel tracking app. Classify the following email.',
-      'Return ONLY valid JSON (no markdown, no explanation).',
-      '',
-      'Output format:',
-      '{',
-      '  "emailType": "order_confirmed|label_created|shipped|in_transit|out_for_delivery|delivered|pickup_ready|returned|info|promo|unknown",',
-      '  "sourceType": "platform|carrier|unknown",',
-      '  "sourceName": "vinted|leboncoin|amazon|ebay|colissimo|chronopost|mondial_relay|dhl|ups|fedex|...|null",',
-      '  "direction": "sale|purchase|null",',
-      '  "confidence": 0.0-1.0',
-      '}',
-      '',
-      'Rules:',
-      '- sourceType=platform means the email is from a marketplace (Vinted, Amazon, eBay, etc.)',
-      '- sourceType=carrier means the email is from a shipping company (Colissimo, DHL, Chronopost, etc.)',
-      '- direction=sale means the user is the SELLER (sending a package)',
-      '- direction=purchase means the user is the BUYER (receiving a package)',
-      '- emailType=promo for newsletters, marketing, promotions - NOT related to a specific shipment',
-      '- emailType=info for general transactional emails without specific tracking status update',
-      '',
-      `From: ${email.from}`,
-      `Subject: ${email.subject}`,
-      `Body (first 1500 chars): ${email.bodySnippet.substring(0, 1500)}`,
-    ].join('\n');
-
-    try {
-      const response: any = await this.puter.ai.chat(prompt, { model, stream: false } as any);
-
-      let content = '';
-      if (typeof response === 'string') content = response;
-      else if (response?.message?.content) content = response.message.content.toString();
-      else if (response?.content) content = response.content.toString();
-      else if (response?.choices?.[0]?.message?.content) content = response.choices[0].message.content;
-      else if (response?.text) content = response.text.toString();
-
-      if (!content) return null;
-
-      const cleaned = content
-        .replace(/^```json\n?/i, '')
-        .replace(/^```\n?/i, '')
-        .replace(/```$/i, '')
-        .trim();
-
-      const parsed = JSON.parse(cleaned);
-
-      // Validate
-      const validEmailTypes = ['order_confirmed', 'label_created', 'shipped', 'in_transit', 'out_for_delivery', 'delivered', 'pickup_ready', 'returned', 'info', 'promo', 'unknown'];
-      const validSourceTypes = ['platform', 'carrier', 'unknown'];
-
-      if (!validEmailTypes.includes(parsed.emailType)) parsed.emailType = 'unknown';
-      if (!validSourceTypes.includes(parsed.sourceType)) parsed.sourceType = 'unknown';
-      if (parsed.direction && !['sale', 'purchase'].includes(parsed.direction)) parsed.direction = null;
-      if (typeof parsed.confidence !== 'number') parsed.confidence = 0.7;
-
-      return parsed as EmailClassification;
-    } catch (error) {
-      console.warn('[EmailClassifier] LLM parse error:', error.message);
-      return null;
-    }
-  }
-
   /**
-   * Strip HTML tags and collapse whitespace for LLM input
+   * Strip HTML tags and collapse whitespace
    */
   static stripHtml(html: string): string {
     return html
