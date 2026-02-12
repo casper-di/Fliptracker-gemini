@@ -33,13 +33,16 @@ jobs:
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
 
       - name: (Optional) Export data from Firestore
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
         working-directory: fliptracker/apps/nlp-service
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
         run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}"
-          python training/export_data.py
+          if [ -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}"
+            python training/export_data.py
+          else
+            echo "FIREBASE_SERVICE_ACCOUNT not set, skipping export"
+          fi
 
       - name: Prepare data (annotate)
         working-directory: fliptracker/apps/nlp-service
