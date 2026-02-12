@@ -37,13 +37,51 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
         run: |
-          # Write secret to file (may contain newlines); ignore errors
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}" || true
-          # If file non-empty, run export; otherwise skip
-          if [ -s "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
+          # Debug: print secret byte length (do not print secret value)
+          echo -n "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | wc -c > /tmp/secret_len || true
+          echo "SECRET_BYTES: $(cat /tmp/secret_len)"
+
+          # Write secret to file preserving content
+          printf '%s' "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > "${GOOGLE_APPLICATION_CREDENTIALS}" || true
+
+          # Show file size and attributes (no content)
+          echo "WROTE firebase.json size:" $(wc -c < "${GOOGLE_APPLICATION_CREDENTIALS}" || true)
+          ls -l "${GOOGLE_APPLICATION_CREDENTIALS}" || true
+
+          # Validate JSON; if invalid, attempt base64 decode and revalidate
+          validate() {
+            python - <<'PY'
+import json,sys
+path=sys.argv[1]
+try:
+    json.load(open(path))
+    sys.exit(0)
+except Exception as e:
+    print('JSON_INVALID', e)
+    sys.exit(1)
+PY
+          }
+
+          if validate "${GOOGLE_APPLICATION_CREDENTIALS}"; then
+            echo "firebase.json is valid JSON"
             python training/export_data.py
           else
-            echo "FIREBASE_SERVICE_ACCOUNT not set or empty, skipping export"
+            echo "firebase.json invalid JSON — trying base64 decode"
+            if base64 --decode "${GOOGLE_APPLICATION_CREDENTIALS}" > "${GOOGLE_APPLICATION_CREDENTIALS}.dec" 2>/dev/null; then
+              mv "${GOOGLE_APPLICATION_CREDENTIALS}.dec" "${GOOGLE_APPLICATION_CREDENTIALS}"
+              echo "Decoded base64 into firebase.json; revalidating"
+              if validate "${GOOGLE_APPLICATION_CREDENTIALS}"; then
+                echo "Decoded file now valid JSON"
+                python training/export_data.py
+              else
+                echo "Decoded file still invalid JSON — aborting export"
+                echo "First 200 bytes of file (masked):"
+                head -c 200 "${GOOGLE_APPLICATION_CREDENTIALS}" | sed -e 's/./*/g'
+              fi
+            else
+              echo "Base64 decode failed — firebase.json is not valid base64"
+              echo "Skipping export"
+            fi
           fi
 
       - name: Prepare data (annotate)
