@@ -49,20 +49,9 @@ jobs:
           ls -l "${GOOGLE_APPLICATION_CREDENTIALS}" || true
 
           # Validate JSON; if invalid, attempt base64 decode and revalidate
-          validate() {
-            python - <<'PY'
-import json,sys
-path=sys.argv[1]
-try:
-    json.load(open(path))
-    sys.exit(0)
-except Exception as e:
-    print('JSON_INVALID', e)
-    sys.exit(1)
-PY
-          }
-
-          if validate "${GOOGLE_APPLICATION_CREDENTIALS}"; then
+          python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
+          status=$?
+          if [ $status -eq 0 ]; then
             echo "firebase.json is valid JSON"
             python training/export_data.py
           else
@@ -70,7 +59,9 @@ PY
             if base64 --decode "${GOOGLE_APPLICATION_CREDENTIALS}" > "${GOOGLE_APPLICATION_CREDENTIALS}.dec" 2>/dev/null; then
               mv "${GOOGLE_APPLICATION_CREDENTIALS}.dec" "${GOOGLE_APPLICATION_CREDENTIALS}"
               echo "Decoded base64 into firebase.json; revalidating"
-              if validate "${GOOGLE_APPLICATION_CREDENTIALS}"; then
+              python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
+              status=$?
+              if [ $status -eq 0 ]; then
                 echo "Decoded file now valid JSON"
                 python training/export_data.py
               else
