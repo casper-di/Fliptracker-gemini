@@ -20,8 +20,8 @@ import { RawEmail, ParsedEmail } from '../../domain/entities/email-sync.entity';
 
 @Injectable()
 export class EmailSyncOrchestrator {
-  private readonly INITIAL_SYNC_LIMIT = 200;
-  private readonly MAINTENANCE_SYNC_LIMIT = 200;
+  private readonly INITIAL_SYNC_LIMIT = 1000;
+  private readonly MAINTENANCE_SYNC_LIMIT = 1000;
 
   constructor(
     private fetchService: EmailFetchService,
