@@ -109,7 +109,8 @@ jobs:
 
       - name: Extract prepared data
         run: |
-          tar -xzf prepared-data-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service
+          mkdir -p fliptracker/apps/nlp-service/data/annotated
+          tar -xzf prepared-data-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service/data/annotated --strip-components=5
 
       - name: Cleanup disk (pre-train)
         run: |
