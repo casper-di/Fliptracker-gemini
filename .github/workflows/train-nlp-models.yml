@@ -64,9 +64,10 @@ jobs:
           sudo rm -rf /tmp/* ~/.cache/pip || true
           df -h
 
-      - name: Archive prepared data
+      - name: Archive prepared data (only .jsonl/.csv)
         run: |
-          tar -czf prepared-data-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service data
+          cd fliptracker/apps/nlp-service
+          find data -type f \( -name '*.jsonl' -o -name '*.csv' \) | tar -czf prepared-data-${{ github.run_id }}.tar.gz -T -
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
@@ -123,11 +124,12 @@ jobs:
         run: |
           python training/train.py --epochs-ner 5 --epochs-cls 3
 
-      - name: Collect trained models
+      - name: Collect trained models (only necessary files)
         run: |
           set -e
-          if [ -d "fliptracker/apps/nlp-service/models" ]; then
-            tar -czf nlp-models-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service models
+          cd fliptracker/apps/nlp-service
+          if [ -d "models" ]; then
+            find models -type f \( -name '*.pt' -o -name '*.bin' -o -name 'config.json' -o -name 'tokenizer.json' -o -name 'vocab.txt' \) | tar -czf nlp-models-${{ github.run_id }}.tar.gz -T -
           else
             echo "No models produced" && touch nlp-models-${{ github.run_id }}.tar.gz
           fi
