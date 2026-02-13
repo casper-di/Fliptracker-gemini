@@ -37,12 +37,3 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 
 # Download models at startup, then run
 CMD ["/bin/bash", "-c", "/app/download_models.sh && uvicorn src.api:app --host 0.0.0.0 --port 8000"]
-```
-
-### **C. Mets à jour .gitignore**
-
-Ajoute ces lignes à `fliptracker/.gitignore` :
-```
-# NLP Models (stored on Google Drive)
-apps/nlp-service/trained_models/
-apps/nlp-service/*.tar.gz
