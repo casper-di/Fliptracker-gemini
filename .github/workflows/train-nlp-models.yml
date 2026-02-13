@@ -1,8 +1,8 @@
-      # ...existing code...
-      - name: List model files for debugging
+
+      - name: List all files in nlp-service (debug)
         run: |
-          echo "Listing all files under fliptracker/apps/nlp-service/models:"
-          find fliptracker/apps/nlp-service/models || true
+          echo "Listing all files under fliptracker/apps/nlp-service:"
+          find fliptracker/apps/nlp-service || true
 name: Train NLP models
 
 on:
