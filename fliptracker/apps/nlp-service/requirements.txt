@@ -1,15 +1,6 @@
-# Core ML
+# Core ML (Version légère)
 spacy>=3.7,<4.0
-spacy-transformers>=1.3,<2.0
-transformers>=4.35,<5.0
-accelerate>=0.26.0
-# torch installed separately in Dockerfile (CPU-only)
-datasets>=2.14,<3.0
-sentencepiece>=0.1.99
-
-# CamemBERT (French BERT)
-# Downloaded via: python -m spacy download fr_dep_news_trf
-# Or loaded from HuggingFace: camembert-base
+# Plus besoin de spacy-transformers ni torch ici
 
 # API
 fastapi>=0.104,<1.0
@@ -20,14 +11,17 @@ pydantic-settings>=2.0,<3.0
 # Data processing
 beautifulsoup4>=4.12,<5.0
 lxml>=4.9
+# pandas et scikit-learn sont lourds. 
+# Si tu ne t'en sers que pour lire un CSV ou faire une petite stat, 
+# essaie de les supprimer. Sinon, garde-les.
 pandas>=2.1,<3.0
 scikit-learn>=1.3,<2.0
 
-# Firebase (for data export)
+# Firebase
 firebase-admin>=6.2,<7.0
-
 
 # Utils
 python-dotenv>=1.0
-tqdm>=4.66
 langdetect>=1.0
+# tqdm sert aux barres de progression, inutile dans une API, mais inoffensif.
+tqdm>=4.66

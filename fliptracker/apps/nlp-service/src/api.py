@@ -1,193 +1,77 @@
-"""
-FlipTracker NLP — FastAPI Inference Service
-
-REST API for email entity extraction and classification.
-Called by the NestJS backend to extract structured data from emails.
-
-Usage:
-    uvicorn src.api:app --host 0.0.0.0 --port 8000
-"""
 import time
-from typing import Optional
 from contextlib import asynccontextmanager
-
+from typing import Optional, List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from src.config import settings
-from src.extractor import EmailExtractor, ExtractionResult
+# On importe NOTRE nouveau moteur
+from src.extractor import HybridExtractor
 
-
-# ── Global model instance ──
-extractor: Optional[EmailExtractor] = None
-
+# Variable globale pour stocker le modèle en mémoire
+nlp_engine: Optional[HybridExtractor] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models at startup."""
-    global extractor
-    print("🚀 Loading NLP models...")
+    """Charge les modèles au démarrage (Rapide)."""
+    global nlp_engine
     start = time.time()
-    
-    extractor = EmailExtractor(
-        ner_model_path=settings.ner_model_path,
-        cls_carrier_path=settings.cls_carrier_path,
-        cls_type_path=settings.cls_type_path,
-        cls_marketplace_path=settings.cls_marketplace_path,
-        cls_email_type_path=settings.cls_email_type_path,
-    )
-    
-    elapsed = time.time() - start
-    print(f"✅ Models loaded in {elapsed:.1f}s")
+    nlp_engine = HybridExtractor()
+    print(f"✅ NLP Service ready in {time.time() - start:.2f}s")
     yield
-    print("👋 Shutting down NLP service")
+    nlp_engine = None
 
+app = FastAPI(title="FlipTracker NLP Hybrid", lifespan=lifespan)
 
-app = FastAPI(
-    title="FlipTracker NLP Service",
-    description="Email entity extraction and classification using CamemBERT NER",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-
-# ── Request/Response Models ──
-class ExtractRequest(BaseModel):
-    """Email extraction request."""
+# --- Modèles de données ---
+class EmailRequest(BaseModel):
     body: str
     subject: str = ""
     sender: str = ""
 
+class BatchRequest(BaseModel):
+    emails: List[EmailRequest]
 
-class ExtractBatchRequest(BaseModel):
-    """Batch extraction request."""
-    emails: list[ExtractRequest]
+# --- Endpoints ---
 
-
-class EntityResponse(BaseModel):
-    text: str
-    label: str
-    start: int
-    end: int
-    confidence: float = 1.0
-
-
-class ClassificationResponse(BaseModel):
-    label: str
-    confidence: float
-
-
-class ExtractResponse(BaseModel):
-    """Extraction result."""
-    trackingNumbers: list[str] = []
-    pickupAddress: Optional[str] = None
-    deliveryAddress: Optional[str] = None
-    personNames: list[str] = []
-    withdrawalCodes: list[str] = []
-    orderNumbers: list[str] = []
-    productNames: list[str] = []
-    prices: list[str] = []
-    dates: list[str] = []
-    carrier: Optional[ClassificationResponse] = None
-    shipmentType: Optional[ClassificationResponse] = None
-    marketplace: Optional[ClassificationResponse] = None
-    emailType: Optional[ClassificationResponse] = None
-    entities: list[EntityResponse] = []
-    processingTimeMs: float = 0
-
-
-# ── Endpoints ──
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "ok",
-        "models_loaded": extractor is not None,
-    }
+def health():
+    return {"status": "ok", "loaded": nlp_engine is not None}
 
-
-@app.post("/extract", response_model=ExtractResponse)
-async def extract_email(request: ExtractRequest):
-    """
-    Extract structured information from a single email.
+@app.post("/extract")
+def extract_one(req: EmailRequest):
+    if not nlp_engine:
+        raise HTTPException(503, "NLP Engine not ready")
     
-    Returns tracking numbers, addresses, carrier, type, marketplace, etc.
-    """
-    if not extractor:
-        raise HTTPException(status_code=503, detail="Models not loaded")
-
-    print(f"[NLP API] /extract request: subject='{request.subject[:80]}', sender='{request.sender}', body_len={len(request.body)}")
     start = time.time()
-
-    result: ExtractionResult = extractor.extract(
-        email_body=request.body,
-        email_subject=request.subject,
-        sender=request.sender,
-    )
-
-    elapsed_ms = (time.time() - start) * 1000
-
-    response_data = result.to_dict()
-    response_data["processingTimeMs"] = round(elapsed_ms, 1)
-
-    print(f"[NLP API] /extract response: processingTimeMs={response_data['processingTimeMs']}, trackingNumbers={response_data.get('trackingNumbers', [])}")
-    return response_data
-
-
-
-from src.extract_hybrid import extract_metadata
+    result = nlp_engine.process(req.body, req.subject, req.sender)
+    process_time = (time.time() - start) * 1000
+    
+    # On ajoute les métriques de temps
+    result["processingTimeMs"] = round(process_time, 1)
+    return result
 
 @app.post("/extract/batch")
-async def extract_batch(request: ExtractBatchRequest):
-    """
-    Extract structured information from multiple emails (hybrid, fast).
-    """
-    print(f"[NLP API] /extract/batch request: {len(request.emails)} emails")
-    start = time.time()
+def extract_batch(req: BatchRequest):
+    if not nlp_engine:
+        raise HTTPException(503, "NLP Engine not ready")
+    
+    start_total = time.time()
     results = []
-    for idx, email in enumerate(request.emails):
-        print(f"  [NLP API]   Email {idx+1}: subject='{email.subject[:80]}', sender='{email.sender}', body_len={len(email.body)}")
-        meta = extract_metadata(email.body)
-        print(f"    [NLP API]   → Extracted: {meta}")
-        results.append(meta)
-    elapsed_ms = (time.time() - start) * 1000
-    print(f"[NLP API] /extract/batch response: processed={len(results)}, totalProcessingTimeMs={round(elapsed_ms, 1)}")
+    
+    print(f"[Batch] Processing {len(req.emails)} emails...")
+    
+    for email in req.emails:
+        # Traitement séquentiel très rapide
+        res = nlp_engine.process(email.body, email.subject, email.sender)
+        results.append(res)
+        
+    total_time = (time.time() - start_total) * 1000
+    avg_time = total_time / len(req.emails) if req.emails else 0
+    
+    print(f"[Batch] Done using Hybrid Engine. Total: {total_time:.0f}ms (Avg: {avg_time:.1f}ms/mail)")
+    
     return {
         "results": results,
         "count": len(results),
-        "totalProcessingTimeMs": round(elapsed_ms, 1),
+        "totalProcessingTimeMs": round(total_time, 1)
     }
-
-
-@app.get("/models/info")
-async def model_info():
-    """Return information about loaded models."""
-    if not extractor:
-        raise HTTPException(status_code=503, detail="Models not loaded")
-    
-    info = {
-        "ner": {
-            "loaded": extractor.nlp is not None,
-            "pipeline": list(extractor.nlp.pipe_names) if extractor.nlp else [],
-            "labels": list(extractor.nlp.get_pipe("ner").labels) if "ner" in extractor.nlp.pipe_names else [],
-        },
-        "classifiers": {
-            "carrier": {
-                "loaded": extractor.cls_carrier is not None,
-                "labels": extractor.cls_carrier["labels"] if extractor.cls_carrier else [],
-            },
-            "type": {
-                "loaded": extractor.cls_type is not None,
-                "labels": extractor.cls_type["labels"] if extractor.cls_type else [],
-            },
-            "marketplace": {
-                "loaded": extractor.cls_marketplace is not None,
-                "labels": extractor.cls_marketplace["labels"] if extractor.cls_marketplace else [],
-            },
-            "emailType": {
-                "loaded": extractor.cls_email_type is not None,
-                "labels": extractor.cls_email_type["labels"] if extractor.cls_email_type else [],
-            },
-        }
-    }
-    return info
