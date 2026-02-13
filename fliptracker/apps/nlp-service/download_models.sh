@@ -12,25 +12,13 @@ fi
 
 echo "📦 File ID: ${MODELS_GDRIVE_ID}"
 
-# Download from Google Drive (handles large files)
-curl -c /tmp/cookies -L \
-    "https://drive.google.com/uc?export=download&id=${MODELS_GDRIVE_ID}" \
-    -o /tmp/download.html
+# Install gdown (Python tool for Google Drive)
+pip install --no-cache-dir gdown
 
-# Get confirmation token for large files
-CONFIRM=$(grep -o 'confirm=[^&]*' /tmp/download.html | sed 's/confirm=//')
+# Download using gdown (handles large files correctly)
+gdown --id "${MODELS_GDRIVE_ID}" -O /tmp/models.tar.gz
 
-if [ -n "$CONFIRM" ]; then
-    echo "📦 Large file detected, using confirmation token..."
-    curl -b /tmp/cookies -L \
-        "https://drive.google.com/uc?export=download&id=${MODELS_GDRIVE_ID}&confirm=${CONFIRM}" \
-        -o /tmp/models.tar.gz
-else
-    curl -L \
-        "https://drive.google.com/uc?export=download&id=${MODELS_GDRIVE_ID}" \
-        -o /tmp/models.tar.gz
-fi
-
+# Verify download
 if [ ! -f /tmp/models.tar.gz ] || [ ! -s /tmp/models.tar.gz ]; then
     echo "❌ Download failed or file is empty!"
     mkdir -p /app/trained_models
@@ -44,7 +32,7 @@ echo "📂 Extracting models..."
 mkdir -p /app/trained_models
 tar -xzf /tmp/models.tar.gz -C /app/trained_models --strip-components=1
 
-rm -f /tmp/models.tar.gz /tmp/cookies /tmp/download.html
+rm -f /tmp/models.tar.gz
 
 echo "✅ Models ready!"
 echo ""
