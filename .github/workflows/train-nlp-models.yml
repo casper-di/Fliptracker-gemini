@@ -56,6 +56,12 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
+      - name: Check prepared data size
+        run: |
+          echo "=== Prepared data size ==="
+          du -sh fliptracker/apps/nlp-service/data/annotated || true
+          ls -lh fliptracker/apps/nlp-service/data/annotated/*.json || true
+
       - name: Cleanup disk (data-prep)
         if: always()
         run: |
@@ -73,6 +79,7 @@ jobs:
         with:
           name: prepared-data
           path: prepared-data-${{ github.run_id }}.tar.gz
+          retention-days: 7
 
   train:
     name: Train CamemBERT NER + Classifiers
@@ -124,25 +131,101 @@ jobs:
         run: |
           python training/train.py --epochs-ner 5 --epochs-cls 3
 
-      - name: Collect trained models (archive all model files)
+      - name: Check models directory structure and size
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          echo "=== Models directory structure ==="
+          find models -type d -maxdepth 2 || true
+          echo ""
+          echo "=== Models size breakdown ==="
+          du -sh models/* || true
+          echo ""
+          echo "=== Total models size ==="
+          du -sh models || true
+          echo ""
+          echo "=== Checkpoint sizes (to be removed) ==="
+          find models -name "checkpoint-*" -type d -exec du -sh {} \; || true
+          echo ""
+          echo "=== Best model sizes (to be kept) ==="
+          find models -name "model-best" -type d -exec du -sh {} \; || true
+
+      - name: Collect ONLY best models (production-ready)
+        working-directory: fliptracker/apps/nlp-service
         run: |
           set -e
-          cd fliptracker/apps/nlp-service
-          if [ -d "models" ]; then
-            tar -czf nlp-models-${{ github.run_id }}.tar.gz models
-          else
-            echo "No models produced" && touch nlp-models-${{ github.run_id }}.tar.gz
+          
+          if [ ! -d "models" ]; then
+            echo "❌ No models directory found!"
+            exit 1
           fi
+          
+          # Create a temporary directory for best models only
+          mkdir -p models-final
+          
+          # Copy only model-best directories
+          find models -name "model-best" -type d | while read model_path; do
+            parent_dir=$(basename $(dirname "$model_path"))
+            echo "📦 Copying $parent_dir/model-best"
+            mkdir -p "models-final/$parent_dir"
+            cp -r "$model_path" "models-final/$parent_dir/"
+          done
+          
+          echo ""
+          echo "=== Final models size (only model-best) ==="
+          du -sh models-final
+          du -sh models-final/*
+          
+          # Archive only the final models
+          tar -czf nlp-models-final-${{ github.run_id }}.tar.gz models-final
+          
+          echo ""
+          echo "=== Archive size ==="
+          ls -lh nlp-models-final-${{ github.run_id }}.tar.gz
 
-      - name: Upload models artifact
+      - name: Upload production models artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nlp-models
-          path: fliptracker/apps/nlp-service/nlp-models-${{ github.run_id }}.tar.gz
+          name: nlp-models-production
+          path: fliptracker/apps/nlp-service/nlp-models-final-${{ github.run_id }}.tar.gz
+          retention-days: 90
 
       - name: Cleanup (post-train)
         if: always()
         run: |
-          rm -f fliptracker/apps/nlp-service/nlp-models-${{ github.run_id }}.tar.gz || true
-          sudo rm -rf /tmp/* ~/.cache/pip || true
+          cd fliptracker/apps/nlp-service || true
+          rm -rf models models-final || true
+          rm -f nlp-models-final-*.tar.gz || true
+          sudo rm -rf /tmp/* ~/.cache/pip ~/.cache/huggingface || true
           df -h
+
+  summary:
+    name: Training Summary
+    runs-on: ubuntu-latest
+    needs: train
+    if: always()
+    steps:
+      - name: Download production models
+        uses: actions/download-artifact@v4
+        with:
+          name: nlp-models-production
+
+      - name: Show artifact info
+        run: |
+          echo "=========================================="
+          echo "🎉 Training Complete!"
+          echo "=========================================="
+          echo ""
+          echo "📦 Production Models Artifact:"
+          ls -lh nlp-models-final-*.tar.gz || echo "No production models found"
+          echo ""
+          echo "✅ Models are ready for deployment!"
+          echo "📥 Download the 'nlp-models-production' artifact"
+          echo ""
+          echo "Contents: Only model-best directories"
+          echo "  - cls_carrier/model-best/"
+          echo "  - cls_email_type/model-best/"
+          echo "  - cls_marketplace/model-best/"
+          echo "  - cls_type/model-best/"
+          echo ""
+          echo "⚡ Checkpoints have been excluded to save space"
+          echo "=========================================="

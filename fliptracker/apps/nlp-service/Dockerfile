@@ -23,8 +23,8 @@ RUN python -c "from transformers import CamembertTokenizer, CamembertForSequence
 # Copy source code
 COPY src/ src/
 
-# Create models directory (will be mounted as volume with trained models)
-RUN mkdir -p models
+# 🔥 NOUVEAU : Copier les modèles entraînés
+COPY trained_models/ /app/trained_models/
 
 # Expose port
 EXPOSE 8000
@@ -35,3 +35,23 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
 
 # Run
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+**Structure de ton projet** :
+```
+fliptracker/apps/nlp-service/
+├── Dockerfile
+├── requirements.txt
+├── src/
+│   └── api.py
+└── trained_models/          # 🔥 AJOUTE CE DOSSIER
+    ├── ner_model/
+    │   └── model-best/
+    ├── cls_carrier/
+    │   └── model-best/
+    ├── cls_type/
+    │   └── model-best/
+    ├── cls_marketplace/
+    │   └── model-best/
+    └── cls_email_type/
+        └── model-best/
