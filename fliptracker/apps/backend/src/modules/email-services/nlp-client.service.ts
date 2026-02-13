@@ -46,7 +46,8 @@ export class NlpClientService {
 
   constructor(private configService: ConfigService) {
     this.baseUrl = this.configService.get<string>('NLP_SERVICE_URL', 'http://localhost:8000');
-    this.timeout = this.configService.get<number>('NLP_SERVICE_TIMEOUT', 15000);
+    // Set timeout to 5 minutes (300,000 ms) for both single and batch requests
+    this.timeout = this.configService.get<number>('NLP_SERVICE_TIMEOUT', 300000);
     this.enabled = this.configService.get<string>('NLP_SERVICE_ENABLED', 'true') === 'true';
   }
 
@@ -96,7 +97,7 @@ export class NlpClientService {
           subject: email.subject,
           sender: email.from,
         }),
-        signal: AbortSignal.timeout(this.timeout),
+        signal: AbortSignal.timeout(this.timeout), // 5 minutes
       });
 
       if (!response.ok) {
@@ -135,7 +136,7 @@ export class NlpClientService {
             sender: e.from,
           })),
         }),
-        signal: AbortSignal.timeout(this.timeout * 2),
+        signal: AbortSignal.timeout(this.timeout), // 5 minutes
       });
 
       if (!response.ok) {

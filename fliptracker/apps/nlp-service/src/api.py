@@ -115,20 +115,22 @@ async def extract_email(request: ExtractRequest):
     """
     if not extractor:
         raise HTTPException(status_code=503, detail="Models not loaded")
-    
+
+    print(f"[NLP API] /extract request: subject='{request.subject[:80]}', sender='{request.sender}', body_len={len(request.body)}")
     start = time.time()
-    
+
     result: ExtractionResult = extractor.extract(
         email_body=request.body,
         email_subject=request.subject,
         sender=request.sender,
     )
-    
+
     elapsed_ms = (time.time() - start) * 1000
-    
+
     response_data = result.to_dict()
     response_data["processingTimeMs"] = round(elapsed_ms, 1)
-    
+
+    print(f"[NLP API] /extract response: processingTimeMs={response_data['processingTimeMs']}, trackingNumbers={response_data.get('trackingNumbers', [])}")
     return response_data
 
 
@@ -141,20 +143,23 @@ async def extract_batch(request: ExtractBatchRequest):
     """
     if not extractor:
         raise HTTPException(status_code=503, detail="Models not loaded")
-    
+
+    print(f"[NLP API] /extract/batch request: {len(request.emails)} emails")
     start = time.time()
     results = []
-    
-    for email in request.emails:
+
+    for idx, email in enumerate(request.emails):
+        print(f"  [NLP API]   Email {idx+1}: subject='{email.subject[:80]}', sender='{email.sender}', body_len={len(email.body)}")
         result = extractor.extract(
             email_body=email.body,
             email_subject=email.subject,
             sender=email.sender,
         )
         results.append(result.to_dict())
-    
+
     elapsed_ms = (time.time() - start) * 1000
-    
+
+    print(f"[NLP API] /extract/batch response: processed={len(results)}, totalProcessingTimeMs={round(elapsed_ms, 1)}")
     return {
         "results": results,
         "count": len(results),
