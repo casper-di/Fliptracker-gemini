@@ -137,7 +137,7 @@ export class NlpClientService {
       return result;
     };
 
-    const batches = chunkArray(emails, 10);
+    const batches = chunkArray(emails, 1);
     const allResults: (ParsedTrackingInfo | null)[] = [];
 
     for (const batch of batches) {
