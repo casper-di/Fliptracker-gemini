@@ -1,3 +1,7 @@
+      - name: List model files for debugging
+        run: |
+          echo "Listing all files under fliptracker/apps/nlp-service/models:"
+          find fliptracker/apps/nlp-service/models || true
 name: Train NLP models
 
 on:
