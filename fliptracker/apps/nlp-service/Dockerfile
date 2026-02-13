@@ -20,9 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir gdown uvicorn
 
+
 # 5. Install App Requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# 5b. Installer les modèles spaCy légers (fr/en)
+RUN python -m spacy download fr_core_news_lg && \
+    python -m spacy download en_core_web_lg
 
 # 6. Prepare for Model Download
 # We define this as an ARG so Render can pass your Env Var into the build process
@@ -35,10 +40,8 @@ RUN chmod +x /app/download_models.sh
 # the models become part of the image layer.
 RUN /app/download_models.sh
 
-# 8. Pre-cache CamemBERT base (optional but recommended)
-RUN python -c "from transformers import CamembertTokenizer, CamembertForSequenceClassification; \
-    CamembertTokenizer.from_pretrained('camembert-base'); \
-    CamembertForSequenceClassification.from_pretrained('camembert-base')"
+
+# 8. (Supprimé) Ne plus pré-cacher CamemBERT ni installer fr_dep_news_trf
 
 # 9. Copy Source Code (Done last because it changes most often)
 COPY src/ src/
