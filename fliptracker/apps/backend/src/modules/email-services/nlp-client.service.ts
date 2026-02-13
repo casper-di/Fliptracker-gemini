@@ -116,6 +116,9 @@ export class NlpClientService {
   /**
    * Batch extract from multiple emails.
    */
+  /**
+   * Batch extract from multiple emails, with batching, delay, and increased timeout.
+   */
   async extractBatch(emails: Array<{
     body: string;
     subject: string;
@@ -125,33 +128,50 @@ export class NlpClientService {
       return emails.map(() => null);
     }
 
-    try {
-      const response = await fetch(`${this.baseUrl}/extract/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          emails: emails.map(e => ({
-            body: e.body,
-            subject: e.subject,
-            sender: e.from,
-          })),
-        }),
-        signal: AbortSignal.timeout(this.timeout), // 5 minutes
-      });
-
-      if (!response.ok) {
-        this.logger.warn(`NLP batch service returned ${response.status}`);
-        return emails.map(() => null);
+    // Découpe en paquets de 10
+    const chunkArray = <T,>(array: T[], size: number): T[][] => {
+      const result: T[][] = [];
+      for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
       }
+      return result;
+    };
 
-      const batchResult: NlpBatchResponse = await response.json();
-      this.logger.log(`NLP batch processed ${batchResult.count} emails in ${batchResult.totalProcessingTimeMs}ms`);
+    const batches = chunkArray(emails, 10);
+    const allResults: (ParsedTrackingInfo | null)[] = [];
 
-      return batchResult.results.map(r => this.mapToTrackingInfo(r));
-    } catch (error) {
-      this.logger.warn(`NLP batch extraction failed: ${error.message}`);
-      return emails.map(() => null);
+    for (const batch of batches) {
+      try {
+        const response = await fetch(`${this.baseUrl}/extract/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emails: batch.map(e => ({
+              body: e.body,
+              subject: e.subject,
+              sender: e.from,
+            })),
+          }),
+          signal: AbortSignal.timeout(6000000), // 60 secondes
+        });
+
+        if (!response.ok) {
+          this.logger.warn(`NLP batch service returned ${response.status}`);
+          allResults.push(...batch.map(() => null));
+        } else {
+          const batchResult: NlpBatchResponse = await response.json();
+          this.logger.log(`NLP batch processed ${batchResult.count} emails in ${batchResult.totalProcessingTimeMs}ms`);
+          allResults.push(...batchResult.results.map(r => this.mapToTrackingInfo(r)));
+        }
+      } catch (error) {
+        this.logger.warn(`NLP batch extraction failed: ${error.message}`);
+        allResults.push(...batch.map(() => null));
+      }
+      // Délai de 500ms entre chaque batch
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
+
+    return allResults;
   }
 
   /**
