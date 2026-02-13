@@ -60,3 +60,8 @@ docker-compose.override.yml
 # Firebase service account keys
 **/serviceAccountKey.json
 **/*-key.json
+# NLP Models (stored on Google Drive)
+apps/nlp-service/trained_models/
+apps/nlp-service/models/
+apps/nlp-service/data/
+apps/nlp-service/*.tar.gz
