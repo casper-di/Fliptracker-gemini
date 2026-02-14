@@ -25,10 +25,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
     pip install --no-cache-dir langdetect beautifulsoup4
 
-# 5. Téléchargement des modèles spaCy (Légers)
+# 5. Téléchargement des modèles spaCy (SMALL)
 # Cela se fait pendant le build, donc ils seront directement dans l'image.
-RUN python -m spacy download fr_core_news_lg && \
-    python -m spacy download en_core_web_lg
+RUN python -m spacy download fr_core_news_sm && \
+    python -m spacy download en_core_web_sm
 
 # 6. Copie du code source
 COPY src/ src/
@@ -36,9 +36,7 @@ COPY src/ src/
 # 7. Configuration du port pour Render
 EXPOSE 8000
 
-# 8. Healthcheck (Pour que Render sache si l'app a démarré)
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+
 
 # 9. Démarrage
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]

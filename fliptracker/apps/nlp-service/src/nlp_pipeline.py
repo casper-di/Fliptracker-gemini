@@ -1,6 +1,7 @@
 import spacy
 from spacy.pipeline import EntityRuler
 
+
 def load_nlp(lang: str):
     if lang == "fr":
         nlp = spacy.load("fr_core_news_lg")
