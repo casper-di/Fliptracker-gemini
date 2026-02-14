@@ -70,6 +70,7 @@ def extract_batch(req: BatchRequest):
     avg_time = total_time / len(req.emails) if req.emails else 0
     print(
         f"[Batch] Done using Hybrid Engine. Total: {total_time:.0f}ms (Avg: {avg_time:.1f}ms/mail)"
+        f"results: {results}"
     )
     return {
         "results": results,

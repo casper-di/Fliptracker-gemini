@@ -123,9 +123,21 @@ class HybridExtractor:
                     ):
                         carrier = {"label": ent.text, "confidence": 0.99}
 
+        # Always return all expected fields for NlpExtractResponse
         return {
             "trackingNumbers": tracking_numbers,
+            "pickupAddress": None,
+            "deliveryAddress": None,
+            "personNames": [],
+            "withdrawalCodes": [],
+            "orderNumbers": [],
+            "productNames": [],
+            "prices": [],
+            "dates": [],
             "carrier": carrier,
+            "shipmentType": None,
+            "marketplace": None,
+            "emailType": None,
             "entities": entities,  # Garde pour debug
             "language": lang,
             "raw_text_snippet": clean_body[:100],  # Pour vérifier le nettoyage
