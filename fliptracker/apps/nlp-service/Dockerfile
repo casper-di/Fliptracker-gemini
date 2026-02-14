@@ -25,8 +25,8 @@ RUN python -m spacy download fr_core_news_sm && \
     python -m spacy download en_core_web_sm
 
 # 6. COPIE ET EXÉCUTION DU SCRIPT DE TÉLÉCHARGEMENT
-COPY download.sh /tmp/download.sh
-RUN chmod +x /tmp/download.sh && bash /tmp/download.sh && rm /tmp/download.sh
+COPY download_models.sh /tmp/download_models.sh
+RUN chmod +x /tmp/download_models.sh && bash /tmp/download_models.sh && rm /tmp/download_models.sh
 
 # 7. ÉLAGAGE DES MODÈLES (enlever les word vectors pour réduire la taille)
 RUN python << 'EOF'
