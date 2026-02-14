@@ -130,6 +130,51 @@ jobs:
           echo "=== spacy_train.json exists ==="
           [ -f "fliptracker/apps/nlp-service/data/annotated/spacy_train.json" ] && echo "✅ Found" || echo "❌ NOT found"
 
+      - name: Inspect training data
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          python << 'EOF'
+import json
+from pathlib import Path
+
+spacy_file = Path("data/annotated/spacy_train.json")
+if spacy_file.exists():
+    with open(spacy_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    print(f"📊 Total items in spacy_train.json: {len(data)}")
+    
+    items_with_entities = 0
+    total_entities = 0
+    entity_labels = {}
+    
+    for item in data:
+        if isinstance(item, list) and len(item) == 2:
+            text, annotations = item
+            entities = annotations.get("entities", [])
+            
+            if entities:
+                items_with_entities += 1
+                total_entities += len(entities)
+                for start, end, label in entities:
+                    entity_labels[label] = entity_labels.get(label, 0) + 1
+    
+    print(f"✅ Items with entities: {items_with_entities}/{len(data)}")
+    print(f"📊 Total entities found: {total_entities}")
+    print(f"\n📝 Entity types:")
+    for label, count in sorted(entity_labels.items(), key=lambda x: -x[1]):
+        print(f"   {label}: {count}")
+    
+    if items_with_entities == 0:
+        print("\n❌ WARNING: No entities found in training data!")
+        print("   This means prepare_data.py didn't extract any entities")
+        print("   Firestore data might not have proper 'labels' fields")
+        exit(1)
+else:
+    print("❌ spacy_train.json not found")
+    exit(1)
+EOF
+
       - name: Train spaCy NER model
         working-directory: fliptracker/apps/nlp-service
         run: |
