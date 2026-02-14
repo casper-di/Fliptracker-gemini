@@ -110,16 +110,17 @@ jobs:
 
       - name: Inspect training data
         working-directory: fliptracker/apps/nlp-service
-        run: python3 << 'PYTHON_SCRIPT'
+        run: |
+          python3 -c "
 import json
 from pathlib import Path
 
-spacy_file = Path("data/annotated/spacy_train.json")
+spacy_file = Path('data/annotated/spacy_train.json')
 if spacy_file.exists():
     with open(spacy_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    print(f"Total items: {len(data)}")
+    print(f'Total items: {len(data)}')
     
     items_with_entities = 0
     total_entities = 0
@@ -128,7 +129,7 @@ if spacy_file.exists():
     for item in data:
         if isinstance(item, list) and len(item) == 2:
             text, annotations = item
-            entities = annotations.get("entities", [])
+            entities = annotations.get('entities', [])
             
             if entities:
                 items_with_entities += 1
@@ -136,19 +137,19 @@ if spacy_file.exists():
                 for start, end, label in entities:
                     entity_labels[label] = entity_labels.get(label, 0) + 1
     
-    print(f"Items with entities: {items_with_entities}/{len(data)}")
-    print(f"Total entities: {total_entities}")
-    print(f"\nEntity types:")
+    print(f'Items with entities: {items_with_entities}/{len(data)}')
+    print(f'Total entities: {total_entities}')
+    print(f'Entity types:')
     for label, count in sorted(entity_labels.items(), key=lambda x: -x[1]):
-        print(f"  {label}: {count}")
+        print(f'  {label}: {count}')
     
     if items_with_entities == 0:
-        print("\nERROR: No entities found!")
+        print('ERROR: No entities found!')
         exit(1)
 else:
-    print("ERROR: spacy_train.json not found")
+    print('ERROR: spacy_train.json not found')
     exit(1)
-PYTHON_SCRIPT
+"
 
       - name: Train spaCy NER model
         working-directory: fliptracker/apps/nlp-service
