@@ -1,10 +1,12 @@
 # 1. Image de base légère
 FROM python:3.11-slim
 
-# 2. Variables d'environnement pour optimiser Python
+# ✅ Accepte l'argument et le passe à l'ENV
+ARG MODELS_GDRIVE_ID=1WN3aoq9kg9KtupTbSzW9djb5n0FSaj6r
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MODELS_GDRIVE_ID=${MODELS_GDRIVE_ID}
 
 WORKDIR /app
 
