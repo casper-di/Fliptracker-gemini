@@ -35,26 +35,45 @@ jobs:
           python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
           status=$?
           if [ $status -eq 0 ]; then
-            echo "firebase.json is valid JSON"
+            echo "✅ firebase.json is valid JSON"
             python training/export_data.py
           else
-            echo "firebase.json invalid JSON — aborting export"
+            echo "❌ firebase.json invalid JSON — aborting export"
             exit 1
+          fi
+
+      - name: Check exported data
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          echo "=== Exported data ==="
+          if [ -f "data/training_samples.json" ]; then
+            echo "✅ training_samples.json found"
+            wc -l data/training_samples.json
+            du -sh data/training_samples.json
+          else
+            echo "❌ training_samples.json NOT found"
           fi
 
       - name: Prepare data (annotate)
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
-      - name: Check prepared data size
+      - name: Check prepared data
+        working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Prepared data size ==="
-          du -sh fliptracker/apps/nlp-service/data/annotated || true
-          ls -lh fliptracker/apps/nlp-service/data/annotated/*.json || true
+          echo "=== Prepared data files ==="
+          ls -lh data/annotated/
+          echo ""
+          echo "=== File contents ==="
+          for file in data/annotated/*.json; do
+            echo "📄 $file ($(wc -l < $file) lines)"
+          done
 
       - name: Archive prepared data
         run: |
-          tar -czf prepared-data-${{ github.run_id }}.tar.gz fliptracker/apps/nlp-service/data/annotated/*.json
+          cd fliptracker/apps/nlp-service
+          tar -czf ../../prepared-data-${{ github.run_id }}.tar.gz data/annotated/
+          ls -lh ../../prepared-data-${{ github.run_id }}.tar.gz
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
@@ -91,22 +110,41 @@ jobs:
         with:
           name: prepared-data
 
+      - name: Check artifact contents
+        run: |
+          echo "=== Files in current directory ==="
+          ls -lh
+          echo ""
+          echo "=== Archive contents ==="
+          tar -tzf prepared-data-*.tar.gz | head -20
+
       - name: Extract prepared data
         run: |
           mkdir -p fliptracker/apps/nlp-service/data/annotated
-          tar -xzf prepared-data-${{ github.run_id }}.tar.gz -C fliptracker/apps/nlp-service/data/annotated --strip-components=5
+          echo "Extracting to fliptracker/apps/nlp-service/"
+          tar -xzf prepared-data-*.tar.gz -C fliptracker/apps/nlp-service/
+          
+      - name: Verify extracted data
+        run: |
+          echo "=== Checking extracted files ==="
+          find fliptracker/apps/nlp-service/data -name "*.json" -type f -exec ls -lh {} \;
+          echo ""
+          echo "=== spacy_train.json content (first 10 lines) ==="
+          head -10 fliptracker/apps/nlp-service/data/annotated/spacy_train.json || echo "❌ spacy_train.json not found"
 
       - name: Train spaCy NER model
         working-directory: fliptracker/apps/nlp-service
         run: |
           python training/train_spacy_ner.py --epochs 20
 
-      - name: Check model size
+      - name: Check model was created
         working-directory: fliptracker/apps/nlp-service
         run: |
+          echo "=== Model directory structure ==="
+          find models -type f -name "*.bin" -o -name "*.pkl" -o -name "*.json" | head -20
+          echo ""
           echo "=== Model size ==="
-          du -sh models/ner_model || true
-          du -sh models/ner_model/model-best || true
+          du -sh models/ner_model/model-best || echo "❌ Model directory not found"
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
@@ -114,6 +152,8 @@ jobs:
           mkdir -p models-final
           cp -r models/ner_model/model-best models-final/
           tar -czf nlp-ner-model-${{ github.run_id }}.tar.gz models-final/
+          echo ""
+          echo "=== Archive created ==="
           ls -lh nlp-ner-model-${{ github.run_id }}.tar.gz
 
       - name: Upload model artifact
@@ -128,7 +168,6 @@ jobs:
         run: |
           cd fliptracker/apps/nlp-service || true
           rm -rf models models-final || true
-          rm -f nlp-ner-model-*.tar.gz || true
           df -h
 
   summary:
@@ -149,9 +188,8 @@ jobs:
           echo "=========================================="
           echo ""
           echo "📦 Production Model:"
-          ls -lh nlp-ner-model-*.tar.gz || echo "No model found"
+          ls -lh nlp-ner-model-*.tar.gz || echo "❌ No model found"
           echo ""
           echo "✅ Model is ready for deployment!"
-          echo "📥 Download the 'nlp-ner-model' artifact"
           echo ""
           echo "=========================================="
