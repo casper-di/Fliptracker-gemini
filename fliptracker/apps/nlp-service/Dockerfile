@@ -29,14 +29,11 @@ RUN python -m spacy download fr_core_news_sm && \
 COPY download_models.sh /tmp/download_models.sh
 RUN chmod +x /tmp/download_models.sh && bash /tmp/download_models.sh && rm /tmp/download_models.sh
 
-# 7. COPIE DES MODÈLES LOCAUX (si disponibles)
-COPY models /app/models
-
-# 8. Copie du code source
+# 7. Copie du code source
 COPY src/ src/
 
-# 9. Configuration du port pour Render
+# 8. Configuration du port pour Render
 EXPOSE 8000
 
-# 10. Démarrage
+# 9. Démarrage
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
