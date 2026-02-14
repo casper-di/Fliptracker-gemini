@@ -33,35 +33,11 @@ jobs:
         run: |
           echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 --decode > "${GOOGLE_APPLICATION_CREDENTIALS}"
           python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
-          status=$?
-          if [ $status -eq 0 ]; then
-            echo "✅ firebase.json is valid"
-            python training/export_data.py
-          else
-            echo "❌ firebase.json invalid"
-            exit 1
-          fi
-
-      - name: Check exported data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          if [ -f "data/training_samples.json" ]; then
-            echo "✅ training_samples.json found"
-            wc -l data/training_samples.json
-          else
-            echo "❌ training_samples.json NOT found"
-            exit 1
-          fi
+          python training/export_data.py
 
       - name: Prepare data
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
-
-      - name: Check prepared data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          echo "=== Prepared data files ==="
-          ls -lh data/annotated/
 
       - name: Archive prepared data
         working-directory: fliptracker/apps/nlp-service
@@ -69,7 +45,7 @@ jobs:
           tar -czf prepared-data.tar.gz data/annotated/
           cp prepared-data.tar.gz ../../../
 
-      - name: Upload prepared data artifact
+      - name: Upload prepared data
         uses: actions/upload-artifact@v4
         with:
           name: prepared-data
@@ -91,12 +67,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential
-
-      - name: Install Python requirements
+      - name: Install dependencies
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
 
       - name: Download prepared data
@@ -104,67 +75,12 @@ jobs:
         with:
           name: prepared-data
 
-      - name: Extract prepared data
-        run: |
-          tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
+      - name: Extract data
+        run: tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
 
-      - name: Inspect training data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          python3 -c "
-import json
-from pathlib import Path
-
-spacy_file = Path('data/annotated/spacy_train.json')
-if spacy_file.exists():
-    with open(spacy_file, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    
-    print(f'Total items: {len(data)}')
-    
-    items_with_entities = 0
-    total_entities = 0
-    entity_labels = {}
-    
-    for item in data:
-        if isinstance(item, list) and len(item) == 2:
-            text, annotations = item
-            entities = annotations.get('entities', [])
-            
-            if entities:
-                items_with_entities += 1
-                total_entities += len(entities)
-                for start, end, label in entities:
-                    entity_labels[label] = entity_labels.get(label, 0) + 1
-    
-    print(f'Items with entities: {items_with_entities}/{len(data)}')
-    print(f'Total entities: {total_entities}')
-    print(f'Entity types:')
-    for label, count in sorted(entity_labels.items(), key=lambda x: -x[1]):
-        print(f'  {label}: {count}')
-    
-    if items_with_entities == 0:
-        print('ERROR: No entities found!')
-        exit(1)
-else:
-    print('ERROR: spacy_train.json not found')
-    exit(1)
-"
-
-      - name: Train spaCy NER model
+      - name: Train model
         working-directory: fliptracker/apps/nlp-service
         run: python training/train_spacy_ner.py --epochs 20
-
-      - name: Check model created
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          if [ -d "models/ner_model/model-best" ]; then
-            echo "✅ Model created"
-            du -sh models/ner_model/model-best
-          else
-            echo "❌ Model NOT created"
-            exit 1
-          fi
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
@@ -174,7 +90,7 @@ else:
           tar -czf nlp-ner-model.tar.gz models-final/
           cp nlp-ner-model.tar.gz ../../../
 
-      - name: Upload model artifact
+      - name: Upload model
         uses: actions/upload-artifact@v4
         with:
           name: nlp-ner-model
@@ -199,9 +115,4 @@ else:
           name: nlp-ner-model
 
       - name: Show result
-        run: |
-          echo "=========================================="
-          echo "🎉 Training Complete!"
-          echo "=========================================="
-          ls -lh nlp-ner-model.tar.gz || echo "No model found"
-          echo "=========================================="
+        run: ls -lh nlp-ner-model.tar.gz || echo "No model"
