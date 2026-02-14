@@ -21,12 +21,11 @@ class HybridExtractor:
             )
             raise
 
-        # ✅ CHARGER LES MODÈLES CUSTOM
-        self.carrier_model = self._load_custom_model("carrier_model")
-        self.tracking_model = self._load_custom_model("tracking_model")
-        self.type_model = self._load_custom_model("type_model")
-        self.marketplace_model = self._load_custom_model("marketplace_model")
-        self.email_type_model = self._load_custom_model("email_type_model")
+        # ✅ CHARGER LES MODÈLES CUSTOM AVEC LES BONS NOMS
+        self.carrier_model = self._load_custom_model("cls_carrier")
+        self.type_model = self._load_custom_model("cls_type")
+        self.marketplace_model = self._load_custom_model("cls_marketplace")
+        self.email_type_model = self._load_custom_model("cls_email_type")
 
         # Configuration des EntityRuler
         self._setup_patterns(self.nlp_fr)
@@ -34,8 +33,9 @@ class HybridExtractor:
         print("✅ Hybrid Models Loaded!")
 
     def _load_custom_model(self, model_name: str):
-        """Charge les modèles custom depuis trained_models/"""
-        model_path = Path(f"/app/trained_models/{model_name}/model-best")
+        """Charge les modèles custom depuis /app/models/"""
+        # Les modèles sont directement dans /app/models/model_name
+        model_path = Path(f"/app/models/{model_name}")
         
         if model_path.exists():
             try:
@@ -129,6 +129,45 @@ class HybridExtractor:
             except Exception as e:
                 print(f"⚠️  Carrier model error: {e}")
 
+        # ✅ UTILISER LE MODÈLE TYPE CUSTOM
+        shipment_type = None
+        if self.type_model:
+            try:
+                doc_type = self.type_model(full_text[:3000])
+                if doc_type.cats:
+                    type_label = max(doc_type.cats, key=doc_type.cats.get)
+                    type_score = doc_type.cats[type_label]
+                    if type_score > 0.5:
+                        shipment_type = {"label": type_label, "confidence": round(type_score, 2)}
+            except Exception as e:
+                print(f"⚠️  Type model error: {e}")
+
+        # ✅ UTILISER LE MODÈLE MARKETPLACE CUSTOM
+        marketplace = None
+        if self.marketplace_model:
+            try:
+                doc_marketplace = self.marketplace_model(full_text[:3000])
+                if doc_marketplace.cats:
+                    marketplace_label = max(doc_marketplace.cats, key=doc_marketplace.cats.get)
+                    marketplace_score = doc_marketplace.cats[marketplace_label]
+                    if marketplace_score > 0.5:
+                        marketplace = {"label": marketplace_label, "confidence": round(marketplace_score, 2)}
+            except Exception as e:
+                print(f"⚠️  Marketplace model error: {e}")
+
+        # ✅ UTILISER LE MODÈLE EMAIL TYPE CUSTOM
+        email_type = None
+        if self.email_type_model:
+            try:
+                doc_email_type = self.email_type_model(full_text[:3000])
+                if doc_email_type.cats:
+                    email_type_label = max(doc_email_type.cats, key=doc_email_type.cats.get)
+                    email_type_score = doc_email_type.cats[email_type_label]
+                    if email_type_score > 0.5:
+                        email_type = {"label": email_type_label, "confidence": round(email_type_score, 2)}
+            except Exception as e:
+                print(f"⚠️  Email type model error: {e}")
+
         entities = []
         for ent in doc.ents:
             if ent.label_ in ["ORG", "GPE", "DATE", "MONEY"]:
@@ -149,9 +188,9 @@ class HybridExtractor:
             "prices": [],
             "dates": [],
             "carrier": carrier,
-            "shipmentType": None,
-            "marketplace": None,
-            "emailType": None,
+            "shipmentType": shipment_type,
+            "marketplace": marketplace,
+            "emailType": email_type,
             "entities": entities,
             "language": lang,
             "raw_text_snippet": clean_body[:100],
