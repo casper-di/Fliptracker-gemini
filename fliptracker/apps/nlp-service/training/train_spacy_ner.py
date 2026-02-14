@@ -6,7 +6,7 @@ import argparse
 import random
 
 def load_training_data(data_dir: str):
-    """Charge les données annotées au format spaCy"""
+    """Charge les données annotées au format spaCy JSON"""
     train_data = []
     
     data_path = Path(data_dir)
@@ -14,18 +14,31 @@ def load_training_data(data_dir: str):
     # Chercher spacy_train.json (créé par prepare_data.py)
     spacy_file = data_path / "spacy_train.json"
     
-    if spacy_file.exists():
-        with open(spacy_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+    if not spacy_file.exists():
+        print(f"❌ {spacy_file} not found!")
+        return []
+    
+    print(f"   Reading {spacy_file}...")
+    
+    with open(spacy_file, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    # data est une liste: [[text, {"entities": [...]}], ...]
+    # (JSON convertit les tuples en listes)
+    
+    for item in data:
+        # item est une liste [text, {"entities": [...]}]
+        if isinstance(item, list) and len(item) == 2:
+            text = item[0]
+            annotations = item[1]
             
-            # Format: [(text, {"entities": [(start, end, label), ...]}), ...]
-            for item in data:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    text, annotations = item
-                    if text and annotations.get("entities"):
-                        train_data.append((text, annotations))
+            if text and isinstance(annotations, dict):
+                entities = annotations.get("entities", [])
+                if entities:
+                    train_data.append((text, {"entities": entities}))
     
     return train_data
+
 
 def train_ner_model(epochs: int = 20):
     """Entraîne un modèle spaCy NER custom"""
@@ -35,6 +48,7 @@ def train_ner_model(epochs: int = 20):
     
     if not train_data:
         print("❌ No training data found!")
+        print("   Make sure prepare_data.py ran successfully first")
         return
     
     print(f"✅ Loaded {len(train_data)} training examples")
@@ -52,13 +66,18 @@ def train_ner_model(epochs: int = 20):
         for start, end, label in annotations.get("entities", []):
             labels.add(label)
     
+    if not labels:
+        print("❌ No labels found in training data!")
+        return
+    
     for label in labels:
         ner.add_label(label)
     
     print(f"📝 Labels: {sorted(labels)}")
     
-    # Initialiser les paramètres
-    nlp.initialize(lambda: train_data)
+    # Initialiser
+    nlp.initialize(lambda: [(nlp.make_doc(t), Example.from_dict(nlp.make_doc(t), a)) 
+                            for t, a in train_data[:10]])
     
     print(f"\n🎓 Training for {epochs} epochs...")
     
@@ -74,13 +93,13 @@ def train_ner_model(epochs: int = 20):
                 example = Example.from_dict(doc, annotations)
                 examples.append(example)
             except Exception as e:
-                print(f"⚠️  Skip example: {e}")
                 continue
         
         # Update
         nlp.update(examples, drop=0.5, sgd=nlp.create_optimizer(), losses=losses)
         
-        print(f"Epoch {epoch+1}/{epochs} - Loss: {losses.get('ner', 0):.4f}")
+        loss_value = losses.get('ner', 0)
+        print(f"Epoch {epoch+1}/{epochs} - Loss: {loss_value:.4f}")
     
     # Sauvegarder le modèle
     print("\n💾 Saving model...")
@@ -91,7 +110,6 @@ def train_ner_model(epochs: int = 20):
     print(f"✅ Model saved to {model_dir}")
     
     # Vérifier la taille
-    import shutil
     model_size = sum(f.stat().st_size for f in model_dir.rglob('*') if f.is_file()) / (1024*1024)
     print(f"📊 Model size: {model_size:.2f} MB")
 
