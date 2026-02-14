@@ -50,8 +50,10 @@ jobs:
             echo "✅ training_samples.json found"
             wc -l data/training_samples.json
             du -sh data/training_samples.json
+            head -c 200 data/training_samples.json
           else
             echo "❌ training_samples.json NOT found"
+            exit 1
           fi
 
       - name: Prepare data (annotate)
@@ -62,24 +64,36 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: |
           echo "=== Prepared data files ==="
-          ls -lh data/annotated/
+          ls -lh data/annotated/ || echo "❌ FAIL: No annotated folder!"
           echo ""
-          echo "=== File contents ==="
-          for file in data/annotated/*.json; do
-            echo "📄 $file ($(wc -l < $file) lines)"
-          done
+          echo "=== JSON files found ==="
+          find data/annotated -name "*.json" -type f -exec ls -lh {} \; || echo "❌ No JSON files!"
+          echo ""
+          echo "=== spacy_train.json preview ==="
+          head -c 300 data/annotated/spacy_train.json || echo "❌ spacy_train.json not found!"
 
-      - name: Archive prepared data
+      - name: Archive and upload prepared data
+        working-directory: fliptracker/apps/nlp-service
         run: |
-          cd fliptracker/apps/nlp-service
-          tar -czf ../../prepared-data-${{ github.run_id }}.tar.gz data/annotated/
-          ls -lh ../../prepared-data-${{ github.run_id }}.tar.gz
+          echo "Creating tar archive..."
+          tar -czf prepared-data.tar.gz data/annotated/
+          echo ""
+          echo "Archive created:"
+          ls -lh prepared-data.tar.gz
+          echo ""
+          echo "Archive contents:"
+          tar -tzf prepared-data.tar.gz | head -10
+
+      - name: Copy archive to repo root
+        run: |
+          cp fliptracker/apps/nlp-service/prepared-data.tar.gz ./
+          ls -lh prepared-data.tar.gz
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
         with:
           name: prepared-data
-          path: prepared-data-${{ github.run_id }}.tar.gz
+          path: prepared-data.tar.gz
           retention-days: 7
 
   train:
@@ -110,57 +124,76 @@ jobs:
         with:
           name: prepared-data
 
-      - name: Check artifact contents
+      - name: Check artifact downloaded
         run: |
-          echo "=== Files in current directory ==="
+          echo "=== Current directory ==="
+          pwd
           ls -lh
           echo ""
           echo "=== Archive contents ==="
-          tar -tzf prepared-data-*.tar.gz | head -20
+          tar -tzf prepared-data.tar.gz | head -20
 
       - name: Extract prepared data
         run: |
           mkdir -p fliptracker/apps/nlp-service/data/annotated
           echo "Extracting to fliptracker/apps/nlp-service/"
-          tar -xzf prepared-data-*.tar.gz -C fliptracker/apps/nlp-service/
+          tar -xzf prepared-data.tar.gz
+          echo ""
+          echo "Extraction complete"
           
       - name: Verify extracted data
         run: |
           echo "=== Checking extracted files ==="
-          find fliptracker/apps/nlp-service/data -name "*.json" -type f -exec ls -lh {} \;
+          find . -name "spacy_train.json" -type f -exec ls -lh {} \;
           echo ""
-          echo "=== spacy_train.json content (first 10 lines) ==="
-          head -10 fliptracker/apps/nlp-service/data/annotated/spacy_train.json || echo "❌ spacy_train.json not found"
+          echo "=== All JSON files ==="
+          find . -path "*/data/annotated/*.json" -type f -exec ls -lh {} \;
+          echo ""
+          echo "=== spacy_train.json preview ==="
+          find . -name "spacy_train.json" -type f -exec head -5 {} \;
 
       - name: Train spaCy NER model
         working-directory: fliptracker/apps/nlp-service
         run: |
+          echo "Starting training..."
           python training/train_spacy_ner.py --epochs 20
 
       - name: Check model was created
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Model directory structure ==="
-          find models -type f -name "*.bin" -o -name "*.pkl" -o -name "*.json" | head -20
-          echo ""
-          echo "=== Model size ==="
-          du -sh models/ner_model/model-best || echo "❌ Model directory not found"
+          echo "=== Checking for model files ==="
+          if [ -d "models/ner_model/model-best" ]; then
+            echo "✅ Model directory exists"
+            find models/ner_model/model-best -type f | head -10
+            echo ""
+            du -sh models/ner_model/model-best
+          else
+            echo "❌ Model directory NOT found"
+            ls -la models/ || echo "❌ models/ directory not found either"
+            exit 1
+          fi
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
         run: |
+          echo "Creating model archive..."
           mkdir -p models-final
           cp -r models/ner_model/model-best models-final/
-          tar -czf nlp-ner-model-${{ github.run_id }}.tar.gz models-final/
+          tar -czf nlp-ner-model.tar.gz models-final/
           echo ""
-          echo "=== Archive created ==="
-          ls -lh nlp-ner-model-${{ github.run_id }}.tar.gz
+          echo "✅ Archive created:"
+          ls -lh nlp-ner-model.tar.gz
+
+      - name: Copy model to repo root
+        run: |
+          cp fliptracker/apps/nlp-service/nlp-ner-model.tar.gz ./
+          ls -lh nlp-ner-model.tar.gz
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
           name: nlp-ner-model
-          path: fliptracker/apps/nlp-service/nlp-ner-model-${{ github.run_id }}.tar.gz
+          path: nlp-ner-model.tar.gz
           retention-days: 90
 
       - name: Cleanup
@@ -188,8 +221,13 @@ jobs:
           echo "=========================================="
           echo ""
           echo "📦 Production Model:"
-          ls -lh nlp-ner-model-*.tar.gz || echo "❌ No model found"
+          ls -lh nlp-ner-model.tar.gz || echo "❌ No model found"
           echo ""
-          echo "✅ Model is ready for deployment!"
+          if [ -f "nlp-ner-model.tar.gz" ]; then
+            echo "✅ Model is ready for deployment!"
+            echo ""
+            echo "Archive contents:"
+            tar -tzf nlp-ner-model.tar.gz | head -10
+          fi
           echo ""
           echo "=========================================="
