@@ -6,30 +6,24 @@ import argparse
 import random
 
 def load_training_data(data_dir: str):
-    """Charge les données annotées depuis les fichiers JSON"""
+    """Charge les données annotées au format spaCy"""
     train_data = []
     
     data_path = Path(data_dir)
-    for json_file in data_path.glob("*.json"):
-        with open(json_file, 'r', encoding='utf-8') as f:
+    
+    # Chercher spacy_train.json (créé par prepare_data.py)
+    spacy_file = data_path / "spacy_train.json"
+    
+    if spacy_file.exists():
+        with open(spacy_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
             
-            if isinstance(data, list):
-                for item in data:
-                    text = item.get("body", "")
-                    entities = item.get("entities", [])
-                    
-                    if text and entities:
-                        ents = []
-                        for ent in entities:
-                            ents.append({
-                                "start": ent.get("start"),
-                                "end": ent.get("end"),
-                                "label": ent.get("label", "MISC")
-                            })
-                        
-                        if ents:
-                            train_data.append((text, {"entities": ents}))
+            # Format: [(text, {"entities": [(start, end, label), ...]}), ...]
+            for item in data:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    text, annotations = item
+                    if text and annotations.get("entities"):
+                        train_data.append((text, annotations))
     
     return train_data
 
@@ -55,13 +49,13 @@ def train_ner_model(epochs: int = 20):
     # Ajouter les labels
     labels = set()
     for text, annotations in train_data:
-        for ent in annotations.get("entities", []):
-            labels.add(ent["label"])
+        for start, end, label in annotations.get("entities", []):
+            labels.add(label)
     
     for label in labels:
         ner.add_label(label)
     
-    print(f"📝 Labels: {labels}")
+    print(f"📝 Labels: {sorted(labels)}")
     
     # Initialiser les paramètres
     nlp.initialize(lambda: train_data)
@@ -72,10 +66,19 @@ def train_ner_model(epochs: int = 20):
     for epoch in range(epochs):
         random.shuffle(train_data)
         losses = {}
+        examples = []
         
         for text, annotations in train_data:
-            example = Example.from_dict(nlp.make_doc(text), annotations)
-            nlp.update([example], drop=0.5, sgd=nlp.create_optimizer(), losses=losses)
+            try:
+                doc = nlp.make_doc(text)
+                example = Example.from_dict(doc, annotations)
+                examples.append(example)
+            except Exception as e:
+                print(f"⚠️  Skip example: {e}")
+                continue
+        
+        # Update
+        nlp.update(examples, drop=0.5, sgd=nlp.create_optimizer(), losses=losses)
         
         print(f"Epoch {epoch+1}/{epochs} - Loss: {losses.get('ner', 0):.4f}")
     
