@@ -35,27 +35,25 @@ jobs:
           python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
           status=$?
           if [ $status -eq 0 ]; then
-            echo "✅ firebase.json is valid JSON"
+            echo "✅ firebase.json is valid"
             python training/export_data.py
           else
-            echo "❌ firebase.json invalid JSON — aborting export"
+            echo "❌ firebase.json invalid"
             exit 1
           fi
 
       - name: Check exported data
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Exported data ==="
           if [ -f "data/training_samples.json" ]; then
             echo "✅ training_samples.json found"
             wc -l data/training_samples.json
-            du -sh data/training_samples.json
           else
             echo "❌ training_samples.json NOT found"
             exit 1
           fi
 
-      - name: Prepare data (annotate)
+      - name: Prepare data
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
@@ -63,22 +61,13 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: |
           echo "=== Prepared data files ==="
-          ls -lh data/annotated/ || echo "❌ FAIL: No annotated folder!"
-          echo ""
-          echo "=== JSON files found ==="
-          find data/annotated -name "*.json" -type f -exec ls -lh {} \;
+          ls -lh data/annotated/
 
       - name: Archive prepared data
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "Creating tar archive..."
           tar -czf prepared-data.tar.gz data/annotated/
-          echo "✅ Archive created:"
-          ls -lh prepared-data.tar.gz
-
-      - name: Copy archive to repo root
-        run: |
-          cp fliptracker/apps/nlp-service/prepared-data.tar.gz ./
+          cp prepared-data.tar.gz ../../../
 
       - name: Upload prepared data artifact
         uses: actions/upload-artifact@v4
@@ -110,30 +99,18 @@ jobs:
       - name: Install Python requirements
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
 
-      - name: Download prepared data artifact
+      - name: Download prepared data
         uses: actions/download-artifact@v4
         with:
           name: prepared-data
 
       - name: Extract prepared data
         run: |
-          echo "Extracting to fliptracker/apps/nlp-service/"
           tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
-          echo ""
-          echo "✅ Extraction complete"
-
-      - name: Verify extracted data
-        run: |
-          echo "=== Checking extracted files ==="
-          ls -lh fliptracker/apps/nlp-service/data/annotated/
-          echo ""
-          echo "=== spacy_train.json exists ==="
-          [ -f "fliptracker/apps/nlp-service/data/annotated/spacy_train.json" ] && echo "✅ Found" || echo "❌ NOT found"
 
       - name: Inspect training data
         working-directory: fliptracker/apps/nlp-service
-        run: |
-          python << 'EOF'
+        run: python3 << 'PYTHON_SCRIPT'
 import json
 from pathlib import Path
 
@@ -142,7 +119,7 @@ if spacy_file.exists():
     with open(spacy_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    print(f"📊 Total items in spacy_train.json: {len(data)}")
+    print(f"Total items: {len(data)}")
     
     items_with_entities = 0
     total_entities = 0
@@ -159,55 +136,42 @@ if spacy_file.exists():
                 for start, end, label in entities:
                     entity_labels[label] = entity_labels.get(label, 0) + 1
     
-    print(f"✅ Items with entities: {items_with_entities}/{len(data)}")
-    print(f"📊 Total entities found: {total_entities}")
-    print(f"\n📝 Entity types:")
+    print(f"Items with entities: {items_with_entities}/{len(data)}")
+    print(f"Total entities: {total_entities}")
+    print(f"\nEntity types:")
     for label, count in sorted(entity_labels.items(), key=lambda x: -x[1]):
-        print(f"   {label}: {count}")
+        print(f"  {label}: {count}")
     
     if items_with_entities == 0:
-        print("\n❌ WARNING: No entities found in training data!")
-        print("   This means prepare_data.py didn't extract any entities")
-        print("   Firestore data might not have proper 'labels' fields")
+        print("\nERROR: No entities found!")
         exit(1)
 else:
-    print("❌ spacy_train.json not found")
+    print("ERROR: spacy_train.json not found")
     exit(1)
-EOF
+PYTHON_SCRIPT
 
       - name: Train spaCy NER model
         working-directory: fliptracker/apps/nlp-service
-        run: |
-          echo "Starting training..."
-          python training/train_spacy_ner.py --epochs 20
+        run: python training/train_spacy_ner.py --epochs 20
 
-      - name: Check model was created
+      - name: Check model created
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Checking for model files ==="
           if [ -d "models/ner_model/model-best" ]; then
-            echo "✅ Model directory exists"
-            find models/ner_model/model-best -type f | head -10
-            echo ""
+            echo "✅ Model created"
             du -sh models/ner_model/model-best
           else
-            echo "❌ Model directory NOT found"
+            echo "❌ Model NOT created"
             exit 1
           fi
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "Creating model archive..."
           mkdir -p models-final
           cp -r models/ner_model/model-best models-final/
           tar -czf nlp-ner-model.tar.gz models-final/
-          echo "✅ Archive created:"
-          ls -lh nlp-ner-model.tar.gz
-
-      - name: Copy model to repo root
-        run: |
-          cp fliptracker/apps/nlp-service/nlp-ner-model.tar.gz ./
+          cp nlp-ner-model.tar.gz ../../../
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
@@ -233,17 +197,10 @@ EOF
         with:
           name: nlp-ner-model
 
-      - name: Show artifact info
+      - name: Show result
         run: |
           echo "=========================================="
-          echo "🎉 spaCy NER Model Training Complete!"
+          echo "🎉 Training Complete!"
           echo "=========================================="
-          echo ""
-          echo "📦 Production Model:"
-          ls -lh nlp-ner-model.tar.gz || echo "❌ No model found"
-          echo ""
-          if [ -f "nlp-ner-model.tar.gz" ]; then
-            echo "✅ Model is ready for deployment!"
-          fi
-          echo ""
+          ls -lh nlp-ner-model.tar.gz || echo "No model found"
           echo "=========================================="
