@@ -91,10 +91,13 @@ class HybridExtractor:
             self.carrier_model = None
     
     def _create_address_matcher(self, nlp):
-        """Create address pattern matcher"""
+        """Create address pattern matcher for French and English"""
         matcher = Matcher(nlp.vocab)
         
         patterns = [
+            # ========================================
+            # FRENCH PATTERNS
+            # ========================================
             # Pattern 1: Numéro + RUE/AVENUE + CODE POSTAL + VILLE
             [
                 {"IS_DIGIT": True, "OP": "?"},
@@ -105,7 +108,25 @@ class HybridExtractor:
                 {"IS_DIGIT": True, "LENGTH": 5},
                 {"IS_ALPHA": True, "OP": "*"}
             ],
-            # Pattern 2: CODE POSTAL + VILLE
+            # Pattern 2: CODE POSTAL + VILLE (French)
+            [
+                {"IS_DIGIT": True, "LENGTH": 5},
+                {"IS_ALPHA": True, "OP": "+"}
+            ],
+            
+            # ========================================
+            # ENGLISH PATTERNS
+            # ========================================
+            # Pattern 3: Numéro + STREET/ROAD/etc + CODE + CITY
+            [
+                {"IS_DIGIT": True, "OP": "?"},
+                {"LOWER": {"IN": ["street", "road", "avenue", "boulevard", "place", "way", "drive", "lane", "court", "circle", "park"]}},
+                {"IS_ALPHA": True, "OP": "*"},
+                {"ORTH": ",", "OP": "?"},
+                {"IS_DIGIT": True, "LENGTH": 5},
+                {"IS_ALPHA": True, "OP": "+"}
+            ],
+            # Pattern 4: USA Postal Code (5 digits) + CITY
             [
                 {"IS_DIGIT": True, "LENGTH": 5},
                 {"IS_ALPHA": True, "OP": "+"}
@@ -116,10 +137,10 @@ class HybridExtractor:
         return matcher
     
     def _extract_addresses(self, text, matcher, nlp):
-        """Extract addresses from text, ignoring footer"""
+        """Extract addresses from text"""
         
-        # Limit to 80% of content (ignore footer with company info)
-        content_limit = int(len(text) * 0.8)
+        # ✅ CHANGE 1: Use 100% of content (was 0.80)
+        content_limit = int(len(text) * 1.0)
         main_content = text[:content_limit]
         
         doc = nlp(main_content[:3000])
@@ -172,10 +193,13 @@ class HybridExtractor:
     
     def _extract_tracking(self, text):
         """Extract tracking numbers from text"""
+        
+        # ✅ CHANGE 3: Added Amazon format
         patterns = [
             r'\b([0-9]{8,15})\b',  # 8-15 digits
             r'\b([A-Z]{2}[0-9]{9}[A-Z]{2})\b',  # International format
             r'\b(1Z[0-9A-Z]{16})\b',  # UPS format
+            r'\b([0-9]{3}-[0-9]{7}-[0-9]{7})\b',  # Amazon format: 123-4567890-1234567
         ]
         
         tracking = set()
