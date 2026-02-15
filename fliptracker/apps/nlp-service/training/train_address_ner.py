@@ -5,10 +5,11 @@ from pathlib import Path
 import random
 
 def load_address_data():
-    """Charge les données d'entraînement pour les adresses"""
-    data_path = Path("data/annotated/train.json")
+    """Charge les données d'adresses du fichier spacy_train.json"""
+    data_path = Path("data/annotated/spacy_train.json")
     
     if not data_path.exists():
+        print(f"❌ {data_path} not found!")
         return []
     
     with open(data_path, 'r', encoding='utf-8') as f:
@@ -16,28 +17,34 @@ def load_address_data():
     
     training_data = []
     
+    # Format: [[text, {"entities": [(start, end, label), ...]}], ...]
     for item in items:
-        if isinstance(item, dict):
-            text = item.get("text", "")
-            entities = item.get("entities", [])
+        if isinstance(item, list) and len(item) == 2:
+            text = item[0]
+            annotations = item[1]
             
-            # Garder UNIQUEMENT les adresses
-            address_entities = [
-                (s, e, "ADDRESS") for s, e, label in entities 
-                if label == "ADDRESS"
-            ]
-            
-            if address_entities:
-                training_data.append((text, {"entities": address_entities}))
+            if isinstance(annotations, dict):
+                all_entities = annotations.get("entities", [])
+                
+                # Garder UNIQUEMENT les adresses
+                address_entities = [
+                    (s, e, "ADDRESS") for s, e, label in all_entities 
+                    if label == "ADDRESS" and s < e
+                ]
+                
+                if address_entities and text:
+                    training_data.append((text, {"entities": address_entities}))
     
     return training_data
+
 
 def train_address_ner(epochs: int = 30):
     print("🚀 Loading address training data...")
     train_data = load_address_data()
     
     if not train_data:
-        print("❌ No address data!")
+        print("❌ No address data found!")
+        print("   No addresses in training set or format issue")
         return
     
     print(f"✅ Loaded {len(train_data)} examples with addresses")
@@ -54,8 +61,12 @@ def train_address_ner(epochs: int = 30):
             doc = nlp.make_doc(text)
             example = Example.from_dict(doc, annotations)
             examples.append(example)
-        except:
+        except Exception as e:
             continue
+    
+    if not examples:
+        print("❌ Could not create examples!")
+        return
     
     nlp.initialize(lambda: examples)
     
@@ -88,6 +99,7 @@ def train_address_ner(epochs: int = 30):
     nlp.to_disk(str(model_dir))
     
     print(f"✅ Address NER model saved!")
+
 
 if __name__ == "__main__":
     train_address_ner(epochs=30)
