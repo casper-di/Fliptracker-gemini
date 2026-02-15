@@ -1,41 +1,60 @@
-# 1. Image de base légère
 FROM python:3.11-slim
 
-# ✅ Accepte l'argument et le passe à l'ENV
-ARG MODELS_GDRIVE_ID=1WN3aoq9kg9KtupTbSzW9djb5n0FSaj6r
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    MODELS_GDRIVE_ID=${MODELS_GDRIVE_ID}
+    MODELS_GDRIVE_ID=1aVrRnX2k0ycvJAUt2uaFpHp8XttL7SYT
 
 WORKDIR /app
 
-# 3. Installation des dépendances système
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+# System dependencies
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-# 4. Copie et Installation des dépendances Python
+# Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir langdetect beautifulsoup4 gdown
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    pip install gdown langdetect beautifulsoup4
 
-# 5. Téléchargement des modèles spaCy (SMALL)
+# Download spaCy models
 RUN python -m spacy download fr_core_news_sm && \
     python -m spacy download en_core_web_sm
 
-# 6. COPIE ET EXÉCUTION DU SCRIPT DE TÉLÉCHARGEMENT
-COPY download_models.sh /tmp/download_models.sh
-RUN chmod +x /tmp/download_models.sh && bash /tmp/download_models.sh && rm /tmp/download_models.sh
+# Download custom models from Google Drive
+RUN python3 << 'EOF'
+import gdown
+import zipfile
+import os
+import sys
 
-# 7. Copie du code source
+gdrive_id = os.environ.get('MODELS_GDRIVE_ID', '1aVrRnX2k0ycvJAUt2uaFpHp8XttL7SYT')
+output = '/tmp/models.zip'
+
+print(f"Downloading from Google Drive...")
+try:
+    gdown.download(f"https://drive.google.com/uc?id={gdrive_id}", output, quiet=False)
+    print("✅ Downloaded")
+except Exception as e:
+    print(f"❌ Download failed: {e}")
+    sys.exit(1)
+
+print("📂 Extracting models...")
+try:
+    with zipfile.ZipFile(output, 'r') as zip_ref:
+        zip_ref.extractall('/app/trained_models')
+    print("✅ Extracted")
+except Exception as e:
+    print(f"❌ Extraction failed: {e}")
+    sys.exit(1)
+
+print("✅ Models ready!")
+os.system("ls -la /app/trained_models/")
+os.remove(output)
+EOF
+
+# Copy source code
 COPY src/ src/
 
-# 8. Configuration du port pour Render
 EXPOSE 8000
 
-# 9. Démarrage
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
