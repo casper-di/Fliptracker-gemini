@@ -33,35 +33,61 @@ class HybridExtractor:
         print("✅ All models initialized!\n")
     
     def _load_carrier_model(self):
-        """Load carrier model with detailed debugging"""
-        carrier_path = Path("/app/trained_models/ner_model/model-best")
+        """Load carrier model from multiple possible locations"""
         
-        print(f"   📂 Carrier model path: {carrier_path}")
-        print(f"   📂 Path exists: {carrier_path.exists()}")
+        # Try multiple paths
+        possible_paths = [
+            Path("/app/trained_models/models-final/carrier"),
+            Path("/app/trained_models/ner_model/model-best"),
+            Path("/app/trained_models/carrier"),
+            Path("models-final/carrier"),
+        ]
         
-        # Check parent directory
-        parent = Path("/app/trained_models")
-        if parent.exists():
+        carrier_path = None
+        
+        # Find the first existing path
+        for path in possible_paths:
+            if path.exists():
+                carrier_path = path
+                print(f"   📂 Found carrier model at: {path}")
+                break
+        
+        if not carrier_path:
+            print(f"   ❌ Carrier model not found in any expected location")
+            print(f"   📂 Checked paths:")
+            for path in possible_paths:
+                print(f"      - {path}")
+            
             print(f"   📂 /app/trained_models/ contents:")
-            for item in parent.iterdir():
-                print(f"      - {item.name}")
-        else:
-            print(f"   ❌ /app/trained_models/ does NOT exist!")
+            parent = Path("/app/trained_models")
+            if parent.exists():
+                try:
+                    for item in parent.iterdir():
+                        print(f"      - {item.name}")
+                        if item.is_dir():
+                            for subitem in item.iterdir():
+                                print(f"         - {subitem.name}")
+                except Exception as e:
+                    print(f"      Error listing: {e}")
+            else:
+                print(f"      /app/trained_models does not exist")
+            
+            self.carrier_model = None
+            return
         
-        # Try to load
-        if carrier_path.exists():
+        # Try to load the model
+        try:
+            print(f"   📂 Loading model from: {carrier_path}")
+            self.carrier_model = spacy.load(str(carrier_path))
+            print("   ✅ Carrier model loaded successfully!")
+        except Exception as e:
+            print(f"   ❌ Failed to load carrier model: {e}")
+            print(f"   📂 Files in model directory:")
             try:
-                print(f"   📂 Files in model directory:")
                 for item in carrier_path.iterdir():
                     print(f"      - {item.name}")
-                
-                self.carrier_model = spacy.load(str(carrier_path))
-                print("   ✅ Carrier model loaded successfully!")
-            except Exception as e:
-                print(f"   ❌ Failed to load carrier model: {e}")
-                self.carrier_model = None
-        else:
-            print(f"   ⚠️  Carrier model not found at {carrier_path}")
+            except Exception as e2:
+                print(f"      Error listing: {e2}")
             self.carrier_model = None
     
     def _create_address_matcher(self, nlp):
@@ -92,7 +118,7 @@ class HybridExtractor:
     def _extract_addresses(self, text, matcher, nlp):
         """Extract addresses from text, ignoring footer"""
         
-        # Limit to 80% of content (ignore footer)
+        # Limit to 80% of content (ignore footer with company info)
         content_limit = int(len(text) * 0.8)
         main_content = text[:content_limit]
         
@@ -126,7 +152,7 @@ class HybridExtractor:
         return addresses
     
     def _extract_carrier(self, text):
-        """Extract carrier from text"""
+        """Extract carrier from text using NER model"""
         if not self.carrier_model:
             return None
         
@@ -175,7 +201,7 @@ class HybridExtractor:
         except:
             lang = "fr"
         
-        # Select NLP and matcher
+        # Select NLP and matcher based on language
         nlp = self.nlp_en if lang == "en" else self.nlp_fr
         matcher = self.matcher_en if lang == "en" else self.matcher_fr
         
