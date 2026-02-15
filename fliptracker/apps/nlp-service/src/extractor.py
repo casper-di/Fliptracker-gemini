@@ -5,64 +5,47 @@ class HybridExtractor:
     def __init__(self):
         print("⚡ Loading models...")
         self.nlp_fr = spacy.load("fr_core_news_sm", disable=["parser", "lemmatizer"])
-        self.nlp_en = spacy.load("en_core_web_sm", disable=["parser", "lemmatizer"])
         
-        # Add entity_ruler with patterns
-        self._add_patterns(self.nlp_fr)
-        self._add_patterns(self.nlp_en)
+        # Carrier model (patterns)
+        carrier_path = Path("/app/trained_models/ner_model/model-best")
+        self.carrier_model = spacy.load(str(carrier_path)) if carrier_path.exists() else None
+        
+        # Address NER (trained)
+        address_path = Path("/app/trained_models/address_ner/model-best")
+        self.address_model = spacy.load(str(address_path)) if address_path.exists() else None
         
         print("✅ Models loaded!")
     
-    def _add_patterns(self, nlp):
-        ruler = nlp.add_pipe("entity_ruler", before="ner")
-        patterns = [
-            {"label": "ORG", "pattern": "CHRONOPOST"},
-            {"label": "ORG", "pattern": "COLISSIMO"},
-            {"label": "ORG", "pattern": "DHL"},
-            {"label": "ORG", "pattern": "UPS"},
-            {"label": "ORG", "pattern": "FEDEX"},
-            {"label": "ORG", "pattern": [{"LOWER": "mondial"}, {"LOWER": "relay"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "relais"}, {"LOWER": "colis"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "la"}, {"LOWER": "poste"}]},
-            {"label": "ORG", "pattern": "AMAZON"},
-            {"label": "ORG", "pattern": "VINTED"},
-        ]
-        ruler.add_patterns(patterns)
-    
     def process(self, raw_body: str, subject: str = "", sender: str = "") -> dict:
         from bs4 import BeautifulSoup
-        from langdetect import detect, LangDetectException
         import re
         
-        # Clean HTML
         soup = BeautifulSoup(raw_body, "html.parser")
         for tag in soup(["script", "style"]):
             tag.decompose()
-        text = soup.get_text(separator="\n")
+        text = soup.get_text()
         
-        # Detect language
-        try:
-            lang = detect(text[:1000])
-        except:
-            lang = "fr"
+        # Adresses avec modèle entraîné
+        addresses = []
+        if self.address_model:
+            doc = self.address_model(text[:3000])
+            addresses = [ent.text for ent in doc.ents if ent.label_ == "ADDRESS"]
         
-        nlp = self.nlp_en if lang == "en" else self.nlp_fr
-        doc = nlp(text[:3000])
+        # Carriers avec patterns
+        carrier = None
+        if self.carrier_model:
+            doc = self.carrier_model(text)
+            for ent in doc.ents:
+                if ent.label_ == "ORG":
+                    carrier = {"label": ent.text, "confidence": 0.99}
+                    break
         
-        # Extract
-        tracking = list(set(re.findall(r'\b([0-9]{8,15})\b', text)))
-        
-        entities = []
-        for ent in doc.ents:
-            entities.append({
-                "text": ent.text,
-                "label": ent.label_,
-                "confidence": 0.95
-            })
+        # Tracking avec regex
+        tracking = re.findall(r'\b([0-9]{8,15})\b', text)
         
         return {
-            "trackingNumbers": tracking,
-            "carrier": None,
-            "entities": entities,
-            "language": lang,
+            "trackingNumbers": list(set(tracking)),
+            "pickupAddress": addresses[0] if addresses else None,
+            "deliveryAddress": addresses[1] if len(addresses) > 1 else None,
+            "carrier": carrier,
         }
