@@ -66,6 +66,27 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: python training/train_ner_full.py
 
+      - name: Check model exists
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          echo "=========================================="
+          echo "🔍 CHECKING MODEL FILES"
+          echo "=========================================="
+          echo ""
+          echo "=== Models directory ==="
+          ls -la models/ || echo "❌ No models directory"
+          echo ""
+          echo "=== NER Full directory ==="
+          ls -la models/ner_full/ || echo "❌ No ner_full directory"
+          echo ""
+          echo "=== Model Best directory ==="
+          ls -la models/ner_full/model-best/ || echo "❌ No model-best directory"
+          echo ""
+          echo "=== All model files ==="
+          find models -type f 2>/dev/null | head -20 || echo "❌ No files found"
+          echo ""
+          echo "=========================================="
+
       - name: Test NER model on validation data
         working-directory: fliptracker/apps/nlp-service
         run: python training/test_ner_model.py
@@ -73,10 +94,36 @@ jobs:
       - name: Collect models
         working-directory: fliptracker/apps/nlp-service
         run: |
+          echo "=========================================="
+          echo "📦 COLLECTING MODELS"
+          echo "=========================================="
+          
           mkdir -p models-final
-          cp -r models/ner_full/model-best models-final/ner_full
+          
+          if [ -d "models/ner_full/model-best" ]; then
+            echo "✅ Found model at models/ner_full/model-best"
+            cp -r models/ner_full/model-best models-final/ner_full
+            echo "✅ Copied to models-final/ner_full"
+          else
+            echo "❌ Model directory not found at models/ner_full/model-best"
+            echo ""
+            echo "Looking for alternatives..."
+            find models -type d -name "model*" 2>/dev/null
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ Creating tar archive..."
           tar -czf nlp-models.tar.gz models-final/
+          
+          echo "✅ Copying to repo root..."
           cp nlp-models.tar.gz ../../../
+          
+          echo ""
+          echo "✅ Archive created:"
+          ls -lh nlp-models.tar.gz
+          echo ""
+          echo "=========================================="
 
       - name: Upload models artifact
         uses: actions/upload-artifact@v4
@@ -109,7 +156,7 @@ jobs:
           echo "=========================================="
           echo ""
           echo "📦 Model artifact:"
-          ls -lh nlp-models.tar.gz || echo "No models found"
+          ls -lh nlp-models.tar.gz || echo "❌ No models found"
           echo ""
           echo "✨ Ready for deployment!"
           echo "=========================================="
