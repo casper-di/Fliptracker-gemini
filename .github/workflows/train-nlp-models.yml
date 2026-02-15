@@ -34,30 +34,8 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
-      - name: Check data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          echo "=== Training samples ==="
-          wc -l data/annotated/spacy_train.json data/annotated/spacy_val.json
-          echo ""
-          echo "=== Sample entities ==="
-          head -30 data/annotated/spacy_train.json
-
-      - name: Archive data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          tar -czf prepared-data.tar.gz data/annotated/
-          cp prepared-data.tar.gz ../../../
-
-      - name: Upload data artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: prepared-data
-          path: prepared-data.tar.gz
-          retention-days: 7
-
   train:
-    name: Train NER Models
+    name: Train Models
     runs-on: ubuntu-latest
     needs: data-prep
     env:
@@ -74,32 +52,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
 
-      - name: Download data
-        uses: actions/download-artifact@v4
-        with:
-          name: prepared-data
-
-      - name: Extract data
-        run: tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
-
-      - name: Create carrier patterns model
+      - name: Create carrier model
         working-directory: fliptracker/apps/nlp-service
         run: python training/create_model.py
 
-      - name: Train address NER model
+      - name: Test address extraction
         working-directory: fliptracker/apps/nlp-service
-        run: python training/train_address_ner.py
-
-      - name: Test models
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/test_models.py
+        run: python training/extract_addresses.py
 
       - name: Collect models
         working-directory: fliptracker/apps/nlp-service
         run: |
           mkdir -p models-final
           cp -r models/ner_model/model-best models-final/carrier
-          cp -r models/address_ner/model-best models-final/address
           tar -czf nlp-models.tar.gz models-final/
           cp nlp-models.tar.gz ../../../
 
@@ -132,9 +97,5 @@ jobs:
           echo "=========================================="
           echo "🎉 Training Complete!"
           echo "=========================================="
-          echo ""
-          echo "📦 Models:"
           ls -lh nlp-models.tar.gz || echo "No models"
-          echo ""
-          echo "✅ Ready for deployment!"
           echo "=========================================="
