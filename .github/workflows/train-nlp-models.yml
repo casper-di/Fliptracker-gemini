@@ -39,6 +39,13 @@ jobs:
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
+      - name: Upload annotated data
+        uses: actions/upload-artifact@v4
+        with:
+          name: annotated-data
+          path: fliptracker/apps/nlp-service/data/annotated/
+          retention-days: 1
+
   train:
     name: Train NER Models
     runs-on: ubuntu-latest
@@ -61,6 +68,21 @@ jobs:
         run: |
           python -m spacy download fr_core_news_sm -q
           python -m spacy download en_core_web_sm -q
+
+      - name: Download annotated data
+        uses: actions/download-artifact@v4
+        with:
+          name: annotated-data
+          path: fliptracker/apps/nlp-service/data/annotated/
+
+      - name: Verify data
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          echo "=== Checking annotated data ==="
+          ls -la data/annotated/
+          echo ""
+          echo "=== spacy_train.json ==="
+          head -c 200 data/annotated/spacy_train.json || echo "❌ File not found"
 
       - name: Train NER model (ADDRESS, SHOP_NAME, TRACKING)
         working-directory: fliptracker/apps/nlp-service
