@@ -4,11 +4,10 @@ from pathlib import Path
 print("🔧 Creating pattern-based model...")
 
 nlp = spacy.blank("fr")
-
-# Only use entity_ruler, no NER needed
 ruler = nlp.add_pipe("entity_ruler", last=True)
 
 patterns = [
+    # Organizations
     {"label": "ORG", "pattern": "CHRONOPOST"},
     {"label": "ORG", "pattern": "COLISSIMO"},
     {"label": "ORG", "pattern": "DHL"},
@@ -19,6 +18,16 @@ patterns = [
     {"label": "ORG", "pattern": [{"LOWER": "mondial"}, {"LOWER": "relay"}]},
     {"label": "ORG", "pattern": [{"LOWER": "relais"}, {"LOWER": "colis"}]},
     {"label": "ORG", "pattern": [{"LOWER": "la"}, {"LOWER": "poste"}]},
+    
+    # Tracking numbers (8-15 digits)
+    {"label": "TRACKING", "pattern": [{"IS_DIGIT": True, "LENGTH": {">=": 8}}]},
+    
+    # Postal codes (5 digits)
+    {"label": "ADDRESS", "pattern": [{"IS_DIGIT": True, "LENGTH": 5}]},
+    
+    # Dates
+    {"label": "DATE", "pattern": [{"IS_DIGIT": True}, {"ORTH": "/"}, {"IS_DIGIT": True}]},
+    {"label": "DATE", "pattern": [{"IS_DIGIT": True}, {"ORTH": "-"}, {"IS_DIGIT": True}]},
 ]
 
 ruler.add_patterns(patterns)
