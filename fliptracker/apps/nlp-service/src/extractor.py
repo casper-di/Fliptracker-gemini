@@ -1,136 +1,68 @@
-import re
 import spacy
-from bs4 import BeautifulSoup
-from langdetect import detect, LangDetectException
 from pathlib import Path
-
 
 class HybridExtractor:
     def __init__(self):
-        print("⚡ Loading Hybrid NLP Models...")
-        
-        # Charger spaCy standard
+        print("⚡ Loading models...")
         self.nlp_fr = spacy.load("fr_core_news_sm", disable=["parser", "lemmatizer"])
         self.nlp_en = spacy.load("en_core_web_sm", disable=["parser", "lemmatizer"])
         
-        # ✅ Charger le modèle NER custom
-        self.ner_model = self._load_custom_ner()
+        # Add entity_ruler with patterns
+        self._add_patterns(self.nlp_fr)
+        self._add_patterns(self.nlp_en)
         
-        self._setup_patterns(self.nlp_fr)
-        self._setup_patterns(self.nlp_en)
-        print("✅ Hybrid Models Loaded!")
-
-    def _load_custom_ner(self):
-        """Charge le modèle NER custom"""
-        model_path = Path("/app/trained_models/ner_model/model-best")
-        
-        if model_path.exists():
-            try:
-                print("   ✅ Custom NER model loaded")
-                return spacy.load(str(model_path))
-            except Exception as e:
-                print(f"   ⚠️  NER model failed: {e}")
-                return None
-        else:
-            print(f"   ⚠️  NER model not found at {model_path}")
-            return None
-
-    def _setup_patterns(self, nlp):
-        """Ajoute des patterns EntityRuler"""
+        print("✅ Models loaded!")
+    
+    def _add_patterns(self, nlp):
         ruler = nlp.add_pipe("entity_ruler", before="ner")
         patterns = [
+            {"label": "ORG", "pattern": "CHRONOPOST"},
+            {"label": "ORG", "pattern": "COLISSIMO"},
+            {"label": "ORG", "pattern": "DHL"},
+            {"label": "ORG", "pattern": "UPS"},
+            {"label": "ORG", "pattern": "FEDEX"},
             {"label": "ORG", "pattern": [{"LOWER": "mondial"}, {"LOWER": "relay"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "chronopost"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "colissimo"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "dhl"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "ups"}]},
-            {"label": "ORG", "pattern": [{"LOWER": "fedex"}]},
+            {"label": "ORG", "pattern": [{"LOWER": "relais"}, {"LOWER": "colis"}]},
+            {"label": "ORG", "pattern": [{"LOWER": "la"}, {"LOWER": "poste"}]},
+            {"label": "ORG", "pattern": "AMAZON"},
+            {"label": "ORG", "pattern": "VINTED"},
         ]
         ruler.add_patterns(patterns)
-
-    def clean_html(self, html_content: str) -> str:
-        """Nettoyage HTML"""
-        if not html_content or len(html_content) < 5:
-            return ""
-        
-        soup = BeautifulSoup(html_content, "html.parser")
-        for script in soup(["script", "style", "head", "meta", "noscript"]):
-            script.decompose()
-        
-        text = soup.get_text(separator="\n")
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        clean_text = "\n".join(chunk for chunk in chunks if chunk)
-        
-        if len(clean_text) > 4000:
-            return clean_text[:3000] + "\n...\n" + clean_text[-1000:]
-        return clean_text
-
-    def extract_tracking_regex(self, text: str) -> list[str]:
-        """Regex pour numéros de suivi"""
-        patterns = [
-            r"\b(1Z[0-9A-Z]{16})\b",
-            r"\b(6A[0-9]{11})\b",
-            r"\b([0-9]{13,15})\b",
-            r"\b([A-Z]{2}[0-9]{9}[A-Z]{2})\b",
-        ]
-        found = set()
-        for p in patterns:
-            matches = re.findall(p, text)
-            for m in matches:
-                if len(m) > 6:
-                    found.add(m)
-        return list(found)
-
+    
     def process(self, raw_body: str, subject: str = "", sender: str = "") -> dict:
-        """Pipeline d'extraction"""
+        from bs4 import BeautifulSoup
+        from langdetect import detect, LangDetectException
+        import re
         
-        clean_body = self.clean_html(raw_body)
-        full_text = f"{subject}\n{sender}\n{clean_body}"
+        # Clean HTML
+        soup = BeautifulSoup(raw_body, "html.parser")
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+        text = soup.get_text(separator="\n")
         
-        tracking_numbers = self.extract_tracking_regex(full_text)
-        
+        # Detect language
         try:
-            lang = detect(full_text[:1000])
-        except LangDetectException:
+            lang = detect(text[:1000])
+        except:
             lang = "fr"
         
-        # ✅ Utiliser le modèle NER custom si disponible
-        if self.ner_model:
-            doc = self.ner_model(full_text[:3000])
-        else:
-            nlp = self.nlp_en if lang == "en" else self.nlp_fr
-            doc = nlp(full_text[:3000])
+        nlp = self.nlp_en if lang == "en" else self.nlp_fr
+        doc = nlp(text[:3000])
         
-        carrier = None
+        # Extract
+        tracking = list(set(re.findall(r'\b([0-9]{8,15})\b', text)))
+        
         entities = []
-        
         for ent in doc.ents:
             entities.append({
                 "text": ent.text,
                 "label": ent.label_,
-                "confidence": 0.95,
+                "confidence": 0.95
             })
-            
-            if ent.label_ == "ORG" and not carrier:
-                if any(x in ent.text.lower() for x in ["poste", "relay", "ups", "dhl", "chronopost", "mondialrelay"]):
-                    carrier = {"label": ent.text, "confidence": 0.99}
         
         return {
-            "trackingNumbers": tracking_numbers,
-            "pickupAddress": None,
-            "deliveryAddress": None,
-            "personNames": [],
-            "withdrawalCodes": [],
-            "orderNumbers": [],
-            "productNames": [],
-            "prices": [],
-            "dates": [],
-            "carrier": carrier,
-            "shipmentType": None,
-            "marketplace": None,
-            "emailType": None,
+            "trackingNumbers": tracking,
+            "carrier": None,
             "entities": entities,
             "language": lang,
-            "raw_text_snippet": clean_body[:100],
         }
