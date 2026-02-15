@@ -5,9 +5,8 @@ print("🔧 Creating pattern-based model...")
 
 nlp = spacy.blank("fr")
 
-# Add NER first, THEN entity_ruler
-ner = nlp.add_pipe("ner", last=True)
-ruler = nlp.add_pipe("entity_ruler", before="ner")
+# Only use entity_ruler, no NER needed
+ruler = nlp.add_pipe("entity_ruler", last=True)
 
 patterns = [
     {"label": "ORG", "pattern": "CHRONOPOST"},
