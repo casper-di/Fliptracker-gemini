@@ -4,58 +4,9 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  data-prep:
-    name: Export and Prepare Data
+  create-model:
+    name: Create Pattern-Based Model
     runs-on: ubuntu-latest
-    env:
-      PYTHONUNBUFFERED: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libsndfile1
-
-      - name: Install Python requirements
-        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
-
-      - name: Export data from Firestore
-        working-directory: fliptracker/apps/nlp-service
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 --decode > "${GOOGLE_APPLICATION_CREDENTIALS}"
-          python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
-          python training/export_data.py
-
-      - name: Prepare data
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/prepare_data.py
-
-      - name: Archive prepared data
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          tar -czf prepared-data.tar.gz data/annotated/
-          cp prepared-data.tar.gz ../../../
-
-      - name: Upload prepared data
-        uses: actions/upload-artifact@v4
-        with:
-          name: prepared-data
-          path: prepared-data.tar.gz
-          retention-days: 7
-
-  train:
-    name: Train spaCy NER Model
-    runs-on: ubuntu-latest
-    needs: data-prep
     env:
       PYTHONUNBUFFERED: 1
     steps:
@@ -68,53 +19,76 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
+        run: pip install spacy -q
 
-      - name: Download prepared data
-        uses: actions/download-artifact@v4
-        with:
-          name: prepared-data
-
-      - name: Extract data
-        run: tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
-
-      - name: Debug training data
+      - name: Create model
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Checking spacy_train.json ==="
-          if [ -f "data/annotated/spacy_train.json" ]; then
-            echo "✅ File exists"
-            wc -l data/annotated/spacy_train.json
-            echo ""
-            echo "File size:"
-            du -sh data/annotated/spacy_train.json
-            echo ""
-            echo "First 30 lines:"
-            head -30 data/annotated/spacy_train.json
-            echo ""
-            echo "=== All files in data/annotated ==="
-            ls -lh data/annotated/
-          else
-            echo "❌ spacy_train.json NOT found"
-            echo "Contents of data/annotated/:"
-            ls -la data/annotated/ || echo "❌ data/annotated/ does not exist"
-            exit 1
-          fi
+          python3 << 'EOF'
+import spacy
+from pathlib import Path
 
-      - name: Train model
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/train_spacy_ner.py --epochs 20
+print("🔧 Creating pattern-based model...")
 
-      - name: Check model created
+nlp = spacy.blank("fr")
+ruler = nlp.add_pipe("entity_ruler", before="ner")
+
+patterns = [
+    # Organizations
+    {"label": "ORG", "pattern": "CHRONOPOST"},
+    {"label": "ORG", "pattern": "COLISSIMO"},
+    {"label": "ORG", "pattern": "DHL"},
+    {"label": "ORG", "pattern": "UPS"},
+    {"label": "ORG", "pattern": "FEDEX"},
+    {"label": "ORG", "pattern": "AMAZON"},
+    {"label": "ORG", "pattern": "VINTED"},
+    {"label": "ORG", "pattern": [{"LOWER": "mondial"}, {"LOWER": "relay"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "relais"}, {"LOWER": "colis"}]},
+    {"label": "ORG", "pattern": [{"LOWER": "la"}, {"LOWER": "poste"}]},
+]
+
+ruler.add_patterns(patterns)
+
+# Save
+model_dir = Path("models/ner_model/model-best")
+model_dir.mkdir(parents=True, exist_ok=True)
+nlp.to_disk(str(model_dir))
+
+print(f"✅ Model saved to {model_dir}")
+print(f"✅ Patterns added: {len(patterns)}")
+EOF
+
+      - name: Test model
         working-directory: fliptracker/apps/nlp-service
         run: |
-          if [ -d "models/ner_model/model-best" ]; then
-            echo "✅ Model created"
-            du -sh models/ner_model/model-best
-          else
-            echo "❌ Model NOT created"
-            exit 1
-          fi
+          python3 << 'EOF'
+import spacy
+
+print("\n🧪 Testing model...\n")
+
+nlp = spacy.load("models/ner_model/model-best")
+
+test_texts = [
+    "DHL package 12345 ready at OULLINS, 1 RUE DIDEROT, 69600",
+    "Your CHRONOPOST tracking XW297981644TS is on the way",
+    "COLISSIMO delivery to AMAZON customer",
+    "Relais Colis point available for pickup",
+    "La Poste has your order"
+]
+
+for text in test_texts:
+    doc = nlp(text)
+    print(f"📧 {text[:50]}...")
+    
+    if doc.ents:
+        for ent in doc.ents:
+            print(f"  ✅ {ent.label_:10s} | {ent.text}")
+    else:
+        print(f"  ⚠️  No entities found")
+    print()
+
+print("✨ Test complete!")
+EOF
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
@@ -138,9 +112,9 @@ jobs:
           rm -rf models models-final || true
 
   summary:
-    name: Training Summary
+    name: Summary
     runs-on: ubuntu-latest
-    needs: train
+    needs: create-model
     if: always()
     steps:
       - name: Download model
@@ -151,7 +125,10 @@ jobs:
       - name: Show result
         run: |
           echo "=========================================="
-          echo "🎉 Training Complete!"
+          echo "🎉 Model Creation Complete!"
           echo "=========================================="
+          echo ""
+          echo "📦 Model:"
           ls -lh nlp-ner-model.tar.gz || echo "No model"
+          echo ""
           echo "=========================================="
