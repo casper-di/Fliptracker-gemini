@@ -110,22 +110,17 @@ EOF
 COPY src/ src/
 
 # ========================================
-# 6. Copy config (optional)
-# ========================================
-COPY config/ config/ 2>/dev/null || true
-
-# ========================================
-# 7. Health check
+# 6. Health check
 # ========================================
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)"
 
 # ========================================
-# 8. Expose port
+# 7. Expose port
 # ========================================
 EXPOSE 8000
 
 # ========================================
-# 9. Run application
+# 8. Run application
 # ========================================
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
