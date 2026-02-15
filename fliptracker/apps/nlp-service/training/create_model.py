@@ -1,14 +1,15 @@
 import spacy
 from pathlib import Path
 
-# Create a model with JUST patterns (no training)
+print("🔧 Creating pattern-based model...")
+
 nlp = spacy.blank("fr")
 
-# Add entity_ruler
+# Add NER first, THEN entity_ruler
+ner = nlp.add_pipe("ner", last=True)
 ruler = nlp.add_pipe("entity_ruler", before="ner")
 
 patterns = [
-    # Organizations
     {"label": "ORG", "pattern": "CHRONOPOST"},
     {"label": "ORG", "pattern": "COLISSIMO"},
     {"label": "ORG", "pattern": "DHL"},
@@ -23,9 +24,9 @@ patterns = [
 
 ruler.add_patterns(patterns)
 
-# Save
 model_dir = Path("models/ner_model/model-best")
 model_dir.mkdir(parents=True, exist_ok=True)
 nlp.to_disk(str(model_dir))
 
-print(f"✅ Model saved to {model_dir}")
+print(f"✅ Model saved!")
+print(f"✅ Patterns: {len(patterns)}")
