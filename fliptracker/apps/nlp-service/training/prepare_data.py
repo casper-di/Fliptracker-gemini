@@ -1,13 +1,15 @@
 """
 FlipTracker NLP — Auto-annotation Pipeline v2
 Extrait: TRACKING, ADDRESS, SHOP_NAME
-Utilise regex intelligent pour détecter les shops
+AVEC vérification d'alignement spaCy
 """
 import json
 import re
-import random
 from pathlib import Path
 from bs4 import BeautifulSoup
+import spacy
+from spacy.training import offsets_to_biluo_tags
+import random
 
 
 def strip_html(html: str) -> str:
@@ -22,8 +24,8 @@ def strip_html(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def find_tracking_numbers(text: str) -> list:
-    """Extract tracking numbers"""
+def find_tracking_numbers(text: str, nlp) -> list:
+    """Extract tracking numbers with alignment check"""
     patterns = [
         r'\b([0-9]{8,15})\b',
         r'\b([A-Z]{2}[0-9]{9}[A-Z]{2})\b',
@@ -32,43 +34,44 @@ def find_tracking_numbers(text: str) -> list:
     ]
     
     found = set()
+    doc = nlp.make_doc(text)
+    
     for pattern in patterns:
         for match in re.finditer(pattern, text):
-            found.add((match.start(), match.end(), 'TRACKING'))
+            start, end = match.span()
+            tags = offsets_to_biluo_tags(doc, [(start, end, 'TRACKING')])
+            if '-' not in tags:  # Well aligned
+                found.add((start, end, 'TRACKING'))
     
     return list(found)
 
 
-def find_shop_names(text: str) -> list:
-    """
-    Extract shop names using intelligent regex patterns
-    Detects: Capitalized text BEFORE an address
-    Examples: "Monoprix 90 Grande Rue", "N&H Relais 8 RUE DU CENTRE"
-    """
+def find_shop_names(text: str, nlp) -> list:
+    """Extract shop names with alignment check"""
     found = set()
     
-    # Pattern: Capitalized word(s) + optional &/- + word(s) BEFORE an address
-    # Lookahead: (?=\d+\s+(?:rue|avenue|boulevard|road|street|place|chemin))
-    # This ensures we only match shop names that are followed by an address pattern
-    
     pattern = r'\b([A-Z][A-Za-z&\-\s]*?)\s+(?=\d+\s+(?:rue|avenue|boulevard|place|chemin|quai|impasse|street|road|way|drive|lane|court))'
+    
+    doc = nlp.make_doc(text)
     
     for match in re.finditer(pattern, text, re.IGNORECASE):
         shop = match.group(1).strip()
         
-        # Filter: remove very short or very long strings
         if 3 <= len(shop) <= 50:
-            # Filter: avoid common words (articles, prepositions)
-            skip_words = {"Le", "La", "Les", "De", "Du", "Et", "Ou", "Au", "Aux", "Un", "Une", "Des", "Pour", "Par", "The", "A", "An"}
+            skip_words = {"Le", "La", "Les", "De", "Du", "Et", "Ou", "Au", "Aux", "Un", "Une", "Des", "The", "A", "An"}
             if shop not in skip_words:
-                found.add((match.start(), match.end(), 'SHOP_NAME'))
+                start, end = match.span()
+                tags = offsets_to_biluo_tags(doc, [(start, end, 'SHOP_NAME')])
+                if '-' not in tags:  # Well aligned
+                    found.add((start, end, 'SHOP_NAME'))
     
     return list(found)
 
 
-def find_addresses(text: str) -> list:
-    """Extract addresses with postal codes"""
+def find_addresses(text: str, nlp) -> list:
+    """Extract addresses with alignment check"""
     addresses = []
+    doc = nlp.make_doc(text)
     
     # Pattern 1: Numéro + RUE/AVENUE/STREET + CODE POSTAL
     patterns = [
@@ -77,16 +80,22 @@ def find_addresses(text: str) -> list:
     
     for pattern in patterns:
         for match in re.finditer(pattern, text, re.IGNORECASE):
-            addresses.append((match.start(), match.end(), 'ADDRESS'))
+            start, end = match.span()
+            tags = offsets_to_biluo_tags(doc, [(start, end, 'ADDRESS')])
+            if '-' not in tags:  # Well aligned
+                addresses.append((start, end, 'ADDRESS'))
     
     # Pattern 2: CODE POSTAL + CITY
     for match in re.finditer(r'([0-9]{5}\s+[A-Z][A-Za-z\s\-]+)', text):
-        addresses.append((match.start(), match.end(), 'ADDRESS'))
+        start, end = match.span()
+        tags = offsets_to_biluo_tags(doc, [(start, end, 'ADDRESS')])
+        if '-' not in tags:  # Well aligned
+            addresses.append((start, end, 'ADDRESS'))
     
     return list(set(addresses))
 
 
-def annotate_sample(sample: dict) -> dict:
+def annotate_sample(sample: dict, nlp) -> dict:
     """Convert a sample to NER format"""
     body = sample.get("body", "")
     if not body or len(body) < 20:
@@ -96,17 +105,17 @@ def annotate_sample(sample: dict) -> dict:
     if len(text) > 3000:
         text = text[:3000]
     
-    # Extract all entities
+    # Extract all entities (with alignment check)
     entities = []
-    entities.extend(find_tracking_numbers(text))
-    entities.extend(find_addresses(text))
-    entities.extend(find_shop_names(text))
+    entities.extend(find_tracking_numbers(text, nlp))
+    entities.extend(find_addresses(text, nlp))
+    entities.extend(find_shop_names(text, nlp))
     
     # Remove duplicates and overlaps
     entities = list(set(entities))
     entities.sort(key=lambda x: x[0])
     
-    # Remove overlapping (keep first match)
+    # Remove overlapping
     final_entities = []
     last_end = -1
     for start, end, label in entities:
@@ -124,6 +133,9 @@ def annotate_sample(sample: dict) -> dict:
 
 
 def main():
+    # Load spaCy for alignment checking
+    nlp = spacy.blank("fr")
+    
     data_dir = Path(__file__).parent.parent / "data"
     samples_path = data_dir / "training_samples.json"
     
@@ -136,11 +148,11 @@ def main():
         samples = json.load(f)
     print(f"   Loaded {len(samples)} samples")
     
-    print("\n🏷️  Auto-annotating...")
+    print("\n🏷️  Auto-annotating (with alignment check)...")
     annotated = []
     skipped = 0
     for sample in samples:
-        result = annotate_sample(sample)
+        result = annotate_sample(sample, nlp)
         if result:
             annotated.append(result)
         else:
