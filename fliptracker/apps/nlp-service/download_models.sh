@@ -1,34 +1,34 @@
 #!/bin/bash
-set -e
 
-echo "📥 Downloading NLP models from Google Drive..."
+echo "Downloading models from Google Drive..."
 
-if [ -z "$MODELS_GDRIVE_ID" ]; then
-    echo "❌ MODELS_GDRIVE_ID not set!"
-    echo "⚠️  Starting with blank models..."
-    mkdir -p /app/models
-    exit 0
-fi
+GDRIVE_ID="1aVrRnX2k0ycvJAUt2uaFpHp8XttL7SYT"
+OUTPUT_FILE="/tmp/models"
 
-pip install --no-cache-dir gdown
+# Download
+python3 << 'EOF'
+import gdown
+print("Downloading...")
+gdown.download(f"https://drive.google.com/uc?id={os.environ['GDRIVE_ID']}", "/tmp/models", quiet=False)
+EOF
 
-gdown --id "${MODELS_GDRIVE_ID}" -O /tmp/models.tar.gz
+echo "✅ Downloaded"
+echo "📂 Extracting models..."
 
-if [ ! -f /tmp/models.tar.gz ] || [ ! -s /tmp/models.tar.gz ]; then
-    echo "❌ Download failed or file is empty!"
-    mkdir -p /app/models
+# Check if ZIP or TAR
+if file /tmp/models | grep -q "Zip"; then
+    echo "Detected ZIP format"
+    unzip -q /tmp/models -d /app/trained_models
+elif file /tmp/models | grep -q "gzip"; then
+    echo "Detected TAR.GZ format"
+    tar -xzf /tmp/models -C /app/trained_models
+else
+    echo "Unknown format"
+    file /tmp/models
     exit 1
 fi
 
-FILE_SIZE=$(du -sh /tmp/models.tar.gz | cut -f1)
-echo "✅ Downloaded ${FILE_SIZE}"
-
-echo "📂 Extracting models..."
-mkdir -p /app/models
-tar -xzf /tmp/models.tar.gz -C /app/models --strip-components=1
-
-rm -f /tmp/models.tar.gz
-
 echo "✅ Models ready!"
-ls -la /app/models/
-du -sh /app/models/*
+ls -la /app/trained_models/
+
+rm -f /tmp/models
