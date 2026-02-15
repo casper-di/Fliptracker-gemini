@@ -21,6 +21,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
 
+      - name: Download spaCy models
+        run: |
+          python -m spacy download fr_core_news_sm -q
+          python -m spacy download en_core_web_sm -q
+
       - name: Export from Firestore
         working-directory: fliptracker/apps/nlp-service
         env:
@@ -51,6 +56,11 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r fliptracker/apps/nlp-service/requirements.txt
+
+      - name: Download spaCy models
+        run: |
+          python -m spacy download fr_core_news_sm -q
+          python -m spacy download en_core_web_sm -q
 
       - name: Create carrier model
         working-directory: fliptracker/apps/nlp-service
