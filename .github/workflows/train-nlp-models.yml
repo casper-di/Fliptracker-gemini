@@ -23,72 +23,11 @@ jobs:
 
       - name: Create model
         working-directory: fliptracker/apps/nlp-service
-        run: |
-          python3 << 'EOF'
-import spacy
-from pathlib import Path
-
-print("🔧 Creating pattern-based model...")
-
-nlp = spacy.blank("fr")
-ruler = nlp.add_pipe("entity_ruler", before="ner")
-
-patterns = [
-    # Organizations
-    {"label": "ORG", "pattern": "CHRONOPOST"},
-    {"label": "ORG", "pattern": "COLISSIMO"},
-    {"label": "ORG", "pattern": "DHL"},
-    {"label": "ORG", "pattern": "UPS"},
-    {"label": "ORG", "pattern": "FEDEX"},
-    {"label": "ORG", "pattern": "AMAZON"},
-    {"label": "ORG", "pattern": "VINTED"},
-    {"label": "ORG", "pattern": [{"LOWER": "mondial"}, {"LOWER": "relay"}]},
-    {"label": "ORG", "pattern": [{"LOWER": "relais"}, {"LOWER": "colis"}]},
-    {"label": "ORG", "pattern": [{"LOWER": "la"}, {"LOWER": "poste"}]},
-]
-
-ruler.add_patterns(patterns)
-
-# Save
-model_dir = Path("models/ner_model/model-best")
-model_dir.mkdir(parents=True, exist_ok=True)
-nlp.to_disk(str(model_dir))
-
-print(f"✅ Model saved to {model_dir}")
-print(f"✅ Patterns added: {len(patterns)}")
-EOF
+        run: python3 training/create_model.py
 
       - name: Test model
         working-directory: fliptracker/apps/nlp-service
-        run: |
-          python3 << 'EOF'
-import spacy
-
-print("\n🧪 Testing model...\n")
-
-nlp = spacy.load("models/ner_model/model-best")
-
-test_texts = [
-    "DHL package 12345 ready at OULLINS, 1 RUE DIDEROT, 69600",
-    "Your CHRONOPOST tracking XW297981644TS is on the way",
-    "COLISSIMO delivery to AMAZON customer",
-    "Relais Colis point available for pickup",
-    "La Poste has your order"
-]
-
-for text in test_texts:
-    doc = nlp(text)
-    print(f"📧 {text[:50]}...")
-    
-    if doc.ents:
-        for ent in doc.ents:
-            print(f"  ✅ {ent.label_:10s} | {ent.text}")
-    else:
-        print(f"  ⚠️  No entities found")
-    print()
-
-print("✨ Test complete!")
-EOF
+        run: python3 training/test_model.py
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
@@ -127,8 +66,5 @@ EOF
           echo "=========================================="
           echo "🎉 Model Creation Complete!"
           echo "=========================================="
-          echo ""
-          echo "📦 Model:"
           ls -lh nlp-ner-model.tar.gz || echo "No model"
-          echo ""
           echo "=========================================="
