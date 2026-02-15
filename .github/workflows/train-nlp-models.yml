@@ -35,12 +35,12 @@ jobs:
           python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
           python training/export_data.py
 
-      - name: Prepare data
+      - name: Prepare data (with SHOP_NAME detection)
         working-directory: fliptracker/apps/nlp-service
         run: python training/prepare_data.py
 
   train:
-    name: Train Models
+    name: Train NER Models
     runs-on: ubuntu-latest
     needs: data-prep
     env:
@@ -62,23 +62,23 @@ jobs:
           python -m spacy download fr_core_news_sm -q
           python -m spacy download en_core_web_sm -q
 
-      - name: Create carrier model
+      - name: Train NER model (ADDRESS, SHOP_NAME, TRACKING)
         working-directory: fliptracker/apps/nlp-service
-        run: python training/create_model.py
+        run: python training/train_ner_full.py
 
-      - name: Test address extraction
+      - name: Test NER model on validation data
         working-directory: fliptracker/apps/nlp-service
-        run: python training/extract_addresses.py
+        run: python training/test_ner_model.py
 
       - name: Collect models
         working-directory: fliptracker/apps/nlp-service
         run: |
           mkdir -p models-final
-          cp -r models/ner_model/model-best models-final/carrier
+          cp -r models/ner_full/model-best models-final/ner_full
           tar -czf nlp-models.tar.gz models-final/
           cp nlp-models.tar.gz ../../../
 
-      - name: Upload models
+      - name: Upload models artifact
         uses: actions/upload-artifact@v4
         with:
           name: nlp-models
@@ -92,7 +92,7 @@ jobs:
           rm -rf models models-final || true
 
   summary:
-    name: Summary
+    name: Training Summary
     runs-on: ubuntu-latest
     needs: train
     if: always()
@@ -105,7 +105,11 @@ jobs:
       - name: Show results
         run: |
           echo "=========================================="
-          echo "🎉 Training Complete!"
+          echo "🎉 NER Model Training Complete!"
           echo "=========================================="
-          ls -lh nlp-models.tar.gz || echo "No models"
+          echo ""
+          echo "📦 Model artifact:"
+          ls -lh nlp-models.tar.gz || echo "No models found"
+          echo ""
+          echo "✨ Ready for deployment!"
           echo "=========================================="
