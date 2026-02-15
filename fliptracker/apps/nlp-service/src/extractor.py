@@ -167,9 +167,15 @@ class HybridExtractor:
         # Extract with NER model
         addresses = []
         shop_name = None
+        all_entities = []
         
         if self.ner_model:
             doc = self.ner_model(text[:3000])
+            
+            # DEBUG: Show all entities detected
+            all_entities = [(ent.text, ent.label_) for ent in doc.ents]
+            print(f"\n🔍 All NER entities found: {all_entities}")
+            print(f"   Total: {len(all_entities)} entities")
             
             # Extract ADDRESS entities
             for ent in doc.ents:
@@ -177,10 +183,18 @@ class HybridExtractor:
                     addr = ent.text.strip()
                     if len(addr) > 5 and addr not in addresses:
                         addresses.append(addr)
+                        print(f"   ✅ ADDRESS: {addr}")
                 
                 # Extract first SHOP_NAME
                 elif ent.label_ == "SHOP_NAME" and not shop_name:
                     shop_name = ent.text.strip()
+                    print(f"   ✅ SHOP_NAME: {shop_name}")
+                
+                # Extract TRACKING
+                elif ent.label_ == "TRACKING":
+                    print(f"   ✅ TRACKING: {ent.text}")
+        else:
+            print("   ⚠️  NER model not available, using fallback")
         
         # Fallback: use matcher if NER not available
         if not addresses and self.ner_model is None:
