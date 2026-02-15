@@ -78,9 +78,43 @@ jobs:
       - name: Extract data
         run: tar -xzf prepared-data.tar.gz -C fliptracker/apps/nlp-service/
 
+      - name: Debug training data
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          echo "=== Checking spacy_train.json ==="
+          if [ -f "data/annotated/spacy_train.json" ]; then
+            echo "✅ File exists"
+            wc -l data/annotated/spacy_train.json
+            echo ""
+            echo "File size:"
+            du -sh data/annotated/spacy_train.json
+            echo ""
+            echo "First 30 lines:"
+            head -30 data/annotated/spacy_train.json
+            echo ""
+            echo "=== All files in data/annotated ==="
+            ls -lh data/annotated/
+          else
+            echo "❌ spacy_train.json NOT found"
+            echo "Contents of data/annotated/:"
+            ls -la data/annotated/ || echo "❌ data/annotated/ does not exist"
+            exit 1
+          fi
+
       - name: Train model
         working-directory: fliptracker/apps/nlp-service
         run: python training/train_spacy_ner.py --epochs 20
+
+      - name: Check model created
+        working-directory: fliptracker/apps/nlp-service
+        run: |
+          if [ -d "models/ner_model/model-best" ]; then
+            echo "✅ Model created"
+            du -sh models/ner_model/model-best
+          else
+            echo "❌ Model NOT created"
+            exit 1
+          fi
 
       - name: Collect model
         working-directory: fliptracker/apps/nlp-service
@@ -115,4 +149,9 @@ jobs:
           name: nlp-ner-model
 
       - name: Show result
-        run: ls -lh nlp-ner-model.tar.gz || echo "No model"
+        run: |
+          echo "=========================================="
+          echo "🎉 Training Complete!"
+          echo "=========================================="
+          ls -lh nlp-ner-model.tar.gz || echo "No model"
+          echo "=========================================="
