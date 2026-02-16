@@ -1,14 +1,14 @@
 name: Train NER Model
 
 on:
-  workflow_dispatch: {} # Permet de lancer l'entraînement manuellement
+  workflow_dispatch: {}
   push:
     branches: [ main ]
-    paths: [ 'fliptracker/apps/nlp-service/aa.jsonl.json' ] # Se lance quand tu modifies tes données
+    paths: [ 'fliptracker/apps/nlp-service/aa.jsonl.json' ]
 
 jobs:
   train:
-    name: 🧠 Train & Generate Artifact
+    name: 🧠 Train & Generate Model
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,21 +21,22 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install spaCy
+      - name: Install dependencies
         run: pip install spacy
 
-      - name: 🛠️ Convert Data & Train
+      - name: 🛠️ Clean Data & Train
         run: |
           python -c "
           import spacy, json, os
           from spacy.tokens import DocBin
+          from spacy.util import filter_spans
           
           nlp = spacy.blank('fr')
           db = DocBin()
           input_file = 'aa.jsonl.json'
           
           if not os.path.exists(input_file):
-              print(f'❌ Erreur: {input_file} introuvable'); exit(1)
+              print('❌ Fichier aa.jsonl.json introuvable'); exit(1)
 
           with open(input_file, 'r', encoding='utf-8') as f:
               content = f.read().strip()
@@ -44,7 +45,7 @@ jobs:
               except:
                   data = [json.loads(l) for l in content.split('\n') if l.strip()]
 
-          print(f'📦 Traitement de {len(data)} exemples...')
+          print(f'📦 Traitement de {len(data)} items...')
 
           for i, item in enumerate(data):
               try:
@@ -54,24 +55,40 @@ jobs:
                   doc = nlp.make_doc(text)
                   ents = []
                   for e in item.get('entities', []):
-                      span = doc.char_span(e['start'], e['end'], label=e['entity'], alignment_mode='contract')
-                      if span: ents.append(span)
-                  doc.ents = ents
+                      start, end, label = e['start'], e['end'], e['entity']
+                      
+                      # --- FIX E024: Nettoyage automatique des espaces ---
+                      span_text = text[start:end]
+                      while span_text.startswith((' ', '\n', '\r', '\t')) and start < end:
+                          start += 1
+                          span_text = text[start:end]
+                      while span_text.endswith((' ', '\n', '\r', '\t')) and end > start:
+                          end -= 1
+                          span_text = text[start:end]
+                      
+                      span = doc.char_span(start, end, label=label, alignment_mode='contract')
+                      if span:
+                          ents.append(span)
+                  
+                  # filter_spans résout les conflits de chevauchement d'entités
+                  doc.ents = filter_spans(ents)
                   db.add(doc)
-              except: continue
+              except Exception as err:
+                  continue
 
           db.to_disk('train.spacy')
-          print(f'✅ {len(db)} exemples convertis.')
+          print(f'✅ {len(db)} exemples valides sauvegardés dans train.spacy')
           "
           
-          # Initialisation de la config spaCy
+          # 1. Création de la config
           python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
           
-          # Entraînement
+          # 2. Lancement de l'entraînement (CPU)
+          # On utilise train.spacy pour l'entraînement ET la validation vu la taille du set
           python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: 📦 Upload Trained Model Artifact
+      - name: 📦 Archive Model Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fliptracker-ner-model
+          name: fliptracker-model-best
           path: fliptracker/apps/nlp-service/output/model-best
