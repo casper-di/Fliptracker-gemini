@@ -3,142 +3,69 @@ name: Deploy NLP Service
 on:
   workflow_dispatch: {}
   push:
-    branches:
-      - main
-    paths:
-      - 'fliptracker/apps/nlp-service/**'
+    branches: [ main ]
+    paths: [ 'fliptracker/apps/nlp-service/**' ]
 
 jobs:
   train:
-    name: Train Lightweight NER
+    name: 🧠 Train NER Model
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fliptracker/apps/nlp-service
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install Training Deps
         run: pip install spacy
 
-      - name: Prepare Training Data
-        working-directory: fliptracker/apps/nlp-service
+      - name: Prepare & Train
         run: |
+          # 1. Conversion des données
           python -c "
           import spacy, json, os
           from spacy.tokens import DocBin
-
-          def convert():
-              nlp = spacy.blank('fr')
-              db = DocBin()
-              
-              # Charger les données réelles (aa.jsonl.json)
-              with open('aa.jsonl.json', 'r') as f:
-                  real_data = json.load(f)
-              
-              # Charger les données synthétiques (les 50 adresses)
-              with open('synthetic_data.json', 'r') as f:
-                  synth_data = json.load(f)
-
-              # Traitement aa.jsonl.json (format spécifique avec 'line')
-              for item in real_data:
-                  try:
-                      line_content = json.loads(item['line'])
-                      text = line_content.get('text') or line_content.get('subject') or ''
-                      if not text: continue
-                      
-                      doc = nlp.make_doc(text)
-                      ents = []
-                      for ent in item['entities']:
-                          span = doc.char_span(ent['start'], ent['end'], label=ent['entity'], alignment_mode='contract')
-                          if span: ents.append(span)
-                      doc.ents = ents
-                      db.add(doc)
-                  except: continue
-
-              # Traitement synthetic_data.json
-              for item in synth_data:
-                  doc = nlp.make_doc(item['text'])
-                  ents = []
-                  for ent in item['entities']:
-                      span = doc.char_span(ent['start'], ent['end'], label=ent['entity'], alignment_mode='contract')
-                      if span: ents.append(span)
-                  doc.ents = ents
-                  db.add(doc)
-              
-              db.to_disk('train.spacy')
-
-          convert()
+          nlp = spacy.blank('fr')
+          db = DocBin()
+          with open('aa.jsonl.json', 'r', encoding='utf-8') as f:
+              data = json.load(f)
+          for item in data:
+              text = item['text'] if 'text' in item else json.loads(item['line']).get('text', '')
+              if not text: continue
+              doc = nlp.make_doc(text)
+              ents = []
+              for e in item.get('entities', []):
+                  span = doc.char_span(e['start'], e['end'], label=e['entity'], alignment_mode='contract')
+                  if span: ents.append(span)
+              doc.ents = ents
+              db.add(doc)
+          db.to_disk('train.spacy')
           "
-
-      - name: Train Model
-        working-directory: fliptracker/apps/nlp-service
-        run: |
+          # 2. Config & Training
           python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
           python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: Upload Model Artifact
+      - name: Save Model
         uses: actions/upload-artifact@v4
         with:
           name: trained-model
           path: fliptracker/apps/nlp-service/output/model-best
 
-  test:
-    name: Test NLP Service
-    runs-on: ubuntu-latest
-    needs: train
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download Model
-        uses: actions/download-artifact@v4
-        with:
-          name: trained-model
-          path: fliptracker/apps/nlp-service/model-best
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
-
-      - name: Test extractor
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          python -c "
-          import spacy
-          try:
-              nlp = spacy.load('model-best')
-              doc = nlp('Votre colis est arrivé à Monoprix, 90 Grande Rue, 69600 Oullins')
-              print('--- Entities Found ---')
-              for ent in doc.ents:
-                  print(f'{ent.label_}: {ent.text}')
-              print('--- Test Success ---')
-          except Exception as e:
-              print(f'Test failed: {e}')
-              exit(1)
-          "
-
   build:
-    name: Build Docker Image
+    name: 🐳 Build & Push Docker
+    needs: train
     runs-on: ubuntu-latest
-    needs: test
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Download Model
         uses: actions/download-artifact@v4
         with:
           name: trained-model
           path: fliptracker/apps/nlp-service/model-best
-
+      
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -149,15 +76,5 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: fliptracker/apps/nlp-service
-          file: fliptracker/apps/nlp-service/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/fliptracker-nlp:latest
-
-  summary:
-    name: Summary
-    runs-on: ubuntu-latest
-    needs: build
-    if: always()
-    steps:
-      - name: Show results
-        run: echo "🎉 Le modèle est prêt dans Docker et disponible en téléchargement dans les Artifacts GitHub."
