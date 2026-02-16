@@ -1,214 +1,73 @@
 import spacy
-from spacy.matcher import Matcher
 import re
+import os
 from bs4 import BeautifulSoup
-from pathlib import Path
 
 class HybridExtractor:
     def __init__(self):
-        print("⚡ Loading models...")
+        print("⚡ Loading Fliptracker NER Model...")
         
-        # Load spaCy models
-        try:
-            self.nlp_fr = spacy.load("fr_core_news_sm", disable=["parser", "lemmatizer"])
-            self.nlp_en = spacy.load("en_core_web_sm", disable=["parser", "lemmatizer"])
-            print("   ✅ spaCy models loaded")
-        except Exception as e:
-            print(f"   ❌ Failed to load spaCy models: {e}")
-            raise
-        
-        # Create matchers (fallback)
-        try:
-            self.matcher_fr = self._create_address_matcher(self.nlp_fr)
-            self.matcher_en = self._create_address_matcher(self.nlp_en)
-            print("   ✅ Address matchers created")
-        except Exception as e:
-            print(f"   ❌ Failed to create matchers: {e}")
-            raise
-        
-        # Load NER model
-        self.ner_model = None
-        self._load_ner_model()
-        
-        print("✅ All models initialized!\n")
-    
-    def _load_ner_model(self):
-        """Load full NER model (ADDRESS, SHOP_NAME, TRACKING)"""
-        
-        possible_paths = [
-            Path("/app/trained_models/models-final/ner_full"),
-            Path("/app/trained_models/ner_full/model-best"),
-            Path("models-final/ner_full"),
-        ]
-        
-        ner_path = None
-        for path in possible_paths:
-            if path.exists():
-                ner_path = path
-                print(f"   📂 Found NER model at: {path}")
-                break
-        
-        if not ner_path:
-            print(f"   ⚠️  NER model not found")
-            self.ner_model = None
-            return
+        # On charge TON modèle entraîné (celui généré par GitHub Actions)
+        # On suppose qu'il est dans le dossier 'model-best' à la racine de l'app
+        model_path = os.path.join(os.path.dirname(__file__), "../model-best")
         
         try:
-            self.ner_model = spacy.load(str(ner_path))
-            print("   ✅ NER model loaded!")
-        except Exception as e:
-            print(f"   ❌ Failed to load NER model: {e}")
-            self.ner_model = None
-    
-    def _create_address_matcher(self, nlp):
-        """Create address pattern matcher for French and English"""
-        matcher = Matcher(nlp.vocab)
+            self.nlp = spacy.load(model_path)
+            print("✅ Custom NER model loaded")
+        except:
+            print("⚠️ Custom model not found, falling back to blank FR")
+            self.nlp = spacy.blank("fr")
+
+    def _clean_text(self, raw_body):
+        soup = BeautifulSoup(raw_body, "html.parser")
+        # Supprimer le bruit
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+        # Important : préserver un peu de structure avec des espaces
+        return soup.get_text(separator=' ')
+
+    def process(self, raw_body: str, subject: str = "", sender: str = "") -> dict:
+        text = self._clean_text(raw_body)
         
-        patterns = [
-            # FRENCH PATTERNS
-            [
-                {"IS_DIGIT": True, "OP": "?"},
-                {"LOWER": {"IN": ["rue", "avenue", "boulevard", "allée", "place", "chemin", "quai", "impasse", "passage", "square"]}},
-                {"IS_ALPHA": True, "OP": "*"},
-                {"IS_DIGIT": True, "OP": "*"},
-                {"ORTH": ",", "OP": "?"},
-                {"IS_DIGIT": True, "LENGTH": 5},
-                {"IS_ALPHA": True, "OP": "*"}
-            ],
-            [
-                {"IS_DIGIT": True, "LENGTH": 5},
-                {"IS_ALPHA": True, "OP": "+"}
-            ],
-            
-            # ENGLISH PATTERNS
-            [
-                {"IS_DIGIT": True, "OP": "?"},
-                {"LOWER": {"IN": ["street", "road", "avenue", "boulevard", "place", "way", "drive", "lane", "court", "circle", "park"]}},
-                {"IS_ALPHA": True, "OP": "*"},
-                {"ORTH": ",", "OP": "?"},
-                {"IS_DIGIT": True, "LENGTH": 5},
-                {"IS_ALPHA": True, "OP": "+"}
-            ],
-            [
-                {"IS_DIGIT": True, "LENGTH": 5},
-                {"IS_ALPHA": True, "OP": "+"}
-            ]
-        ]
+        # L'IA fait tout le travail ici (Extraction de l'adresse et du shop)
+        doc = self.nlp(text[:5000]) # On limite pour la performance
         
-        matcher.add("ADDRESS", patterns)
-        return matcher
-    
-    def _extract_addresses(self, text, matcher, nlp):
-        """Extract addresses from text (fallback)"""
+        res = {
+            "trackingNumbers": self._extract_tracking(text),
+            "pickupAddress": None,
+            "shopName": None,
+            "language": "fr" # Par défaut
+        }
+
+        # On récupère ce que l'IA a trouvé grâce à ton training
+        for ent in doc.ents:
+            if ent.label_ == "ADDRESS" and not res["pickupAddress"]:
+                res["pickupAddress"] = ent.text.strip()
+            if ent.label_ == "CARRIER" and not res["shopName"]:
+                res["shopName"] = ent.text.strip()
         
-        content_limit = int(len(text) * 1.0)
-        main_content = text[:content_limit]
-        
-        doc = nlp(main_content[:3000])
-        matches = matcher(doc)
-        
-        addresses = []
-        
-        if matches:
-            best_matches = []
-            for match_id, start, end in matches:
-                addr_text = doc[start:end].text.strip()
-                if len(addr_text) > 5:
-                    best_matches.append((start, end, addr_text))
-            
-            seen = set()
-            for start, end, addr_text in sorted(best_matches, key=lambda x: -(x[1]-x[0])):
-                is_duplicate = False
-                
-                for s, e, a in seen:
-                    if addr_text in a or a in addr_text:
-                        is_duplicate = True
-                        break
-                
-                if not is_duplicate:
-                    addresses.append(addr_text)
-                    seen.add((start, end, addr_text))
-        
-        return addresses
-    
+        # Fallback pour le Shop Name avec tes Regex si l'IA a raté
+        if not res["shopName"]:
+            res["shopName"] = self._fallback_shop_name(text)
+
+        return res
+
     def _extract_tracking(self, text):
-        """Extract tracking numbers from text"""
-        
+        # On garde tes Regex pour le tracking, car elles sont très efficaces
         patterns = [
             r'\b([0-9]{8,15})\b',
-            r'\b([A-Z]{2}[0-9]{9}[A-Z]{2})\b',
             r'\b(1Z[0-9A-Z]{16})\b',
             r'\b([0-9]{3}-[0-9]{7}-[0-9]{7})\b',
         ]
-        
         tracking = set()
-        for pattern in patterns:
-            matches = re.findall(pattern, text)
+        for p in patterns:
+            matches = re.findall(p, text)
             tracking.update(matches)
-        
         return list(tracking)
-    
-    def process(self, raw_body: str, subject: str = "", sender: str = "") -> dict:
-        """Main extraction pipeline"""
-        
-        # Clean HTML
-        soup = BeautifulSoup(raw_body, "html.parser")
-        for tag in soup(["script", "style"]):
-            tag.decompose()
-        text = soup.get_text()
-        
-        # Detect language
-        try:
-            from langdetect import detect
-            lang = detect(text[:1000])
-        except:
-            lang = "fr"
-        
-        # Extract with NER model
-        addresses = []
-        shop_name = None
-        all_entities = []
-        
-        if self.ner_model:
-            doc = self.ner_model(text[:3000])
-            
-            # DEBUG: Show all entities detected
-            all_entities = [(ent.text, ent.label_) for ent in doc.ents]
-            print(f"\n🔍 All NER entities found: {all_entities}")
-            print(f"   Total: {len(all_entities)} entities")
-            
-            # Extract ADDRESS entities
-            for ent in doc.ents:
-                if ent.label_ == "ADDRESS":
-                    addr = ent.text.strip()
-                    if len(addr) > 5 and addr not in addresses:
-                        addresses.append(addr)
-                        print(f"   ✅ ADDRESS: {addr}")
-                
-                # Extract first SHOP_NAME
-                elif ent.label_ == "SHOP_NAME" and not shop_name:
-                    shop_name = ent.text.strip()
-                    print(f"   ✅ SHOP_NAME: {shop_name}")
-                
-                # Extract TRACKING
-                elif ent.label_ == "TRACKING":
-                    print(f"   ✅ TRACKING: {ent.text}")
-        else:
-            print("   ⚠️  NER model not available, using fallback")
-        
-        # Fallback: use matcher if NER not available
-        if not addresses and self.ner_model is None:
-            nlp = self.nlp_en if lang == "en" else self.nlp_fr
-            matcher = self.matcher_en if lang == "en" else self.matcher_fr
-            addresses = self._extract_addresses(text, matcher, nlp)
-        
-        # Extract tracking
-        tracking = self._extract_tracking(text)
-        
-        return {
-            "trackingNumbers": tracking,
-            "pickupAddress": addresses[0] if addresses else None,
-            "deliveryAddress": addresses[1] if len(addresses) > 1 else None,
-            "shopName": shop_name,
-            "language": lang,
-        }
+
+    def _fallback_shop_name(self, text):
+        # Tes règles manuelles en secours
+        known = ["VINTED GO", "MONDIAL RELAY", "CHRONOPOST", "RELAIS COLIS"]
+        for s in known:
+            if s in text.upper(): return s
+        return None

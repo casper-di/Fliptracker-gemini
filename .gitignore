@@ -65,3 +65,4 @@ apps/nlp-service/trained_models/
 apps/nlp-service/models/
 apps/nlp-service/data/
 apps/nlp-service/*.tar.gz
+firabase.json

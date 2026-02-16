@@ -1,57 +1,17 @@
-name: Train NLP models - Full Pipeline
+name: Deploy NLP Service
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - 'fliptracker/apps/nlp-service/**'
 
 jobs:
-  data-prep:
-    name: Export and Prepare Data
-    runs-on: ubuntu-latest
-    env:
-      PYTHONUNBUFFERED: 1
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
-
-      - name: Download spaCy models
-        run: |
-          python -m spacy download fr_core_news_sm -q
-          python -m spacy download en_core_web_sm -q
-
-      - name: Export from Firestore
-        working-directory: fliptracker/apps/nlp-service
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 --decode > "${GOOGLE_APPLICATION_CREDENTIALS}"
-          python scripts/validate_json.py "${GOOGLE_APPLICATION_CREDENTIALS}"
-          python training/export_data.py
-
-      - name: Prepare data (with SHOP_NAME detection)
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/prepare_data.py
-
-      - name: Upload annotated data
-        uses: actions/upload-artifact@v4
-        with:
-          name: annotated-data
-          path: fliptracker/apps/nlp-service/data/annotated/
-          retention-days: 1
-
   train:
-    name: Train NER Models
+    name: Train Lightweight NER
     runs-on: ubuntu-latest
-    needs: data-prep
-    env:
-      PYTHONUNBUFFERED: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,123 +22,142 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
+        run: pip install spacy
 
-      - name: Download spaCy models
-        run: |
-          python -m spacy download fr_core_news_sm -q
-          python -m spacy download en_core_web_sm -q
-
-      - name: Download annotated data
-        uses: actions/download-artifact@v4
-        with:
-          name: annotated-data
-          path: fliptracker/apps/nlp-service/data/annotated/
-
-      - name: Verify data
+      - name: Prepare Training Data
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=== Checking annotated data ==="
-          ls -la data/annotated/
-          echo ""
-          echo "=== spacy_train.json ==="
-          head -c 200 data/annotated/spacy_train.json || echo "❌ File not found"
+          python -c "
+          import spacy, json, os
+          from spacy.tokens import DocBin
 
-      - name: Train NER model (ADDRESS, SHOP_NAME, TRACKING)
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/train_ner_full.py
+          def convert():
+              nlp = spacy.blank('fr')
+              db = DocBin()
+              
+              # Charger les données réelles (aa.jsonl.json)
+              with open('aa.jsonl.json', 'r') as f:
+                  real_data = json.load(f)
+              
+              # Charger les données synthétiques (les 50 adresses)
+              with open('synthetic_data.json', 'r') as f:
+                  synth_data = json.load(f)
 
-      - name: Check model exists
+              # Traitement aa.jsonl.json (format spécifique avec 'line')
+              for item in real_data:
+                  try:
+                      line_content = json.loads(item['line'])
+                      text = line_content.get('text') or line_content.get('subject') or ''
+                      if not text: continue
+                      
+                      doc = nlp.make_doc(text)
+                      ents = []
+                      for ent in item['entities']:
+                          span = doc.char_span(ent['start'], ent['end'], label=ent['entity'], alignment_mode='contract')
+                          if span: ents.append(span)
+                      doc.ents = ents
+                      db.add(doc)
+                  except: continue
+
+              # Traitement synthetic_data.json
+              for item in synth_data:
+                  doc = nlp.make_doc(item['text'])
+                  ents = []
+                  for ent in item['entities']:
+                      span = doc.char_span(ent['start'], ent['end'], label=ent['entity'], alignment_mode='contract')
+                      if span: ents.append(span)
+                  doc.ents = ents
+                  db.add(doc)
+              
+              db.to_disk('train.spacy')
+
+          convert()
+          "
+
+      - name: Train Model
         working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=========================================="
-          echo "🔍 CHECKING MODEL FILES"
-          echo "=========================================="
-          echo ""
-          echo "=== Models directory ==="
-          ls -la models/ || echo "❌ No models directory"
-          echo ""
-          echo "=== NER Full directory ==="
-          ls -la models/ner_full/ || echo "❌ No ner_full directory"
-          echo ""
-          echo "=== Model Best directory ==="
-          ls -la models/ner_full/model-best/ || echo "❌ No model-best directory"
-          echo ""
-          echo "=== All model files ==="
-          find models -type f 2>/dev/null | head -20 || echo "❌ No files found"
-          echo ""
-          echo "=========================================="
+          python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
+          python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: Test NER model on validation data
-        working-directory: fliptracker/apps/nlp-service
-        run: python training/test_ner_model.py
-
-      - name: Collect models
-        working-directory: fliptracker/apps/nlp-service
-        run: |
-          echo "=========================================="
-          echo "📦 COLLECTING MODELS"
-          echo "=========================================="
-          
-          mkdir -p models-final
-          
-          if [ -d "models/ner_full/model-best" ]; then
-            echo "✅ Found model at models/ner_full/model-best"
-            cp -r models/ner_full/model-best models-final/ner_full
-            echo "✅ Copied to models-final/ner_full"
-          else
-            echo "❌ Model directory not found at models/ner_full/model-best"
-            echo ""
-            echo "Looking for alternatives..."
-            find models -type d -name "model*" 2>/dev/null
-            exit 1
-          fi
-          
-          echo ""
-          echo "✅ Creating tar archive..."
-          tar -czf nlp-models.tar.gz models-final/
-          
-          echo "✅ Copying to repo root..."
-          cp nlp-models.tar.gz ../../../
-          
-          echo ""
-          echo "✅ Archive created:"
-          ls -lh nlp-models.tar.gz
-          echo ""
-          echo "=========================================="
-
-      - name: Upload models artifact
+      - name: Upload Model Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nlp-models
-          path: nlp-models.tar.gz
-          retention-days: 90
+          name: trained-model
+          path: fliptracker/apps/nlp-service/output/model-best
 
-      - name: Cleanup
-        if: always()
-        run: |
-          cd fliptracker/apps/nlp-service || true
-          rm -rf models models-final || true
-
-  summary:
-    name: Training Summary
+  test:
+    name: Test NLP Service
     runs-on: ubuntu-latest
     needs: train
-    if: always()
     steps:
-      - name: Download models
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Model
         uses: actions/download-artifact@v4
         with:
-          name: nlp-models
+          name: trained-model
+          path: fliptracker/apps/nlp-service/model-best
 
-      - name: Show results
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install -r fliptracker/apps/nlp-service/requirements.txt
+
+      - name: Test extractor
+        working-directory: fliptracker/apps/nlp-service
         run: |
-          echo "=========================================="
-          echo "🎉 NER Model Training Complete!"
-          echo "=========================================="
-          echo ""
-          echo "📦 Model artifact:"
-          ls -lh nlp-models.tar.gz || echo "❌ No models found"
-          echo ""
-          echo "✨ Ready for deployment!"
-          echo "=========================================="
+          python -c "
+          import spacy
+          try:
+              nlp = spacy.load('model-best')
+              doc = nlp('Votre colis est arrivé à Monoprix, 90 Grande Rue, 69600 Oullins')
+              print('--- Entities Found ---')
+              for ent in doc.ents:
+                  print(f'{ent.label_}: {ent.text}')
+              print('--- Test Success ---')
+          except Exception as e:
+              print(f'Test failed: {e}')
+              exit(1)
+          "
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Model
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-model
+          path: fliptracker/apps/nlp-service/model-best
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: fliptracker/apps/nlp-service
+          file: fliptracker/apps/nlp-service/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/fliptracker-nlp:latest
+
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    steps:
+      - name: Show results
+        run: echo "🎉 Le modèle est prêt dans Docker et disponible en téléchargement dans les Artifacts GitHub."
