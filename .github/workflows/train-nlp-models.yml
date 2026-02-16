@@ -1,80 +1,77 @@
-name: Deploy NLP Service
+name: Train NER Model
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {} # Permet de lancer l'entraînement manuellement
   push:
     branches: [ main ]
-    paths: [ 'fliptracker/apps/nlp-service/**' ]
+    paths: [ 'fliptracker/apps/nlp-service/aa.jsonl.json' ] # Se lance quand tu modifies tes données
 
 jobs:
   train:
-    name: 🧠 Train NER Model
+    name: 🧠 Train & Generate Artifact
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: fliptracker/apps/nlp-service
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install Training Deps
+      - name: Install spaCy
         run: pip install spacy
 
-      - name: Prepare & Train
+      - name: 🛠️ Convert Data & Train
         run: |
-          # 1. Conversion des données
           python -c "
           import spacy, json, os
           from spacy.tokens import DocBin
+          
           nlp = spacy.blank('fr')
           db = DocBin()
-          with open('aa.jsonl.json', 'r', encoding='utf-8') as f:
-              data = json.load(f)
-          for item in data:
-              text = item['text'] if 'text' in item else json.loads(item['line']).get('text', '')
-              if not text: continue
-              doc = nlp.make_doc(text)
-              ents = []
-              for e in item.get('entities', []):
-                  span = doc.char_span(e['start'], e['end'], label=e['entity'], alignment_mode='contract')
-                  if span: ents.append(span)
-              doc.ents = ents
-              db.add(doc)
+          input_file = 'aa.jsonl.json'
+          
+          if not os.path.exists(input_file):
+              print(f'❌ Erreur: {input_file} introuvable'); exit(1)
+
+          with open(input_file, 'r', encoding='utf-8') as f:
+              content = f.read().strip()
+              try:
+                  data = json.loads(content)
+              except:
+                  data = [json.loads(l) for l in content.split('\n') if l.strip()]
+
+          print(f'📦 Traitement de {len(data)} exemples...')
+
+          for i, item in enumerate(data):
+              try:
+                  text = item.get('text') or (json.loads(item['line']).get('text', '') if 'line' in item else '')
+                  if not text: continue
+                  
+                  doc = nlp.make_doc(text)
+                  ents = []
+                  for e in item.get('entities', []):
+                      span = doc.char_span(e['start'], e['end'], label=e['entity'], alignment_mode='contract')
+                      if span: ents.append(span)
+                  doc.ents = ents
+                  db.add(doc)
+              except: continue
+
           db.to_disk('train.spacy')
+          print(f'✅ {len(db)} exemples convertis.')
           "
-          # 2. Config & Training
+          
+          # Initialisation de la config spaCy
           python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
+          
+          # Entraînement
           python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: Save Model
+      - name: 📦 Upload Trained Model Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: trained-model
+          name: fliptracker-ner-model
           path: fliptracker/apps/nlp-service/output/model-best
-
-  build:
-    name: 🐳 Build & Push Docker
-    needs: train
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download Model
-        uses: actions/download-artifact@v4
-        with:
-          name: trained-model
-          path: fliptracker/apps/nlp-service/model-best
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: fliptracker/apps/nlp-service
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/fliptracker-nlp:latest
