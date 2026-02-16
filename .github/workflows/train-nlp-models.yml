@@ -1,33 +1,7 @@
-name: Train NER Model
-
-on:
-  workflow_dispatch: {}
-  push:
-    branches: [ main ]
-    paths: [ 'fliptracker/apps/nlp-service/aa.jsonl.json' ]
-
-jobs:
-  train:
-    name: 🧠 Train & Build Artifact
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: fliptracker/apps/nlp-service
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: pip install spacy
-
-      - name: 🛠️ Surgical Data Cleaning
+- name: 🛠️ Ultra-Aggressive Data Cleaning
         run: |
           python -c "
-          import spacy, json, os
+          import spacy, json, os, re
           from spacy.tokens import DocBin
           from spacy.util import filter_spans
           
@@ -35,10 +9,6 @@ jobs:
           db = DocBin()
           input_file = 'aa.jsonl.json'
           
-          if not os.path.exists(input_file):
-              print('❌ Fichier introuvable'); exit(1)
-
-          # Lecture du fichier (JSON ou JSONL)
           with open(input_file, 'r', encoding='utf-8') as f:
               content = f.read().strip()
               try:
@@ -46,71 +16,49 @@ jobs:
               except:
                   data = [json.loads(l) for l in content.split('\n') if l.strip()]
 
-          print(f'📦 Traitement de {len(data)} documents...')
+          print(f'📦 Analyse de {len(data)} documents...')
           valid_docs_count = 0
 
           for item in data:
               try:
-                  # Récupération du texte
                   raw_text = item.get('text') or (json.loads(item['line']).get('text', '') if 'line' in item else '')
-                  
-                  # Nettoyage global du texte (on remplace les retours chariots bizarres par des espaces)
-                  text = raw_text.replace('\r', ' ').replace('\xa0', ' ')
+                  # On nettoie les caractères invisibles globaux
+                  text = re.sub(r'[\u200b\u200c\u200d\uFEFF]', '', raw_text)
                   
                   if not text.strip(): continue
-                  
                   doc = nlp.make_doc(text)
                   ents = []
                   
                   for e in item.get('entities', []):
                       start, end, label = e['start'], e['end'], e['entity']
                       
-                      # --- NETTOYAGE CHIRURGICAL DES ESPACES ---
-                      # Tant que le premier caractère est un espace, on avance le début
-                      while start < end and text[start].isspace():
-                          start += 1
-                      # Tant que le dernier caractère est un espace, on recule la fin
-                      while end > start and text[end - 1].isspace():
-                          end -= 1
+                      # --- NETTOYAGE TOTAL (REGEX) ---
+                      # On récupère le texte de l'entité
+                      span_text = text[start:end]
                       
-                      # Si l'entité est vide après nettoyage, on l'ignore
-                      if start >= end: continue
+                      # On cherche la première et la dernière lettre/chiffre
+                      match = re.search(r'[a-zA-Z0-9]', span_text)
+                      if not match: continue # Pas de contenu utile
+                      
+                      # Ajustement du début (start)
+                      new_start = start + match.start()
+                      
+                      # Ajustement de la fin (end)
+                      # On cherche le dernier caractère alphanumérique
+                      reverse_match = list(re.finditer(r'[a-zA-Z0-9]', span_text))
+                      if not reverse_match: continue
+                      new_end = start + reverse_match[-1].end()
 
-                      # alignment_mode='contract' force spaCy à s'aligner sur les mots complets
-                      span = doc.char_span(start, end, label=label, alignment_mode='contract')
-                      
-                      # Double vérification : le span ne doit pas commencer/finir par un espace
+                      span = doc.char_span(new_start, new_end, label=label, alignment_mode='contract')
                       if span and span.text.strip():
                           ents.append(span)
                   
-                  # On garde les entités valides et on résout les conflits
                   doc.ents = filter_spans(ents)
-                  
-                  # On ajoute le document seulement s'il a des entités valides
                   if len(doc.ents) > 0:
                       db.add(doc)
                       valid_docs_count += 1
-                      
-              except Exception as err:
-                  continue
+              except: continue
 
           db.to_disk('train.spacy')
-          print(f'✅ SUCCÈS : {valid_docs_count} documents valides prêts pour l entraînement.')
+          print(f'✅ {valid_docs_count} docs validés.')
           "
-
-      - name: 🚀 Train Model
-        run: |
-          # Création de la config
-          python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
-          
-          # Validation des données (Debug) - Ne bloquera pas le pipeline mais affichera les warnings
-          python -m spacy debug data config.cfg --paths.train ./train.spacy --paths.dev ./train.spacy --verbose
-          
-          # Lancement de l'entraînement
-          python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
-
-      - name: 📦 Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: fliptracker-model-best
-          path: fliptracker/apps/nlp-service/output/model-best
