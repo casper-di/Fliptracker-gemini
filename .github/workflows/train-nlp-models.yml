@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: pip install spacy
 
-      - name: Surgical Data Cleaning
+      - name: Deep Data Cleaning & Alignment
         run: |
           python -c "
           import spacy, json, os, re
@@ -45,13 +45,13 @@ jobs:
               except:
                   data = [json.loads(l) for l in content.split('\n') if l.strip()]
 
-          print(f'Processing {len(data)} items...')
+          print(f'Analyse de {len(data)} documents...')
           valid_docs = 0
 
           for item in data:
               try:
                   raw_text = item.get('text') or (json.loads(item['line']).get('text', '') if 'line' in item else '')
-                  # Supprime les caractères invisibles unicode (Zero width, etc)
+                  # Suppression des caractères parasites unicode
                   text = re.sub(r'[\u200b\u200c\u200d\uFEFF]', '', raw_text)
                   if not text.strip(): continue
                   
@@ -59,36 +59,49 @@ jobs:
                   ents = []
                   for e in item.get('entities', []):
                       start, end, label = e['start'], e['end'], e['entity']
+                      
+                      # 1. Extraction et nettoyage des bords du texte annoté
                       span_text = text[start:end]
+                      m = re.search(r'[a-zA-Z0-9]', span_text)
+                      if not m: continue
                       
-                      # Trouve le premier et dernier caractère alphanumérique (évite l'erreur E024)
-                      match = re.search(r'[a-zA-Z0-9]', span_text)
-                      if not match: continue
-                      
-                      actual_start = start + match.start()
-                      reverse_matches = list(re.finditer(r'[a-zA-Z0-9]', span_text))
-                      actual_end = start + reverse_matches[-1].end()
+                      s_adj = start + m.start()
+                      e_adj = start + list(re.finditer(r'[a-zA-Z0-9]', span_text))[-1].end()
 
-                      span = doc.char_span(actual_start, actual_end, label=label, alignment_mode='contract')
-                      if span: ents.append(span)
+                      # 2. ALIGNEMENT 'EXPAND' : On force spaCy à englober les mots entiers
+                      # Cela résout l'erreur E024 en s'assurant qu'on ne coupe pas un token.
+                      span = doc.char_span(s_adj, e_adj, label=label, alignment_mode='expand')
+                      
+                      if span:
+                          ents.append(span)
                   
-                  doc.ents = filter_spans(ents)
-                  if len(doc.ents) > 0:
+                  # 3. Suppression des chevauchements (priorité aux spans les plus longs)
+                  filtered = filter_spans(ents)
+                  
+                  # 4. Vérification finale avant ajout pour éviter les crashs pendant le training
+                  try:
+                      doc.ents = filtered
                       db.add(doc)
                       valid_docs += 1
+                  except:
+                      # Si spaCy rejette encore le doc malgré tout, on passe au suivant
+                      continue
               except: continue
 
           db.to_disk('train.spacy')
-          print(f'Saved {valid_docs} docs.')
+          print(f'Succès : {valid_docs} documents convertis proprement.')
           "
 
       - name: Train Model
         run: |
+          # Initialisation de la config
           python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
-          # On force l'entraînement même avec peu de données pour générer l'artifact
+          
+          # Entraînement avec gestion des erreurs
+          # On utilise le même set pour dev car le volume est encore faible
           python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: Upload Model
+      - name: Upload Model Artifact
         uses: actions/upload-artifact@v4
         with:
           name: fliptracker-model-best
