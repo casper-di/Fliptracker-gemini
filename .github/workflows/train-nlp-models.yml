@@ -8,7 +8,7 @@ on:
 
 jobs:
   train:
-    name: 🧠 Train & Debug
+    name: 🧠 Train & Build Artifact
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,14 +24,13 @@ jobs:
       - name: Install dependencies
         run: pip install spacy
 
-      - name: 🛠️ Aggressive Data Cleaning
+      - name: 🛠️ Surgical Data Cleaning
         run: |
           python -c "
-          import spacy, json, os, re
+          import spacy, json, os
           from spacy.tokens import DocBin
           from spacy.util import filter_spans
           
-          # On charge le tokenizer français officiel
           nlp = spacy.blank('fr')
           db = DocBin()
           input_file = 'aa.jsonl.json'
@@ -39,7 +38,7 @@ jobs:
           if not os.path.exists(input_file):
               print('❌ Fichier introuvable'); exit(1)
 
-          # Lecture robuste (JSON ou JSONL)
+          # Lecture du fichier (JSON ou JSONL)
           with open(input_file, 'r', encoding='utf-8') as f:
               content = f.read().strip()
               try:
@@ -47,17 +46,17 @@ jobs:
               except:
                   data = [json.loads(l) for l in content.split('\n') if l.strip()]
 
-          print(f'📦 Analyse de {len(data)} documents...')
-          valid_docs = 0
-          skipped_ents = 0
+          print(f'📦 Traitement de {len(data)} documents...')
+          valid_docs_count = 0
 
           for item in data:
               try:
-                  # Extraction du texte
-                  text = item.get('text') or (json.loads(item['line']).get('text', '') if 'line' in item else '')
+                  # Récupération du texte
+                  raw_text = item.get('text') or (json.loads(item['line']).get('text', '') if 'line' in item else '')
                   
-                  # Nettoyage basique du texte (espaces insécables, etc.)
-                  text = text.replace('\r', ' ').replace('\u00a0', ' ')
+                  # Nettoyage global du texte (on remplace les retours chariots bizarres par des espaces)
+                  text = raw_text.replace('\r', ' ').replace('\xa0', ' ')
+                  
                   if not text.strip(): continue
                   
                   doc = nlp.make_doc(text)
@@ -66,54 +65,51 @@ jobs:
                   for e in item.get('entities', []):
                       start, end, label = e['start'], e['end'], e['entity']
                       
-                      # Si l'annotation dépasse la longueur du texte (erreur courante), on coupe
-                      if end > len(text): end = len(text)
+                      # --- NETTOYAGE CHIRURGICAL DES ESPACES ---
+                      # Tant que le premier caractère est un espace, on avance le début
+                      while start < end and text[start].isspace():
+                          start += 1
+                      # Tant que le dernier caractère est un espace, on recule la fin
+                      while end > start and text[end - 1].isspace():
+                          end -= 1
+                      
+                      # Si l'entité est vide après nettoyage, on l'ignore
                       if start >= end: continue
 
-                      # --- MAGIE ICI ---
-                      # alignment_mode='contract' : Si l'annotation coupe un mot en deux, 
-                      # on ne garde que la partie 'mots entiers' à l'intérieur.
-                      # Cela élimine 99% des erreurs E024.
+                      # alignment_mode='contract' force spaCy à s'aligner sur les mots complets
                       span = doc.char_span(start, end, label=label, alignment_mode='contract')
                       
-                      if span is None:
-                          # L'annotation ne correspondait à aucun token valide -> On jette
-                          skipped_ents += 1
-                      elif span.text.strip() == '':
-                          # L'annotation n'était que des espaces -> On jette
-                          skipped_ents += 1
-                      else:
+                      # Double vérification : le span ne doit pas commencer/finir par un espace
+                      if span and span.text.strip():
                           ents.append(span)
                   
-                  # filter_spans supprime les chevauchements (ex: Ville incluse dans Adresse)
+                  # On garde les entités valides et on résout les conflits
                   doc.ents = filter_spans(ents)
                   
-                  # On n'ajoute le doc que s'il a au moins une entité valide (optionnel, mais mieux pour le training)
+                  # On ajoute le document seulement s'il a des entités valides
                   if len(doc.ents) > 0:
                       db.add(doc)
-                      valid_docs += 1
+                      valid_docs_count += 1
                       
               except Exception as err:
-                  # Si un item est vraiment pourri, on l'ignore et on continue
                   continue
 
           db.to_disk('train.spacy')
-          print(f'✅ Terminé: {valid_docs} docs valides conservés.')
-          print(f'🗑️ {skipped_ents} mauvaises annotations supprimées.')
+          print(f'✅ SUCCÈS : {valid_docs_count} documents valides prêts pour l entraînement.')
           "
-
-      - name: 🔍 Debug Data (Validation)
-        run: |
-          # Cette commande va vérifier ton fichier train.spacy AVANT l'entraînement
-          # et te dire s'il reste des erreurs critiques.
-          python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
-          python -m spacy debug data config.cfg --paths.train ./train.spacy --paths.dev ./train.spacy
 
       - name: 🚀 Train Model
         run: |
+          # Création de la config
+          python -m spacy init config config.cfg --lang fr --pipeline ner --optimize efficiency --force
+          
+          # Validation des données (Debug) - Ne bloquera pas le pipeline mais affichera les warnings
+          python -m spacy debug data config.cfg --paths.train ./train.spacy --paths.dev ./train.spacy --verbose
+          
+          # Lancement de l'entraînement
           python -m spacy train config.cfg --output ./output --paths.train ./train.spacy --paths.dev ./train.spacy
 
-      - name: 📦 Archive Model
+      - name: 📦 Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: fliptracker-model-best
