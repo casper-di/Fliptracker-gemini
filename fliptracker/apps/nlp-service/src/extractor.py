@@ -1,26 +1,17 @@
-import spacy
-import os
-import re
-from bs4 import BeautifulSoup
-
 class HybridExtractor:
     def __init__(self):
-        # Charge le modèle généré par le job 'train'
-        base_path = os.path.dirname(os.path.dirname(__file__))
-        model_path = os.path.join(base_path, "model-best")
-        self.nlp = spacy.load(model_path) if os.path.exists(model_path) else spacy.blank("fr")
+        # 1. On définit le chemin absolu pour Docker
+        docker_model_path = "/app/trained_models/model-best"
+        
+        # 2. On définit un chemin relatif pour ton développement local
+        local_model_path = os.path.join(os.getcwd(), "model-best")
 
-    def process(self, raw_body: str) -> dict:
-        soup = BeautifulSoup(raw_body, "html.parser")
-        text = soup.get_text(separator=' ')
-        doc = self.nlp(text[:4000])
-        
-        results = {"tracking": [], "address": None, "shop": None}
-        
-        for ent in doc.ents:
-            if ent.label_ == "ADDRESS": results["address"] = ent.text.strip()
-            if ent.label_ == "CARRIER": results["shop"] = ent.text.strip()
-            
-        # Regex pour le tracking (toujours plus fiable que le NER pour les suites de chiffres)
-        results["tracking"] = list(set(re.findall(r'\b[0-9A-Z]{10,20}\b', text)))
-        return results
+        if os.path.exists(docker_model_path):
+            print(f"✅ Loading Docker model from {docker_model_path}")
+            self.nlp = spacy.load(docker_model_path)
+        elif os.path.exists(local_model_path):
+            print(f"✅ Loading local model from {local_model_path}")
+            self.nlp = spacy.load(local_model_path)
+        else:
+            print("⚠️ No custom model found. Using blank 'fr' model.")
+            self.nlp = spacy.blank("fr")
