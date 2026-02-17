@@ -29,6 +29,8 @@ class HybridExtractor:
         """
         Signature alignée avec api.py pour éviter les crashs 'TypeError'.
         """
+        print(f"DEBUG - raw body  : {raw_body}")
+
         if not raw_body:
             return {"tracking": [], "address": None, "shop": None}
 
@@ -41,6 +43,8 @@ class HybridExtractor:
 
         # 3. Analyse NLP (IA) sur les 4000 premiers caractères
         doc = self.nlp(text[:4000])
+
+        print(f"DEBUG - Entités trouvées par l'IA : {[(ent.text, ent.label_) for ent in doc.ents]}")
         
         results = {
             "tracking": [],
