@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     # 1. CHANGE CETTE VERSION pour forcer le téléchargement si tu mets à jour le Drive
-    MODEL_VERSION="2025_v3_97percent" \
+    MODEL_VERSION="2025_v4_97percent" \
     MODELS_GDRIVE_ID=1JhLK017B9t7Id1ZXu4Pmu4dvPsnrODWC
 
 WORKDIR /app
