@@ -22,7 +22,7 @@ jobs:
         env:
           # C'est ici que la magie opère
           FIREBASE_SERVICE_ACCOUNT_BASE64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
-        run: python scripts/export_and_clean.py
+        run: python fliptracker/apps/nlp-service/scripts/export_and_clean.py
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
