@@ -28,4 +28,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: annotation-ready-csv
-          path: data_to_annotate_*.csv
+          # On utilise un pattern qui match le nouveau nom du script
+          path: emails_to_label_*.csv
