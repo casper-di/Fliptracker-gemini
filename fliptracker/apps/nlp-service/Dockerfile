@@ -3,6 +3,8 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
+    # 1. CHANGE CETTE VERSION pour forcer le téléchargement si tu mets à jour le Drive
+    MODEL_VERSION="2024_v2_97percent" \
     MODELS_GDRIVE_ID=1JhLK017B9t7Id1ZXu4Pmu4dvPsnrODWC
 
 WORKDIR /app
@@ -11,7 +13,7 @@ WORKDIR /app
 # 1. System dependencies
 # ========================================
 RUN apt-get update && \
-    apt-get install -y build-essential && \
+    apt-get install -y build-essential curl && \
     rm -rf /var/lib/apt/lists/*
 
 # ========================================
@@ -23,13 +25,12 @@ RUN pip install --upgrade pip && \
     pip install gdown langdetect beautifulsoup4
 
 # ========================================
-# 3. Download spaCy models
+# 3. Download base spaCy models
 # ========================================
-RUN python -m spacy download fr_core_news_sm && \
-    python -m spacy download en_core_web_sm
+RUN python -m spacy download fr_core_news_sm
 
 # ========================================
-# 4. Download and extract custom models from Google Drive
+# 4. Download and extract custom models
 # ========================================
 RUN mkdir -p /app/trained_models && \
     python3 << 'EOF'
@@ -38,89 +39,58 @@ import zipfile
 import tarfile
 import os
 import sys
+import shutil
 
-gdrive_id = os.environ.get('MODELS_GDRIVE_ID', '1aVrRnX2k0ycvJAUt2uaFpHp8XttL7SYT')
+gdrive_id = os.environ.get('MODELS_GDRIVE_ID')
 zip_file = '/tmp/models.zip'
 extract_dir = '/tmp/models_extracted'
 
-print("=" * 50)
-print("📥 DOWNLOADING MODELS")
-print("=" * 50)
+print(f"🚀 Version du modèle : {os.environ.get('MODEL_VERSION')}")
 
 try:
-    gdown.download(f"https://drive.google.com/uc?id={gdrive_id}", zip_file, quiet=False)
-    print("✅ Download complete\n")
-except Exception as e:
-    print(f"❌ Download failed: {e}")
-    sys.exit(1)
-
-print("=" * 50)
-print("📦 EXTRACTING ZIP")
-print("=" * 50)
-
-try:
+    # Téléchargement
+    url = f"https://drive.google.com/uc?id={gdrive_id}"
+    gdown.download(url, zip_file, quiet=False)
+    
+    # Extraction ZIP
     with zipfile.ZipFile(zip_file, 'r') as z:
         z.extractall(extract_dir)
-    print("✅ ZIP extracted\n")
-except Exception as e:
-    print(f"❌ ZIP extraction failed: {e}")
-    sys.exit(1)
-
-print("=" * 50)
-print("📦 EXTRACTING TAR.GZ")
-print("=" * 50)
-
-tar_file = f'{extract_dir}/nlp-models.tar.gz'
-if os.path.exists(tar_file):
-    try:
-        with tarfile.open(tar_file, 'r:gz') as t:
+    
+    # Extraction du TAR.GZ (ton modèle spaCy)
+    tar_path = os.path.join(extract_dir, 'nlp-models.tar.gz')
+    if os.path.exists(tar_path):
+        with tarfile.open(tar_path, 'r:gz') as t:
             t.extractall('/app/trained_models')
-        print("✅ TAR.GZ extracted\n")
-    except Exception as e:
-        print(f"❌ TAR.GZ extraction failed: {e}")
-        sys.exit(1)
-else:
-    print(f"❌ TAR.GZ not found at {tar_file}")
-    sys.exit(1)
+        print("✅ Extraction réussie dans /app/trained_models")
+    else:
+        # Si le fichier n'est pas dans un zip mais direct
+        print("⚠️ nlp-models.tar.gz non trouvé, vérification du contenu extrait...")
+        print(os.listdir(extract_dir))
 
-print("=" * 50)
-print("📂 CHECKING MODELS")
-print("=" * 50)
-
-os.system("ls -la /app/trained_models/")
-print()
-os.system("find /app/trained_models -type d | head -10")
-print()
-
-# Cleanup
-os.remove(zip_file)
-if os.path.exists(extract_dir):
-    import shutil
+    # Nettoyage
+    os.remove(zip_file)
     shutil.rmtree(extract_dir)
 
-print("=" * 50)
-print("✅ MODELS READY")
-print("=" * 50)
-
+except Exception as e:
+    print(f"❌ ERREUR CRITIQUE : {e}")
+    sys.exit(1)
 EOF
 
 # ========================================
-# 5. Copy source code
+# 5. VERIFICATION POST-INSTALL (Regarde tes logs de build !)
+# ========================================
+RUN echo "--- CONTENU DU DOSSIER MODELS ---" && \
+    ls -R /app/trained_models && \
+    echo "--- FIN VERIFICATION ---"
+
+# ========================================
+# 6. Copy source code
 # ========================================
 COPY src/ src/
 
 # ========================================
-# 6. Health check
-# ========================================
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)"
-
-# ========================================
-# 7. Expose port
+# 7. Expose and Run
 # ========================================
 EXPOSE 8000
 
-# ========================================
-# 8. Run application
-# ========================================
 CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -29,8 +29,6 @@ class HybridExtractor:
         """
         Signature alignée avec api.py pour éviter les crashs 'TypeError'.
         """
-        print(f"DEBUG - raw body  : {raw_body}")
-
         if not raw_body:
             return {"tracking": [], "address": None, "shop": None}
 
