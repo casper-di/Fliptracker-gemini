@@ -50,8 +50,6 @@ def extract_batch(request: EmailBatchRequest):
     for email in request.emails:
         result = nlp_engine.process(
             raw_body=email.body,
-            subject=email.subject or "",
-            sender=email.sender or ""
         )
         results.append(result)
     
