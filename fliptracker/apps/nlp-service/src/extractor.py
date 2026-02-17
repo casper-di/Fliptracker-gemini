@@ -1,73 +1,74 @@
-import os      # <-- RÉPARE LE CRASH 'NameError'
-import re
 import spacy
+import os
 import logging
-from bs4 import BeautifulSoup
 
-# Configuration des logs pour Render
-logging.basicConfig(level=logging.INFO)
+# Configuration du logging pour voir les résultats dans Render
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 class HybridExtractor:
     def __init__(self):
-        # 1. Chemins Docker vs Local
-        # Le chemin /app/trained_models est celui défini dans ton Dockerfile
-        docker_model_path = "/app/trained_models/model-best"
-        local_model_path = os.path.join(os.getcwd(), "model-best")
-
-        if os.path.exists(docker_model_path):
-            logger.info(f"✅ Loading Docker model from {docker_model_path}")
-            self.nlp = spacy.load(docker_model_path)
-        elif os.path.exists(local_model_path):
-            logger.info(f"✅ Loading local model from {local_model_path}")
-            self.nlp = spacy.load(local_model_path)
+        # 1. LE CHEMIN EXACT DETECTE DANS TES LOGS DOCKER
+        # D'après ton log #14 : /app/trained_models/models-final/carrier/
+        self.model_path = "/app/trained_models/models-final/carrier"
+        
+        logger.info("--- 🔍 CHARGEMENT DU MODÈLE IA ---")
+        
+        if os.path.exists(self.model_path):
+            try:
+                # On vérifie si config.cfg est bien là
+                if os.path.exists(os.path.join(self.model_path, "config.cfg")):
+                    logger.info(f"✅ Dossier config trouvé. Chargement de : {self.model_path}")
+                    self.nlp = spacy.load(self.model_path)
+                    logger.info("🚀 Modèle IA chargé avec succès à 97% !")
+                else:
+                    logger.error(f"❌ config.cfg absent dans {self.model_path}")
+                    self.nlp = spacy.blank("fr")
+            except Exception as e:
+                logger.error(f"❌ Erreur lors du chargement : {str(e)}")
+                self.nlp = spacy.blank("fr")
         else:
-            logger.warning("⚠️ No custom model found. Using blank 'fr' model.")
+            logger.warning(f"⚠️ Chemin introuvable : {self.model_path}. Utilisation d'un modèle vide.")
+            # Petit scan pour t'aider si ça rate encore
+            if os.path.exists("/app/trained_models"):
+                logger.info(f"Contenu de /app/trained_models : {os.listdir('/app/trained_models')}")
             self.nlp = spacy.blank("fr")
 
-    def process(self, raw_body: str, subject: str = "", sender: str = "") -> dict:
+    def extract_entities(self, text: str):
         """
-        Signature alignée avec api.py pour éviter les crashs 'TypeError'.
+        Analyse le texte et extrait les entités (Adresse, Transporteur, Tracking)
         """
-        if not raw_body:
-            return {"tracking": [], "address": None, "shop": None}
+        if not text or not text.strip():
+            return {"address": None, "carrier": None, "tracking_number": None}
 
-        # 2. Nettoyage HTML
-        soup = BeautifulSoup(raw_body, "html.parser")
-        # Le séparateur ' ' évite de coller les mots entre les balises
-        text = soup.get_text(separator=' ')
-        # On nettoie les espaces multiples et sauts de ligne
-        text = re.sub(r'\s+', ' ', text).strip()
-
-        # 3. Analyse NLP (IA) sur les 4000 premiers caractères
+        # Limitation du texte pour la performance (les 4000 premiers caractères)
         doc = self.nlp(text[:4000])
-
-        print(f"DEBUG - Entités trouvées par l'IA : {[(ent.text, ent.label_) for ent in doc.ents]}")
         
+        # Initialisation des résultats
         results = {
-            "tracking": [],
             "address": None,
-            "shop": None
+            "carrier": None,
+            "tracking_number": None
         }
-        
-        # 4. Extraction des entités via ton modèle entraîné
-        for ent in doc.ents:
-            # Récupère l'adresse (on prend la première trouvée)
-            if ent.label_ == "ADDRESS" and not results["address"]:
-                results["address"] = ent.text.strip()
-            
-            # Récupère le transporteur (CARRIER dans ton modèle -> shop pour ton API)
-            if ent.label_ == "CARRIER" and not results["shop"]:
-                results["shop"] = ent.text.strip()
 
-        # 5. Extraction Tracking (Mix NER + Regex pour une fiabilité maximale)
-        # Regex cherche des suites alphanumériques de 10 à 20 caractères
-        regex_tracking = list(set(re.findall(r'\b[0-9A-Z]{10,20}\b', text)))
-        # NER cherche ce que l'IA a identifié comme TRACKING_NUM
-        ner_tracking = [ent.text.strip() for ent in doc.ents if ent.label_ == "TRACKING_NUM"]
-        
-        all_tracking = list(set(regex_tracking + ner_tracking))
-        # Filtre pour garder uniquement ce qui contient au moins un chiffre (évite les mots simples)
-        results["tracking"] = [t for t in all_tracking if any(c.isdigit() for c in t)]
+        # DEBUG LOG : Pour voir si l'IA trouve enfin quelque chose
+        if doc.ents:
+            logger.info(f"🎯 IA a trouvé {len(doc.ents)} entités !")
+            for ent in doc.ents:
+                logger.info(f"DEBUG ENTITY: [{ent.text}] -> Label: {ent.label_}")
+        else:
+            logger.warning("💨 L'IA n'a détecté aucune entité dans ce mail.")
+
+        # Mapping des labels (assure-toi que ce sont les mêmes labels que lors de l'entraînement)
+        for ent in doc.ents:
+            label = ent.label_
+            value = ent.text.strip()
+
+            if label == "ADDRESS" and not results["address"]:
+                results["address"] = value
+            elif label == "CARRIER" and not results["carrier"]:
+                results["carrier"] = value
+            elif label == "TRACKING_NUM" and not results["tracking_number"]:
+                results["tracking_number"] = value
 
         return results
