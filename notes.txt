@@ -1,0 +1,937 @@
+1/ L'objectif c'est que l'utilisateur quand il ouvre la page de suivi on vient on regarde si on a le trackign url de carrier, on
+fait une requete dans le cas où le colis n'est pas encore marqué livré.
+quand on a des infos comme le pickup adress comme ce qui est montré dans les logs, on vient et on remplace l'adress dans le parcel parsé etc...
+
+- vinted go tracking request:
+curl ^"https://carrier.vintedgo.com/public/v3/tracking_events/1770212162835257^" ^
+  -H ^"Accept: */*^" ^
+  -H ^"Accept-Language: en-US,en;q=0.9^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Connection: keep-alive^" ^
+  -H ^"Origin: https://vintedgo.com^" ^
+  -H ^"Pragma: no-cache^" ^
+  -H ^"Referer: https://vintedgo.com/^" ^
+  -H ^"Sec-Fetch-Dest: empty^" ^
+  -H ^"Sec-Fetch-Mode: cors^" ^
+  -H ^"Sec-Fetch-Site: same-site^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36^" ^
+  -H ^"sec-ch-ua: ^\^"Not(A:Brand^\^";v=^\^"8^\^", ^\^"Chromium^\^";v=^\^"144^\^", ^\^"Google Chrome^\^";v=^\^"144^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^"
+Chronopost tracking request:
+curl ^"https://www.chronopost.fr/tracking-no-cms/suivi-colis?^&listeNumerosLT=08448870858976^&langue=fr^&_=1771534628084^" ^
+  -H ^"Accept: */*^" ^
+  -H ^"Accept-Language: en-US,en;q=0.9^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Connection: keep-alive^" ^
+  -b ^"JSESSIONID=5395F8DDD4925F8634835EC603A0C35E.tc-webchr-NODE10; parcoursId=2; JSESSIONID_WSREST=.tc-mchronoweb-NODE2; pa_privacy=^%^22exempt^%^22; SAWWID=.NODE11; cf_clearance=IReP8UrHxExFBqMIQBOidRUQQsC37tmuN1z2XgTIQVE-1771534580-1.2.1.1-OZbWLBqcE3lKXmI5EEvHhGaXhSDi6g6Dvb0qFlY5SJ8SPWsVC3C4h_va80E4BMwyIvbyl_OX.r7hiNx32b4QiRlnLr425iyHXheY9cA3NCCkquXKYC4irBFUyA7aDiEukr1JzjCk5lFdIxqHyGrduvHoFs7WO9bIopHPnC7ljLPgrmiwB4yjUHVFmmgMa5AKH7X0FhjQBIsOEbB24rD9H1u534DIltIvU1nO5YA7LWs; __cf_bm=_JgCmByWAOeVn.VJUOWj_A447KviiUWCZR3BdsZDO2I-1771534580.3313954-1.0.1.1-zmwszyuZZRfSOYAp78h_3soAB.zwI8SPYaQ6N0VIYA47qgjt0yZyD7yTynOJt2IOCHa5H_eN6weYfznnoHA_niebyc72T_gHsuFW4BQ9kZql1kuIH5uHRVVgtDXgdFUK; CookieConsent=^{stamp:^%^27JskXE1FsRVCEe91Ey1vYHoqpPLUWLKRdDICmrkE+oy6Hfwxa13hvqw==^%^27^%^2Cnecessary:true^%^2Cpreferences:false^%^2Cstatistics:false^%^2Cmarketing:false^%^2Cmethod:^%^27explicit^%^27^%^2Cver:1^%^2Cutc:1771534583756^%^2Cregion:^%^27fr^%^27^}; lang=en_GB^" ^
+  -H ^"Pragma: no-cache^" ^
+  -H ^"Referer: https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT=08448870858976^" ^
+  -H ^"Sec-Fetch-Dest: empty^" ^
+  -H ^"Sec-Fetch-Mode: cors^" ^
+  -H ^"Sec-Fetch-Site: same-origin^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36^" ^
+  -H ^"X-Requested-With: XMLHttpRequest^" ^
+  -H ^"sec-ch-ua: ^\^"Not(A:Brand^\^";v=^\^"8^\^", ^\^"Chromium^\^";v=^\^"144^\^", ^\^"Google Chrome^\^";v=^\^"144^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^"
+  here is an example of response of chronopost tracking request no matter what is the language it will be like so in the same format:
+  {
+    "top": "<div class=\"suivi-de-colis clearfix\">  <script>console.log(\"LT : 08448870858976H, EstimationDateShowValue: false\");</script>       <!-- Banniere -->    <div class=\"ch-block-subtitle ch-banniere ch-margin-ban\">    \t<img width=\"940\" height=\"350\" \t\t\t\tsrc=\"resources/images/market/045_femme_ban_940x350.jpg?itok=f94M9Eoh\"\t\t\t\ttypeof=\"foaf:Image\">\t\t<div class=\"ch-block-subtitle-content\">            <div class=\"ch-block-title-title\">                <h1><div class=\"ch-block-title-grey\">Verfolgen</div><div class=\"ch-block-title-blue\">Sie Ihr Paket</div></h1>            </div>            <div class=\"ch-block-title-text ch-layer ch-suivi-desktop no-mobile\">                <!-- ESD case -->                                <!-- Colis case -->                                    <div class=\"ch-block-content-title\">                    \tInformationen zu Ihrer Sendung 08448870858976H                    </div>                    <div class=\"ch-colis-information\">                    \t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t<img src=\"resources/images/icons/information_bleu.png\"\t\t\t\t\t\t\t\t\t\t\talt='Information'/>\t\t\t\t\t\t\t\t\tPaket abholbereit an der Abholstelle<br />\t\t\t\t\t\t\t\t\tDonnerstag 19/02/2026 um 10:05\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t                    </div>                                                    <div class=\"ch-clear\"></div>            </div>        </div>     <!-- FIN BanniÃ¨re --></div><div class=\"ch-clear\"></div>\t\t\t<div class=\"ch-suivi-colis-light\">\t\t\t<!-- STEP 1 ROUND #1 -->\t\t\t<div id=\"step1\" class=\"ch-suivi-colis-light-info first\t\t    \t\t\t    \t\tbefore\t\t    \t\t\t\t\">\t\t        <div class=\"ch-suivi-colis-light-picto \"></div>\t\t        <div class=\"ch-suivi-colis-light-text\">Vorbereitung beim Absender</div>        \t\t    </div>\t\t    <!-- STEP 2  BAR #1 -->\t\t    <div id=\"step2\" class=\"ch-suivi-colis-light-separator\t\t    \t\t\t    \"></div>\t\t    <!-- STEP 3 ROUND #2 -->\t\t    <div id=\"step3\" class=\"ch-suivi-colis-light-info\t\t    \t\t\t    \t\t\t\t    \t\t\tbefore\t\t    \t\t\t\t    \t\t\t\t\">\t\t        <div class=\"ch-suivi-colis-light-picto \"></div>\t\t        <div class=\"ch-suivi-colis-light-text\">Übernahme durch Chronopost</div>        \t\t    </div>\t\t    <!-- STEP 4  BAR #2 -->\t\t    <div id=\"step4\" class=\"ch-suivi-colis-light-separator \t\t    \t\t\t\t\"></div>\t\t\t\t\t\t<!-- STEP 5 ROUND #3 -->\t\t  \t    <div id=\"step5\" class=\"ch-suivi-colis-light-info\t\t  \t    \t\t    \t\t\t\t    \t\t\tbefore\t\t    \t\t\t\t    \t\t\t      \">\t\t        <div class=\"ch-suivi-colis-light-picto\"></div>\t\t        <div class=\"ch-suivi-colis-light-text\">\t\t        \tAuf dem Transportweg\t\t\t\t</div>\t\t    </div>\t\t    <!-- STEP 6  BAR #3 -->\t\t    <div id=\"step6\" class=\"ch-suivi-colis-light-separator\t\t    \t\t\t    \"></div>\t\t    <!-- STEP 7 ROUND #4 -->\t\t    <div id=\"step7\" class=\"ch-suivi-colis-light-info\t\t    \t\t\t    \t\t\t\t    \t\t\tbefore\t\t    \t\t\t\t    \t\t\t\t\">\t\t        <div class=\"ch-suivi-colis-light-picto \"></div>\t\t        <div class=\"ch-suivi-colis-light-text\">In der Zustellung</div>\t\t    </div>\t\t    <!-- STEP 8   BAR #4 -->\t\t    <div id=\"step8\" class=\"ch-suivi-colis-light-separator  \t\t    \t\t\t    \"></div>\t\t    <!-- STEP 9 ROUND #5 -->\t\t    <div  id=\"step9\" class=\"ch-suivi-colis-light-info last   \t\t    \t\t\t    \t\tactive\t\t    \t\t\t      \">\t\t        <div class=\"ch-suivi-colis-light-picto \"></div>\t\t        <div class=\"ch-suivi-colis-light-text\">\t\t\t\t\tBereitstellung in der Abholstation\t\t\t\t</div>\t\t    </div>\t\t    <div class=\"ch-clear\"></div>\t\t</div>\t<div class=\"suivi-de-colis ch-mobile clearfix\">    <!-- mobile -->    <!-- ESD case -->        <!-- Colis case -->            <div class=\"ch-block-content-title\">        \tInformationen zu Ihrer Sendung 08448870858976H        </div>        \t\t\t\t\t\t\t\t\t\t\t\t<div class=\"ch-colis-information\">\t\t\t\t\t\t<img src=\"resources/images/icons/information.png\"\t\t\t\t\t\t\t\talt='Information'/>\t\t\t\t\t\tPaket abholbereit an der Abholstelle<br />\t\t\t\t\t\tDonnerstag 19/02/2026 um 11:06\t\t\t\t\t</div>\t\t\t     \t\t\t\t\t\t\t\t   \t\t               <div class=\"ch-clear\"></div></div></div>",
+    "boutons": "<input type=\"hidden\" id=\"numeroLT\" name=\"numeroLT\" value=\"08448870858976H\"/><ul class=\"nav navbar-nav\">\t\t\t<li>\t\t<a data-pointcode=\"7924O\" data-id=\"ounoustrouver\" \t\t\thref=\"/expeditionAvancee/ounoustrouver.html?withdrawalPointCode=7924O#anchorBeforeMap\" target=\"_blank\">\t\t\t<figure>\t\t\t\t<img src=\"resources/images/icons/colioutai.png\">\t\t\t\t<figcaption class=\"nav-boutons\">Lokalisieren Sie die Abholstation</figcaption>\t\t\t</figure>\t\t</a>\t</li>\t\t\t\t\t\t\t\t\t<!--   MAS -->\t<li>\t\t<a href=\"#mas-anchor\">\t\t\t<figure>\t\t\t\t<img src=\"resources/images/icons/mas.png\">\t\t\t\t<figcaption class=\"nav-boutons\">Sendungsverfolgung abonnieren</figcaption>\t\t\t</figure>\t\t</a>\t</li>\t\t\t\t\t\t\t\t\t\t\t\t\t<!--   Aide -->\t\t\t<li>\t\t\t\t<a href='https://www.chronopost.fr/enen/help/faq/track-your-parcel-private/how-can-i-change-my-delivery' target=\"_blank\">\t\t\t\t\t<figure>\t\t\t\t\t\t<img src=\"resources/images/icons/aide.png\">\t\t\t\t\t\t<figcaption class=\"nav-boutons\">Ein paar Tricks</figcaption>\t\t\t\t\t</figure>\t\t\t\t</a>\t\t\t</li>\t\t\t</ul><script type=\"text/javascript\">\tvar numberExceedsMsg = 'Anzahl der Versuche überschritten';\tvar postCodeRequireMsg = 'Die Angabe der Postleitzahl ist obligatorisch';\tvar postCodeNotCorrect = 'Diese Postleitzahl entspricht nicht der vom Absender angegebenen';\tvar unavailableService = 'Unavailable service';</script>",
+    "loc": "<!-- Localiser mon colis -->",
+    "tab": "<!-- Colis case -->    <div class=\"ch-block-suivi\">\t<table class=\"ch-block-suivi-tab\" id=\"suiviTab\">\t    <caption>Verfolgen Sie Ihre Sendung unten</caption>\t    \t    \t<tr class=\"ch-block-suivi-tab-title\">\t        \t<th class=\"no-mobile\">Datum und Uhrzeit</th>\t        \t<th>Die Schritte meiner Lieferung</th>\t        \t<th class=\"no-mobile\">Zusatz</th>\t        \t<th class=\"list-button\" width=\"40\">&nbsp;</th>\t    \t</tr>\t    \t\t\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Donnerstag 19/02/2026<br />11:06</td>\t            \t\t<td>OULLINS PIERRE BENITE - FR - LA POSTE DE OULLINS<br />Empfänger per SMS über Auslieferung benachrichtigt</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tType of message : information of pickup point availability received\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tType of media : email\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tRücknahme Typ : Chronopost Relais Point\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tPick up point : LA POSTE DE OULLINS - 1 RUE DIDEROT  - 69600 - OULLINS PIERRE BENITE - FR\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Donnerstag 19/02/2026<br />10:05</td>\t            \t\t<td>OULLINS PIERRE BENITE - FR - LA POSTE DE OULLINS<br />Paket abholbereit an der Abholstelle</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tPoint de retrait : LA POSTE DE OULLINS 1 RUE DIDEROT 69600 OULLINS PIERRE BENITE Horaires d&#x27;ouverture  du lundi au vendredi: 09:00-12:30 13:30-18:00 le samedi: 09:00-12:30 Retrait Relais CHRONOPOST \t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\t<a href=\"https://maps.google.fr/maps?q&#x3D;45.715497,4.809958\" target=\"_blank\">Point de retrait</a>\t            \t\t\t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tRücknahme Typ : Chronopost Relais Point\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Donnerstag 19/02/2026<br />06:31</td>\t            \t\t<td>VENISSIEUX - CHRONOPOST<br />Sendung im Empfangsdepot sortiert</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tKommentar : Ready for shipment delivery\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Donnerstag 19/02/2026<br />06:30</td>\t            \t\t<td>VENISSIEUX - CHRONOPOST<br />Sendung im Transit</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Donnerstag 19/02/2026<br />06:28</td>\t            \t\t<td>VENISSIEUX - CHRONOPOST<br />Sendung im Empfangsdepot sortiert</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tKommentar : Ready for shipment delivery\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Mittwoch 18/02/2026<br />14:54</td>\t            \t\t<td>JONAGE CHRONOPOST<br />Sendung im Transit</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Mittwoch 18/02/2026<br />14:52</td>\t            \t\t<td>JONAGE CHRONOPOST<br />Ankunft im Import Gateway</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Dienstag 17/02/2026<br />08:37</td>\t            \t\t<td>CHRONOPOST NETWORKS<br />Parcel in transit</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tOrt Scan : Settimo Torinese - IT (depot 0082)\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tKommentar : Parcel uplifted on the flight\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Dienstag 17/02/2026<br />08:35</td>\t            \t\t<td>CHRONOPOST NETWORKS<br />Linehaul Ausgangsscan (Beladescan)</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tOrt Scan : Settimo Torinese - IT (depot 0082)\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t            \t\t\t\t\t            \t\t\t\t\tKommentar : Paket befindet sich auf internationalem Transportweg\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Dienstag 17/02/2026<br />06:57</td>\t            \t\t<td>CHRONOPOST NETWORKS<br />Parcel in transit</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tOrt Scan : Settimo Torinese - IT (depot 0082)\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Freitag 13/02/2026<br />22:41</td>\t            \t\t<td>CHRONOPOST NETWORKS<br />Parcel in transit</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tOrt Scan : Piano Tavola Belpasso - IT (depot 0839)\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t        \t\t<tr class=\"toggleElmt\">\t            \t\t<td>Freitag 13/02/2026<br />18:41</td>\t            \t\t<td>CHRONOPOST NETWORKS<br />Ankunft im Depot</td>\t            \t\t<td colspan=\"2\">\t            \t\t\t\t            \t\t\t\t\t            \t\t\t\t\tOrt Scan : Piano Tavola Belpasso - IT (depot 0839)\t                    \t\t\t            \t\t\t\t<br />\t                \t\t\t               \t\t</td>\t            \t<!-- \t<td class=\"no-mobile\">&nbsp;</td> -->\t        \t\t</tr>\t    \t\t\t\t    \t\t\t</table>    </div><!--  ESD case -->    </div>  <!--  MAS PART --><span id=\"mas-anchor\"></span><div class=\"inside\">      <div class=\"ch-suivi-colis-mas\">          <form action=\"\" id=\"ch-form-mas\" name=\"multiMAS\" method=\"post\">          <h4>Ich möchte E-Mail-Benachrichtigungen erhalten<br /></h4>          <div>              <div class=\"form-type-textfield form-item-chrono-suivi-colis-MAS-input form-item form-group\" data-original-title='Geben Sie Ihre E-Mail-Adresse ein:'>                <label for=\"ch-mas-email-sms\">Geben Sie Ihre E-Mail-Adresse ein:</label>                <input id=\"ch-mas-email-sms\"type=\"text\" name=\"email_sms\">                <div>                    <div class=\"form-type-checkbox form-item-MAS-checkbox form-item checkbox\">                        <input type=\"hidden\" class=\"ch-mas-checkbox\" name=\"options\" value=\"08448870858976H\" />                        <input type=\"checkbox\" id=\"ch-mas-cond-generale\" name=\"cond_generale\" class=\"form-checkbox\" value=\"condition_generale\" >                        <label for=\"ch-mas-cond-generale\">Ich habe die allgemeinen <a href=\"/en/general-conditions-use\">Nutzungsbedingungen</a> der Chronopost-Website zur Kenntnis genommen und erkläre mich damit einverstanden.</label>                    </div>                </div>                <input class=\"ch-country-card-button btn btn-primary form-submit\" type=\"submit\" value='Bestätigen'>            </div>          </div>          </form>      </div></div><script type=\"text/javascript\">\tvar selectOneRequired = 'Sie müssen ein Paket auswählen';\tvar emailError = 'Ungültige E-Mail-Adresse';\tvar validCondition = 'Die allgemeinen Bedingungen akzeptieren';\tvar masSuccess = 'Ihr Abonnementantrag ist eingegangen.';</script>",
+    "error": null,
+    "type": "NORMAL",
+    "bannerFlashInfo": "<div id=\"banner-flash-info\" class=\"ch-banner-block\" data-url=\"https://www.chronopost.fr/en/\" data-url-target=\"\">\t\t\t</div>",
+    "bannerFaq": "<div id=\"banner-faq\" class=\"ch-banner-block\">\t<div class=\"title\">Frequently Asked Questions</div>\t<div class=\"text\">&gt;&nbsp;<a href=\"https://www.chronopost.fr/en/help/faq/track-your-parcel-private/how-can-i-change-my-delivery\">How can I change my delivery ?</a></div>\t<div class=\"text\">&gt;&nbsp;<a href=\"https://www.chronopost.fr/en/help/faq/track-your-parcel-private/what-if-im-not-home-time-delivery\">What if I&#x27;m not at home at the time of delivery ?</a></div>\t<div class=\"text\">&gt;&nbsp;<a href=\"https://www.chronopost.fr/en/help/faq/track-your-parcel-private/how-long-will-my-parcel-be-kept-pickup-point-and-what-if-i-cant\">How long will my parcel be kept at the pickup point ?</a></div>\t<div class=\"text\"><a href=\"https://www.chronopost.fr/en/help/faq\">See all the FAQ</a></div></div>",
+    "bannerMarket": "<div id=\"banner-market\" class=\"ch-banner-block\" data-url=\"https://www.chronopost.fr/fr/application-mychronopost\" data-url-target=\"\">\t\t<img id=\"banner-market-img\" src=\"https://www.chronopost.fr/sites/chronopost/files/2025-04/page_de_tracking_app.png\" />\t\t\t\t</div>",
+    "navMenu": null,
+    "countryMenu": null,
+    "privProMenu": null,
+    "footer": null
+}
+
+Monidal relay tracking requests:
+
+curl ^"https://www.mondialrelay.fr/api/tracking?shipment=5557709354^&postcode=^&brand=^&codePays=fr^" ^
+  -H ^"Accept: application/json, text/plain, */*^" ^
+  -H ^"Accept-Language: en-US,en;q=0.9^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Connection: keep-alive^" ^
+  -b ^"ASP.NET_SessionId=x0jw2c2h1rt2es25241zic1t; __RequestVerificationToken=qIM2lVytJkjy7_unpfX3zl_9FLAyvivd1Huf7I9dTtCEykoEtqLgaM7JEl7vnYEWnbO9FPo1r37SBdsXyqReiL1vb-01; dtCookie=v_4_srv_9_sn_AE796DDA2042FFF5B32A9343CE9EB471_perc_100000_ol_0_mul_1_app-3A1e3bb1b86a186fe3_0_rcs-3Acss_0; __cf_bm=nn4w7U3rfusdfA2wpQivndEYMUemEy5PYsk8c2cAs7A-1771535451-1.0.1.1-gXVPtzYHcSKPw9ERXgowW5UchGLAPfwJWE6L7hvRyNwesajM6aGzbALgQKlt0EYkfegZTYCdq9VwKy9xRtKuznvWCMFi8PF.sYTGdGAisgQ; _cs_c=1; _cux_u=6bd45237-34db-4241-9bd9-db2e691bb92d; _cux_v=fffa1924-3eae-4e8a-946f-4400783ef82e; __hstc=77778251.fbcf41cd95aa534933aca3bfa9401352.1771535454594.1771535454594.1771535454594.1; hubspotutk=fbcf41cd95aa534933aca3bfa9401352; __hssrc=1; _cux_n=5e63767b-aba2-4165-bb34-378eb7f8e90f; _cux_n_ttl=1771535455316; _cux_e=d69d90b1-675b-4d0f-93b9-5962266eb30a; _cs_cvars=^%^7B^%^221^%^22^%^3A^%^5B^%^22VISITS^%^22^%^2C^%^22https^%^3A^%^2F^%^2Fwww.mondialrelay.fr^%^2Fsuivi-de-colis^%^2F^%^22^%^5D^%^7D; _fbp=fb.1.1771535461404.448951831466524036; OptanonAlertBoxClosed=2026-02-19T21:11:02.275Z; _cs_id=84cddf12-6b7f-a827-e116-459e0cba7bce.1771535454.1.1771535716.1771535454.1.1805699454349.1.x; mr.returning.visitor=3; __hssc=77778251.3.1771535454594; OptanonConsent=isGpcEnabled=0^&datestamp=Thu+Feb+19+2026+22^%^3A15^%^3A18+GMT^%^2B0100+(Central+European+Standard+Time)^&version=202504.1.0^&browserGpcFlag=0^&isIABGlobal=false^&hosts=^&consentId=f7ee169e-e98c-478d-bd53-a957a9fb2882^&interactionCount=2^&isAnonUser=1^&landingPath=NotLandingPage^&groups=C0001^%^3A1^%^2CC0004^%^3A0^%^2CC0003^%^3A0^%^2CC0002^%^3A0^%^2CC006^%^3A0^&AwaitingReconsent=false^&intType=undefined^&geolocation=FR^%^3BPAC; _cux_v_ttl=1771535835907; _cux_e_ttl=1771535835908; _cs_s=3.0.U.9.1771537636653^" ^
+  -H ^"Pragma: no-cache^" ^
+  -H ^"Referer: https://www.mondialrelay.fr/suivi-de-colis/^" ^
+  -H ^"RequestVerificationToken: 63cIl8l93LDZJT5YJiIhtDsKds4myaa0IuDxnrVVIeRmeA9sWfMjWcUGz_VMErCx2Ph-I76RuR0r2WgmrF539Vt7ddM1:BsSagAybZWOft_SvFzKlsvuFUyVcWzQWjwM0U5sUK2htH495cfile6eqiIuP2ep1_xQEGmMsOoU-56InAwImR4G_dyk1^" ^
+  -H ^"Sec-Fetch-Dest: empty^" ^
+  -H ^"Sec-Fetch-Mode: cors^" ^
+  -H ^"Sec-Fetch-Site: same-origin^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36^" ^
+  -H ^"sec-ch-ua: ^\^"Not(A:Brand^\^";v=^\^"8^\^", ^\^"Chromium^\^";v=^\^"144^\^", ^\^"Google Chrome^\^";v=^\^"144^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"x-dtpc: 9^$335714249_408h47vKLNPACQCAUVVHWJEJJWMMDBCWKKUSUCM-0e0^"
+  
+  This ie an example of a correct response:
+
+{
+    "status": [],
+    "Expedition": {
+        "Numero": 57709354,
+        "Enseigne": "V1VINTIT",
+        "DestinataireCodePostal": "69600",
+        "CodeAgenceLivraison": 769,
+        "Evenements": [
+            {
+                "Date": "2026-02-14T13:36:09.811",
+                "Libelle": "Colis en préparation chez l'expéditeur"
+            },
+            {
+                "Date": "2026-02-15T12:04:33.685",
+                "Libelle": "Colis pris en charge en Locker"
+            },
+            {
+                "Date": "2026-02-16T09:10:09.499",
+                "Libelle": "Colis expédié depuis le site logistique",
+                "DetailPointRelais": {
+                    "Numero": 10025,
+                    "Horaires": [
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 1
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 2
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 3
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 4
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 5
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 6
+                        },
+                        {
+                            "HeureOuvertureAM": "00:01:00",
+                            "HeureFermetureAM": "23:59:00",
+                            "JourSemaine": 0
+                        }
+                    ],
+                    "Services": [],
+                    "Adresse": {
+                        "Libelle": "Antica Cartolibreria 7 Colonne",
+                        "LibelleComplement": "ITMAL080845F BO",
+                        "AdresseLigne1": "VIA NAZIONALE 221A/0",
+                        "AdresseLigne2": "",
+                        "CodePostal": "40051",
+                        "Ville": "MALALBERGO",
+                        "CodePays": "IT"
+                    }
+                }
+            },
+            {
+                "Date": "2026-02-16T19:26:35.85",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de BOL - BOLOGNA."
+            },
+            {
+                "Date": "2026-02-16T23:26:12.001",
+                "Libelle": "Colis expédié depuis le site "
+            },
+            {
+                "Date": "2026-02-17T06:21:12.001",
+                "Libelle": "Colis expédié depuis le site TOR - TORINO"
+            },
+            {
+                "Date": "2026-02-17T20:22:37.833",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de HUB LYON."
+            },
+            {
+                "Date": "2026-02-17T20:23:30.551",
+                "Libelle": "Colis en cours de traitement sur le site HUB LYON"
+            },
+            {
+                "Date": "2026-02-17T21:01:03.001",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de HUB LYON."
+            },
+            {
+                "Date": "2026-02-17T22:46:02.001",
+                "Libelle": "Colis expédié depuis le site HUB LYON"
+            },
+            {
+                "Date": "2026-02-17T23:42:52.001",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de ST QUENTIN FALLAVIER."
+            },
+            {
+                "Date": "2026-02-17T23:42:55.001",
+                "Libelle": "Colis en cours de traitement sur le site ST QUENTIN FALLAVIER"
+            },
+            {
+                "Date": "2026-02-18T14:30:40.001",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de ST QUENTIN FALLAVIER."
+            },
+            {
+                "Date": "2026-02-18T14:54:12.001",
+                "Libelle": "Colis expédié depuis le site ST QUENTIN FALLAVIER"
+            },
+            {
+                "Date": "2026-02-18T16:22:44.001",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de CHAPONOST."
+            },
+            {
+                "Date": "2026-02-18T16:22:47.001",
+                "Libelle": "Colis en cours de traitement sur le site CHAPONOST"
+            },
+            {
+                "Date": "2026-02-19T02:11:22.51",
+                "Libelle": "Prise en charge de votre colis sur notre site logistique de CHAPONOST."
+            },
+            {
+                "Date": "2026-02-19T07:56:19.677",
+                "Libelle": "Colis en route vers le point de livraison"
+            },
+            {
+                "Date": "2026-02-19T11:39:18.266",
+                "Libelle": "5 jours restants pour retirer le colis en Point Relais",
+                "DetailPointRelais": {
+                    "Numero": 29898,
+                    "Horaires": [
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 1
+                        },
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 2
+                        },
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 3
+                        },
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 4
+                        },
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 5
+                        },
+                        {
+                            "HeureOuvertureAM": "08:30:00",
+                            "HeureFermetureAM": "19:00:00",
+                            "JourSemaine": 6
+                        },
+                        {
+                            "JourSemaine": 0
+                        }
+                    ],
+                    "Services": [
+                        {
+                            "Code": "PRINT",
+                            "Libelle": "Impression Etiquette Point Relais"
+                        }
+                    ],
+                    "Adresse": {
+                        "Libelle": "NH",
+                        "LibelleComplement": "",
+                        "AdresseLigne1": "1 PLACE ANATOLE FRANCE",
+                        "AdresseLigne2": "",
+                        "CodePostal": "69600",
+                        "Ville": "OULLINS PIERRE BENITE",
+                        "CodePays": "FR"
+                    }
+                }
+            }
+        ],
+        "EvenementsNonClientChargeur": [
+            {
+                "Date": "2026-02-14T13:36:10.139",
+                "Code": "CMR",
+                "SousCode": "TRP"
+            },
+            {
+                "Date": "2026-02-17T22:19:20.001",
+                "Code": "CMR",
+                "SousCode": "CFM"
+            },
+            {
+                "Date": "2026-02-17T23:31:25.001",
+                "Code": "ARR",
+                "SousCode": "CAM"
+            },
+            {
+                "Date": "2026-02-17T23:31:44.001",
+                "Code": "CMR",
+                "SousCode": "CFM"
+            },
+            {
+                "Date": "2026-02-18T14:54:07.001",
+                "Code": "CMR",
+                "SousCode": "CFM"
+            },
+            {
+                "Date": "2026-02-18T15:36:37.001",
+                "Code": "ARR",
+                "SousCode": "CAM"
+            },
+            {
+                "Date": "2026-02-18T15:37:21.001",
+                "Code": "CMR",
+                "SousCode": "CFM"
+            }
+        ],
+        "SuiviParEtapes": {
+            "5": {
+                "Numero": 5,
+                "Libelle": "Colis livré au destinataire"
+            },
+            "4": {
+                "Evenement": {
+                    "Date": "2026-02-19T11:39:18.266"
+                },
+                "Numero": 4,
+                "Libelle": "Colis disponible au point de retrait"
+            },
+            "3": {
+                "Evenement": {
+                    "Date": "2026-02-18T16:22:44.001"
+                },
+                "Numero": 3,
+                "Libelle": "Colis sur l'agence de livraison"
+            },
+            "2": {
+                "Evenement": {
+                    "Date": "2026-02-15T12:04:33.685"
+                },
+                "Numero": 2,
+                "Libelle": "Colis remis à Mondial Relay"
+            },
+            "1": {
+                "Evenement": {
+                    "Date": "2026-02-14T13:36:09.811"
+                },
+                "Numero": 1,
+                "Libelle": "Colis en préparation chez l'expéditeur"
+            }
+        },
+        "SuiviContextuel": "Colis disponible au Point Relais®",
+        "NaturesPointRelaisCompatibles": [
+            "E",
+            "F",
+            "1",
+            "D",
+            "C"
+        ],
+        "EstRetourAutorise": false,
+        "EstimatedDeliveryDate": "0001-01-01T00:00:00",
+        "CollectCountryParcel": "IT",
+        "DeliveryCountryParcel": "FR"
+    }
+}
+
+Mais malheureusement mondial relay ne le permet pas en dehors de son site web, tous type de requet de l'exterieur n'est pas autorisé
+donc à chaque fois qu'on trouve du mondial relay on autorise pas la demande de l'historique et on affiche juste un message pour 
+indiquer que mondial relay history actuellement n'est pas supporté
+
+Colissimo chronopost:
+Un exemple de request mais y a que la langue fr et en qui sont supporté chez la post
+curl ^"https://www.laposte.fr/ssu/sun/back/suivi-unifie/6A05170015731?lang=fr^" ^
+  -H ^"accept: application/json, text/plain, */*^" ^
+  -H ^"accept-language: en-US,en;q=0.9^" ^
+  -H ^"cache-control: no-cache^" ^
+  -b ^"lp_csid=9pM/+GZs34mBfQPKDt/2rJCWq69j5A0fzk1aBkr5MUg=; rxVisitor=1771535210794LGS51NRRPCF9P71NJBCB1637KOTMBFTH; lpel_cart=^{^}; TC_REPART=a; AB_test_042025=4; TC_priv_Perso=false; TCPID=126242265210126165056; pa_privacy=^%^22exempt^%^22; _pcid=^%^7B^%^22browserId^%^22^%^3A^%^22mltybpw0cjdbt3id^%^22^%^2C^%^22_t^%^22^%^3A^%^22n1id97j2^%^7Cmltybq72^%^22^%^7D; _pctx=^%^7Bu^%^7DN4IgrgzgpgThIC4B2YA2qA05owMoBcBDfSREQpAeyRCwgEt8oBJAE0RXSwH18ykAjPVYBOAOwArACwAfALap8ATwBGARzFSQAXyA; TC_PRIVACY=1^%^40020^%^7C67^%^7C1491^%^40^%^401^%^401771535214119^%^2C1771535214119^%^2C1787087214119^%^40; TC_PRIVACY_CENTER=; TC_consent_date=1771535214119; newvuejs=init=false,suivi=false; 1f8a2844ff730ee6bdb83099060124e7=92cc4a782d2eef092fbfac4738f75163; 8b9565ba9cb9e9742fdaa8c8c6e966da=fc7b80695c5aea22f121eaa0b970072c; rxvt=1771538274244^|1771535210800; ROUTE=.api-66c569cf76-dpm6g; dtSa=true^%^7CC^%^7C-1^%^7CRechercher^%^7C-^%^7C1771536475400^%^7C336454031_860^%^7Chttps^%^3A^%^2F^%^2Fwww.laposte.fr^%^2Fcolissimo^%^7C^%^7C^%^7C^%^7C; lpel_sid=8039e1bb-aecc-476d-89e4-2423a24d6bb9; dtPC=9^$336454031_860h-vAAVWROPFWSQVDTUFAVSHKFBCTGJNTNHR-0e0; c82d1d37ab45239f948e0ffd02007dd5=73716aec6196aaa774aa3be01734ff99; lb-cookie=rd2o00000000000000000000ffff0a981ddfo80; LPPE=^%^7B^%^22referer^%^22^%^3A^%^22https^%^3A^%^2F^%^2Fwww.laposte.fr^%^2Fcolissimo^%^22^%^2C^%^22privacy^%^22^%^3A^%^22Exempt^%^22^%^7D; dtCookie=v_4_srv_6_sn_5BB77065CFAC58329DF3E8899717649C_perc_96098_ol_0_mul_1_app-3A54939d3ad3c86a3c_1_app-3Aea7c4b59f27d43eb_1; TS0180caec=018e4c976d83f238e793e1247da15465b98e414cf55ba25f1d047f8d100145c687387143bd01644961a290837592870c5eab9ceaa8a767524173ddd0fff553f1976ad3f9ba^" ^
+  -H ^"pragma: no-cache^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://www.laposte.fr/outils/suivre-vos-envois^" ^
+  -H ^"sec-ch-ua: ^\^"Not(A:Brand^\^";v=^\^"8^\^", ^\^"Chromium^\^";v=^\^"144^\^", ^\^"Google Chrome^\^";v=^\^"144^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36^" ^
+  -H ^"x-dtpc: 6^$336476244_719h8vAAVWROPFWSQVDTUFAVSHKFBCTGJNTNHR-0e0^"
+reponse success exemple:
+
+[
+    {
+        "lang": "fr_FR",
+        "returnCode": 200,
+        "returnMessage": "transaction OK.",
+        "scope": "public",
+        "shipment": {
+            "idShip": "6A05170015731",
+            "systemOwner": 4,
+            "holder": 4,
+            "product": "colissimo",
+            "isFinal": true,
+            "deliveryDate": "2026-02-04T09:52:58+01:00",
+            "entryDate": "2026-02-03T02:00:26+01:00",
+            "timeline": [
+                {
+                    "type": 1,
+                    "code": "",
+                    "longLabel": "",
+                    "country": "",
+                    "shortLabel": "Votre colissimo est pris en charge",
+                    "id": 1,
+                    "date": "2026-02-03T02:00:26+01:00",
+                    "status": true
+                },
+                {
+                    "type": 1,
+                    "code": "ACHNAT",
+                    "longLabel": "",
+                    "country": "",
+                    "shortLabel": "Il est en traitement dans notre réseau.",
+                    "id": 2,
+                    "status": true
+                },
+                {
+                    "type": 1,
+                    "code": "",
+                    "longLabel": "",
+                    "country": "",
+                    "shortLabel": "Il arrive !",
+                    "id": 3,
+                    "status": true
+                },
+                {
+                    "type": 1,
+                    "code": "DISTOU",
+                    "longLabel": "",
+                    "country": "",
+                    "shortLabel": "Nous préparons votre Colissimo pour sa livraison.",
+                    "id": 4,
+                    "status": true
+                },
+                {
+                    "type": 1,
+                    "code": "DESLIVD",
+                    "longLabel": "",
+                    "country": "",
+                    "shortLabel": "Votre Colissimo a été livré",
+                    "id": 5,
+                    "date": "2026-02-04T09:52:58+01:00",
+                    "status": true
+                }
+            ],
+            "productCode": "6A",
+            "estimDate": "2026-02-04T09:52:58+01:00",
+            "event": [
+                {
+                    "group": "DESLIVD",
+                    "code": "DI1",
+                    "type": "N",
+                    "label": "Votre colis est livré.",
+                    "date": "2026-02-04T09:52:58+01:00",
+                    "country": "FR",
+                    "category": "logistic",
+                    "order": 100
+                },
+                {
+                    "group": "DISTOU",
+                    "code": "MD1",
+                    "type": "N",
+                    "label": "Votre colis est sur son site de distribution. Nous le préparons pour le mettre en livraison.",
+                    "date": "2026-02-04T07:52:37+01:00",
+                    "country": "FR",
+                    "category": "logistic",
+                    "order": 99
+                },
+                {
+                    "group": "DISARR",
+                    "code": "EP1",
+                    "type": "N",
+                    "label": "Votre Colissimo est en cours de traitement sur le site de tri local.",
+                    "date": "2026-02-03T15:51:09+01:00",
+                    "country": "FR",
+                    "category": "logistic",
+                    "order": 98
+                },
+                {
+                    "group": "ACHNAT",
+                    "code": "ET1",
+                    "type": "N",
+                    "label": "Votre colis est en transit sur nos plateformes logistiques.",
+                    "date": "2026-02-03T13:14:56+01:00",
+                    "country": "FR",
+                    "category": "logistic",
+                    "order": 97
+                },
+                {
+                    "group": "EXPANN",
+                    "code": "DR1",
+                    "type": "N",
+                    "label": "Votre Colissimo va bientôt nous être confié ! Il est en cours de préparation chez votre expéditeur.",
+                    "date": "2026-02-02T09:22:57+01:00",
+                    "country": "FR",
+                    "category": "logistic",
+                    "order": 96
+                }
+            ],
+            "contextData": {
+                "isParcelBack": false,
+                "merchantName": "LA POSTE Coach c/o Bleckmann",
+                "merchantLogo": "",
+                "customPaid": false,
+                "geographicCoverage": "NAT",
+                "deliverySignature": false,
+                "deliveryPicto": 1,
+                "originCountry": "FR",
+                "arrivalCountry": "FR",
+                "checkCustoms": false,
+                "customCTA": "OFF",
+                "locomotionMode": "véhicule électrique",
+                "energyClassCode": "ELECTR",
+                "deliveryChoice": {
+                    "deliveryChoice": 0
+                }
+            },
+            "url": "https://www.laposte.fr/outils/suivre-vos-envois?code=6A05170015731"
+        }
+    }
+]
+
+-------------------------------------------------
+2/ Des mises à jour sur la page de expédition.
+- Le but pour cette nouvelle/update de fonctionalité, c'est de détecter quand l'utilisateur a reçu un mail pour envoyer un 
+colis, le but c'est de détecter, enregistrer et pourvoir imprimer le bordereau quand il est présent dans le pdf dans l'email ou bien sous format de code qr
+que l'utilisateur a besoin de le présenter pour. 
+- prévoir un volet pour des fonctionalités de plus tard pour exporter en excel, les expédition avec les dates et les informations utiles etc.
+Tu es un expert des applications saas -commerce, je te laisse m'impressioner dans ce sujet, c'est là où l'utilisateur va s'interesser pour payer de l'argent pour utiliser l'application
+le but c'est de faire en sorte que ça simplifie la vie d'un commerçant qui expedie etc.
+
+-----------------------------------------------
+3/ Des mises à jour sur la partie email:
+- Maintenant je veux rajouter la fonctionalité que gmail m'informe et m'envoie à chaque fois qu'il y a un mail 
+tombe sur un webhook ou autre avec le watch ou 
+autre avec le mécanisme de rafraishissement de token de watch sans que l'utilisatuer a encore le gmail connecté.
+- Mettre à jour l'état de l'email quand l'utilisateur rajoute son email, on a besoin d'induquer si l'utilisateur est connecté ou non en se basant sur le watch
+je mexplique, si le token accès gmail expire mais que le watch est encore active on peut indiquer que c'est toujours actif.
+Le meme principe pour outlook, ça serait bien qu'on a ce system et que à chaque fois que l'utilisateur rajoute un mail ça pourrait le détecter.
+- Verifier quand l'utilisateur rajoute un nouveau email, que cet email n'existe déjà pas et que c'est un nouveau sinon on remplace l'ancien.
+- Quand les datas sont encours de chargement on déactive toutes les boutons sur la page de gestion d'email, et on attend à ce que tout soit à jour, genre y a pas de loading encore 
+sur les emails loader etc.
+- Activer les boutons en bas dans la page de gestion des emails et quand l'utilisateur deactive un parametre, on le prend en compte.
+
+-----------------------------------------------
+4/ Rajouter une fonctionalité où l'utilisateur est capable de partagé les infos de retrait d'un colis avec un pote ou autre pour le récupérer à sa place.
+exemple, je peux l'envoyer en whatsapp ou messages ou autres, autoriser à inclure le code de retrait et le code qr ou autres, je te laisse me faire une proposition sur ça
+pareil pour le partage des bordereau aussi, et le parcel d'envoi. l'idée c'est que l'utilisateur est capable de partage un envoi ou une réception avec un autre utilisateur de l'application
+ou bien via les messageries ou autres.
+
+
+
+
+*************************
+Reformat chatgpt de tous ce que j'ai écris en haut 
+PROMPT – Multi Carrier Tracking Logic (FlipTracker)
+🎯 OBJECTIVE
+
+When a user opens the tracking page:
+
+Check if:
+
+A tracking number exists
+
+A carrier is identified
+
+Parcel status is NOT marked as DELIVERED
+
+If parcel is not delivered:
+
+Perform a tracking request to the carrier
+
+Parse and normalize the response
+
+If new data is available (status update, pickup address, availability date):
+
+Update the parsed parcel record in database
+
+🧠 GLOBAL RULES
+
+Do NOT modify curl structures.
+
+Use the exact carrier endpoints provided.
+
+Normalize all carriers into a unified internal format.
+
+Do NOT attempt to bypass carrier protections.
+
+If carrier does not allow backend access → return unsupported message.
+
+🏗 ARCHITECTURE REQUIREMENT
+
+Create one adapter per carrier:
+
+CarrierTrackingService
+ ├── ChronopostAdapter
+ ├── VintedGoAdapter
+ ├── MondialRelayAdapter
+ └── ColissimoAdapter
+
+Each adapter must return a normalized response:
+
+{
+  status: 'PREPARING' | 'IN_TRANSIT' | 'AVAILABLE' | 'DELIVERED',
+  pickupAddress?: {
+    name: string
+    address1: string
+    postalCode: string
+    city: string
+    country: string
+  },
+  availableUntil?: Date,
+  rawCarrierStatus: string,
+  lastEventDate?: Date
+}
+🔄 REFRESH STRATEGY
+
+Do NOT call carrier on every page load.
+
+Store in database:
+
+lastCarrierCheckAt
+
+lastKnownStatus
+
+isFinalState
+
+Refresh logic:
+
+If status = DELIVERED → never call carrier again
+
+If status = AVAILABLE → refresh every 12 hours
+
+If status = IN_TRANSIT → refresh every 4 hours
+
+If status = PREPARING → refresh every 8 hours
+
+On page open:
+
+if (now - lastCarrierCheckAt > refreshDelay)
+    call carrier
+else
+    return cached data
+📌 PICKUP ADDRESS UPDATE RULE
+
+When parsing carrier response:
+
+if pickupAddress exists AND parcel.pickupAddress is null
+    update parcel pickupAddress
+
+if pickupAddress exists AND different from stored value
+    update parcel
+    log change
+    trigger user notification
+
+Do NOT blindly overwrite.
+
+🟣 CARRIER: CHRONOPOST
+
+Carrier: Chronopost
+Tracking via curl provided below.
+
+IMPORTANT:
+
+Response is JSON containing HTML fragments.
+
+You must parse HTML (not regex only).
+
+Extract:
+
+Current status
+
+Pickup address
+
+Event history
+
+Availability information
+
+Use a DOM parser (e.g., cheerio) to extract:
+
+From:
+
+"Pick up point :"
+
+"Point de retrait :"
+
+Status steps in HTML
+
+Latest event row in table
+
+Chronopost Tracking Request (DO NOT MODIFY)
+<KEEP ORIGINAL CURL EXACTLY AS PROVIDED>
+Chronopost Response Format (DO NOT MODIFY)
+<KEEP ORIGINAL RESPONSE FORMAT EXACTLY AS PROVIDED>
+🟢 CARRIER: MONDIAL RELAY
+
+Carrier: Mondial Relay
+
+Tracking via curl provided below.
+
+IMPORTANT:
+
+API protected by anti-bot and session validation.
+
+External backend requests are blocked.
+
+Do NOT attempt bypass.
+
+If detected as Mondial Relay:
+
+Return:
+
+{
+  supported: false,
+  reason: "Mondial Relay tracking history is currently not supported from backend."
+}
+Mondial Relay Tracking Request (DO NOT MODIFY)
+<KEEP ORIGINAL CURL EXACTLY AS PROVIDED>
+Mondial Relay Example Response (DO NOT MODIFY)
+<KEEP ORIGINAL RESPONSE FORMAT EXACTLY AS PROVIDED>
+🔵 CARRIER: VINTED GO
+
+Carrier: Vinted Go
+API returns structured JSON.
+
+Requirements:
+
+Parse events
+
+Determine latest status
+
+Extract pickup address if available
+
+Normalize output
+
+Vinted Go Tracking Request (DO NOT MODIFY)
+<KEEP ORIGINAL CURL EXACTLY AS PROVIDED>
+🟡 CARRIER: COLISSIMO (LA POSTE)
+
+Carrier: La Poste (Colissimo)
+
+Constraints:
+
+Only "fr" and "en" languages supported
+
+Response is JSON
+
+Extract:
+
+Status
+
+Delivery date
+
+Pickup info if available
+
+Colissimo Tracking Request (DO NOT MODIFY)
+<KEEP ORIGINAL CURL EXACTLY AS PROVIDED>
+📊 STATUS NORMALIZATION RULE
+
+Map carrier-specific statuses into:
+
+Carrier Status Meaning	Internal Status
+Preparing / Label created	PREPARING
+In transit	IN_TRANSIT
+At pickup point	AVAILABLE
+Delivered	DELIVERED
+
+Always include rawCarrierStatus.
+
+🚨 ERROR HANDLING
+
+If carrier response fails:
+
+{
+  success: false,
+  error: "Carrier request failed",
+  carrier: "CARRIER_NAME"
+}
+
+Do not crash service.
+
+🎯 FINAL GOAL
+
+The system must:
+
+Be scalable
+
+Avoid unnecessary carrier calls
+
+Normalize all carriers
+
+Handle HTML parsing robustly
+
+Support future carriers easily
+
+pour le point 2
+Tu développes une fonctionnalité appelée Batch Smart Printing pour Vinted Go uniquement.
+
+Contexte :
+
+L'application reçoit des emails liés aux expéditions Vinted Go.
+Les données disponibles ne sont pas toujours complètes.
+
+Important :
+
+Le nom de l’acheteur peut être absent
+
+La référence commande peut être absente
+
+Mais il y a toujours un PDF de bordereau ou un lien PDF
+
+Il y a généralement un tracking number
+
+Il y a toujours une date email
+
+Objectif :
+
+Construire un système robuste qui permet :
+
+Extraction des données depuis emails Vinted Go
+
+Stockage minimal en base
+
+Affichage liste expéditions
+
+Sélection multiple
+
+Fusion des PDFs en un seul document prêt à imprimer
+
+Ajout automatique d’une page séparatrice avant chaque bordereau
+
+Règles importantes
+
+Ne pas dépendre du nom acheteur
+
+Ne pas dépendre de la référence commande
+
+Le système doit fonctionner même si seuls tracking + pdfUrl sont disponibles
+
+Si une donnée est absente, afficher "Unknown"
+
+Structure base de données
+
+Créer une table shipments avec :
+
+id (uuid)
+
+trackingNumber (nullable)
+
+buyerName (nullable)
+
+orderReference (nullable)
+
+pdfUrl (required)
+
+emailDate (required)
+
+status (new | printed)
+
+createdAt
+
+Logique d’extraction email
+
+Implémenter un parser spécifique Vinted Go :
+
+Extraire lien PDF via regex ou parsing HTML
+
+Extraire tracking via regex
+
+Extraire buyerName si disponible
+
+Extraire orderReference si disponible
+
+Le parser doit être tolérant :
+
+Ne jamais planter si un champ est absent
+
+Retourner null si donnée non trouvée
+
+Interface utilisateur
+
+Afficher liste :
+
+[ ] Tracking
+[ ] Buyer (ou Unknown)
+[ ] Date
+[ ] Status
+
+Ajouter :
+
+Sélection multiple
+
+Bouton "Print Selected"
+
+Logique impression batch
+
+Quand utilisateur clique sur "Print Selected" :
+
+Télécharger tous les PDFs sélectionnés
+
+Les fusionner dans un seul PDF
+
+Avant chaque bordereau, insérer une page séparatrice contenant :
+
+Tracking : {trackingNumber ou Unknown}
+
+Buyer : {buyerName ou Unknown}
+
+OrderRef : {orderReference ou Unknown}
+
+Email Date
+
+Retourner un seul PDF fusionné prêt à imprimer
+
+Après impression
+
+Mettre status = printed pour les shipments sélectionnés
+
+Contraintes
+
+Code modulaire
+
+Parser isolé
+
+Service PDF séparé
+
+Gestion erreurs propre
+
+Aucune dépendance à d’autres marketplaces
+
+Version V1 uniquement pour Vinted Go
+
+Important
+
+Ne pas ajouter :
+
+Calcul de marge
+
+Multi-transporteurs
+
+Statistiques
+
+Automatisation réseau
+
+Ceci est la V1 minimale mais robuste.
